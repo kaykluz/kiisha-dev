@@ -117,7 +117,7 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/auth/login" component={MultiAuthLogin} />
-      <Route path="/auth/callback" component={OAuthCallback} />
+      <Route path="/auth/callback/:provider" component={OAuthCallback} />
       <Route path="/auth/verify-email" component={VerifyEmail} />
       <Route path="/invite/:token" component={InviteAccept} />
       <Route path="/dashboard" component={Dashboard} />
