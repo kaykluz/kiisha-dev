@@ -1,0 +1,197 @@
+{
+  "title": "Site Performance",
+  "uid": null,
+  "tags": ["kiisha", "site", "performance"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "org_id",
+        "type": "constant",
+        "hide": 2,
+        "current": { "value": "${org_id}", "text": "${org_id}" }
+      },
+      {
+        "name": "site_id",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+        "query": "SELECT id as __value, name as __text FROM sites WHERE organization_id = ${org_id}",
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current Power Output (kW)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT value FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'power_output' ORDER BY timestamp DESC LIMIT 1",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Today's Energy (kWh)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(value) as value FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'energy_production' AND DATE(timestamp) = CURDATE()",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "kwatth" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Performance Ratio",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT AVG(value) as value FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'performance_ratio' AND timestamp >= NOW() - INTERVAL 1 DAY",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Availability",
+      "type": "gauge",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT AVG(value) * 100 as value FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'availability' AND timestamp >= NOW() - INTERVAL 30 DAY",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 95 },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Power Output Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp as time, value, 'Power Output' as metric FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'power_output' AND timestamp >= NOW() - INTERVAL 24 HOUR ORDER BY time",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "gradientMode": "opacity"
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Irradiance vs Production",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp as time, value, 'Irradiance' as metric FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'irradiance' AND timestamp >= NOW() - INTERVAL 7 DAY ORDER BY time",
+          "format": "time_series"
+        },
+        {
+          "rawSql": "SELECT timestamp as time, value, 'Energy Production' as metric FROM normalized_measurements WHERE organization_id = ${org_id} AND site_id = ${site_id} AND metric_name = 'energy_production' AND timestamp >= NOW() - INTERVAL 7 DAY ORDER BY time",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Device Status",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT d.name as 'Device', d.device_type as 'Type', d.status as 'Status', d.last_communication as 'Last Seen' FROM devices d WHERE d.organization_id = ${org_id} AND d.site_id = ${site_id} ORDER BY d.name",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "online": { "color": "green", "text": "Online" } } },
+                  { "type": "value", "options": { "offline": { "color": "red", "text": "Offline" } } },
+                  { "type": "value", "options": { "warning": { "color": "yellow", "text": "Warning" } } }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

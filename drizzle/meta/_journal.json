@@ -1,0 +1,97 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1768818908773,
+      "tag": "0000_skinny_albert_cleary",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1768828517954,
+      "tag": "0001_optimal_victor_mancha",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768834336202,
+      "tag": "0002_glossy_talon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1768886014936,
+      "tag": "0003_pale_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1768905361021,
+      "tag": "0004_medical_mongu",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1768926324797,
+      "tag": "0005_chubby_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1768928234722,
+      "tag": "0006_bright_bill_hollister",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1768928713073,
+      "tag": "0007_mean_sage",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1768931725800,
+      "tag": "0008_special_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1768934211030,
+      "tag": "0009_narrow_veda",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1768953782267,
+      "tag": "0010_gorgeous_rachel_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1768988056023,
+      "tag": "0011_slippery_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1768991598372,
+      "tag": "0012_same_longshot",
+      "breakpoints": true
+    }
+  ]
+}

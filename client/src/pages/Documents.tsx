@@ -1,0 +1,722 @@
+import { useState } from "react";
+import AppLayout, { useProject } from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Search,
+  Filter,
+  Grid3X3,
+  List,
+  X,
+  FileText,
+  Upload,
+  Clock,
+  User,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  Circle,
+  Scale,
+  Wrench,
+  DollarSign,
+  Eye,
+  EyeOff,
+  History,
+  FileSearch,
+  ChevronRight,
+  FolderPlus,
+  Sparkles,
+} from "lucide-react";
+import { PDFViewer } from "@/components/PDFViewer";
+import { Drawer } from "@/components/Drawer";
+import { EmptyState } from "@/components/EmptyState";
+import { SkeletonTable } from "@/components/Skeleton";
+import { CommentsSection, CommentsCount } from "@/components/CommentsSection";
+import { DocumentUploadDialog } from "@/components/DocumentUploadDialog";
+import { CreateCategoryDialog } from "@/components/CreateCategoryDialog";
+import {
+  mockProjects,
+  mockDocumentCategories,
+  mockDocumentTypes,
+  getDocumentStatus,
+  type DocumentStatus,
+} from "@shared/mockData";
+
+// Reviewer groups
+type ReviewerGroup = "legal" | "technical" | "finance";
+type ReviewStatus = "pending" | "approved" | "rejected" | "not_required";
+
+interface ReviewerApproval {
+  group: ReviewerGroup;
+  status: ReviewStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  notes: string | null;
+}
+
+// Mock reviewer approvals data
+const mockReviewerApprovals: Record<string, ReviewerApproval[]> = {
+  "1-1": [
+    { group: "legal", status: "approved", reviewedBy: "Sarah Chen", reviewedAt: "2026-01-10", notes: "All terms verified" },
+    { group: "technical", status: "approved", reviewedBy: "Mike Johnson", reviewedAt: "2026-01-09", notes: null },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+  "1-2": [
+    { group: "legal", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "technical", status: "not_required", reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+  "2-1": [
+    { group: "legal", status: "approved", reviewedBy: "Sarah Chen", reviewedAt: "2026-01-08", notes: null },
+    { group: "technical", status: "rejected", reviewedBy: "Emily Watson", reviewedAt: "2026-01-11", notes: "Missing exhibit B" },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+};
+
+const reviewerGroupConfig: Record<ReviewerGroup, { label: string; icon: typeof Scale; color: string }> = {
+  legal: { label: "Legal", icon: Scale, color: "text-[var(--color-semantic-info)]" },
+  technical: { label: "Technical", icon: Wrench, color: "text-[var(--color-brand-primary)]" },
+  finance: { label: "Finance", icon: DollarSign, color: "text-[var(--color-semantic-success)]" },
+};
+
+const reviewStatusConfig: Record<ReviewStatus, { label: string; icon: typeof Circle; dotClass: string }> = {
+  pending: { label: "Pending", icon: Circle, dotClass: "bg-[var(--color-semantic-warning)]" },
+  approved: { label: "Approved", icon: CheckCircle2, dotClass: "bg-[var(--color-semantic-success)]" },
+  rejected: { label: "Rejected", icon: AlertCircle, dotClass: "bg-[var(--color-semantic-error)]" },
+  not_required: { label: "N/A", icon: Circle, dotClass: "bg-[var(--color-muted)]" },
+};
+
+// Calculate aggregate document status from reviewer approvals
+function getAggregateStatus(approvals: ReviewerApproval[]): DocumentStatus {
+  const activeApprovals = approvals.filter(a => a.status !== "not_required");
+  if (activeApprovals.length === 0) return "na";
+  
+  if (activeApprovals.some(a => a.status === "rejected")) return "missing";
+  if (activeApprovals.every(a => a.status === "approved")) return "verified";
+  return "pending";
+}
+
+// Status badge component - clean design
+function StatusBadge({ status }: { status: DocumentStatus }) {
+  const config = {
+    verified: { label: "Verified", className: "status-badge status-badge-success" },
+    pending: { label: "Pending", className: "status-badge status-badge-warning" },
+    missing: { label: "Missing", className: "status-badge status-badge-error" },
+    na: { label: "N/A", className: "status-badge status-badge-muted" },
+  };
+  const { label, className } = config[status];
+  return <span className={className}>{label}</span>;
+}
+
+// Reviewer status dots
+function ReviewerStatusDots({ approvals }: { approvals: ReviewerApproval[] }) {
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      {approvals.map((approval) => {
+        const config = reviewStatusConfig[approval.status];
+        const groupConfig = reviewerGroupConfig[approval.group];
+        return (
+          <div
+            key={approval.group}
+            className={cn("w-1.5 h-1.5 rounded-full", config.dotClass)}
+            title={`${groupConfig.label}: ${config.label}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// Document drawer panel
+interface DocumentDrawerProps {
+  projectId: number;
+  docTypeId: number;
+  onClose: () => void;
+  userRole?: "admin" | "editor" | "reviewer" | "investor_viewer";
+  onUpload?: () => void;
+}
+
+function DocumentDrawer({ projectId, docTypeId, onClose, userRole = "admin", onUpload }: DocumentDrawerProps) {
+  const [activeTab, setActiveTab] = useState<"details" | "preview" | "extractions" | "history" | "comments">("details");
+  const project = mockProjects.find((p) => p.id === projectId);
+  const docType = mockDocumentTypes.find((d) => d.id === docTypeId);
+  const category = mockDocumentCategories.find((c) => c.id === docType?.categoryId);
+  const baseStatus = getDocumentStatus(projectId, docTypeId);
+  
+  const approvalKey = `${projectId}-${docTypeId}`;
+  const approvals = mockReviewerApprovals[approvalKey] || [
+    { group: "legal" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "technical" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "finance" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
+  ];
+  
+  const aggregateStatus = getAggregateStatus(approvals);
+  const isInvestorViewer = userRole === "investor_viewer";
+  const mockDocumentUrl = baseStatus !== "missing" ? "https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf" : null;
+
+  const versions = [
+    { version: 2, date: "Jan 10, 2026", uploader: "Sarah Chen", notes: "Updated with corrections" },
+    { version: 1, date: "Dec 15, 2025", uploader: "Mike Johnson", notes: "Initial upload" },
+  ];
+
+  const internalComments = [
+    { id: 1, user: "Sarah Chen", date: "2 days ago", text: "Waiting for updated signature page from landowner.", isInternal: true },
+    { id: 2, user: "Mike Johnson", date: "3 days ago", text: "Document received and under review.", isInternal: false },
+  ];
+
+  const handleApprovalAction = (group: ReviewerGroup, action: "approve" | "reject") => {
+    toast.success(`${reviewerGroupConfig[group].label} review ${action === "approve" ? "approved" : "rejected"}`);
+  };
+
+  const tabs = [
+    { id: "details", label: "Details" },
+    { id: "preview", label: "Preview" },
+    { id: "extractions", label: "Extractions" },
+    { id: "history", label: "History" },
+    { id: "comments", label: "Comments", count: true },
+  ];
+
+  return (
+    <Drawer
+      open={true}
+      onClose={onClose}
+      title={docType?.name || "Document"}
+      subtitle={`${category?.name} · ${project?.name}`}
+      size="md"
+      footer={
+        <div className="flex gap-3 w-full">
+          <Button variant="outline" className="flex-1">Download</Button>
+          {!isInvestorViewer && (
+            <Button className="btn-primary flex-1">
+              <Upload className="w-4 h-4 mr-2" />
+              Upload New Version
+            </Button>
+          )}
+        </div>
+      }
+    >
+      {/* Tab Navigation */}
+      <div className="tab-nav mb-6">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+            className={cn("tab-item", activeTab === tab.id && "tab-item-active")}
+          >
+            {tab.label}
+            {tab.count && <CommentsCount resourceType="document" resourceId={docTypeId} />}
+          </button>
+        ))}
+      </div>
+
+      {/* Details Tab */}
+      {activeTab === "details" && (
+        <div className="space-y-6">
+          {/* Status Overview */}
+          <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">Document Status</span>
+              <StatusBadge status={aggregateStatus} />
+            </div>
+            
+            {/* Reviewer Approvals */}
+            <div className="space-y-3">
+              {approvals.map((approval) => {
+                const groupConfig = reviewerGroupConfig[approval.group];
+                const statusConfig = reviewStatusConfig[approval.status];
+                const Icon = groupConfig.icon;
+                
+                return (
+                  <div key={approval.group} className="flex items-center justify-between py-2 border-b border-[var(--color-border-subtle)] last:border-0">
+                    <div className="flex items-center gap-3">
+                      <Icon className={cn("w-4 h-4", groupConfig.color)} />
+                      <span className="text-sm">{groupConfig.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-2 h-2 rounded-full", statusConfig.dotClass)} />
+                        <span className="text-sm text-[var(--color-text-secondary)]">{statusConfig.label}</span>
+                      </div>
+                      {!isInvestorViewer && approval.status === "pending" && (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => handleApprovalAction(approval.group, "approve")}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-[var(--color-semantic-error)]" onClick={() => handleApprovalAction(approval.group, "reject")}>
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Document Info */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Document Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Category</p>
+                <p className="text-sm">{category?.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Required</p>
+                <p className="text-sm">{docType?.required ? "Yes" : "No"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Last Updated</p>
+                <p className="text-sm">Jan 10, 2026</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Version</p>
+                <p className="text-sm">v2</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Comments</h3>
+              {isInvestorViewer && (
+                <Badge variant="outline" className="text-xs">
+                  <EyeOff className="w-3 h-3 mr-1" />
+                  Internal hidden
+                </Badge>
+              )}
+            </div>
+            <div className="space-y-3">
+              {internalComments
+                .filter(c => !isInvestorViewer || !c.isInternal)
+                .map((comment) => (
+                  <div key={comment.id} className="bg-[var(--color-bg-surface-hover)] rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-[var(--color-brand-primary-muted)] flex items-center justify-center">
+                        <User className="w-3 h-3 text-[var(--color-brand-primary)]" />
+                      </div>
+                      <span className="text-sm font-medium">{comment.user}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{comment.date}</span>
+                      {comment.isInternal && (
+                        <Badge variant="outline" className="text-[10px] ml-auto">Internal</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">{comment.text}</p>
+                  </div>
+                ))}
+              {!isInvestorViewer && (
+                <div className="flex gap-2">
+                  <Input placeholder="Add a comment..." className="carta-input flex-1" />
+                  <Button size="sm" className="btn-secondary">
+                    <MessageSquare className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Tab */}
+      {activeTab === "preview" && (
+        <div>
+          {mockDocumentUrl ? (
+            <PDFViewer
+              fileUrl={mockDocumentUrl}
+              fileName={docType?.name}
+              fileType="pdf"
+              height="500px"
+            />
+          ) : (
+            <EmptyState
+              type="documents"
+              title="No document uploaded"
+              description="Upload a document to preview it here"
+              actionLabel={!isInvestorViewer ? "Upload Document" : undefined}
+              onAction={!isInvestorViewer ? onUpload : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Extractions Tab */}
+      {activeTab === "extractions" && (
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            AI-extracted fields from this document
+          </p>
+          <div className="space-y-3">
+            {[
+              { field: "Contract Value", value: "$2,500,000", confidence: 95 },
+              { field: "Effective Date", value: "January 1, 2026", confidence: 98 },
+              { field: "Term Length", value: "25 years", confidence: 92 },
+              { field: "Counterparty", value: "SunPower Corp", confidence: 88 },
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between py-2 border-b border-[var(--color-border-subtle)]">
+                <div>
+                  <p className="text-sm font-medium">{item.field}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{item.value}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="confidence-dots">
+                    {[1, 2, 3, 4, 5].map((dot) => (
+                      <div
+                        key={dot}
+                        className={cn(
+                          "confidence-dot",
+                          dot <= Math.round(item.confidence / 20) ? "confidence-dot-filled" : "confidence-dot-empty"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">{item.confidence}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === "history" && (
+        <div className="space-y-3">
+          {versions.map((version) => (
+            <div key={version.version} className="flex items-start gap-3 py-3 border-b border-[var(--color-border-subtle)]">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-bg-surface-hover)] flex items-center justify-center flex-shrink-0">
+                <History className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Version {version.version}</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">{version.date}</span>
+                </div>
+                <p className="text-sm text-[var(--color-text-secondary)]">{version.notes}</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">by {version.uploader}</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8">
+                <Eye className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Comments Tab */}
+      {activeTab === "comments" && (
+        <CommentsSection
+          resourceType="document"
+          resourceId={docTypeId}
+        />
+      )}
+    </Drawer>
+  );
+}
+
+function DocumentsContent() {
+  const { selectedProjectId } = useProject();
+  const [viewMode, setViewMode] = useState<"matrix" | "table">("matrix");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [selectedCell, setSelectedCell] = useState<{ projectId: number; docTypeId: number } | null>(null);
+  const [isLoading] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+
+  const filteredProjects = selectedProjectId
+    ? mockProjects.filter((p) => p.id === selectedProjectId)
+    : mockProjects;
+
+  const filteredDocTypes =
+    categoryFilter === "all"
+      ? mockDocumentTypes
+      : mockDocumentTypes.filter((d) => d.categoryId === parseInt(categoryFilter));
+
+  const docTypesByCategory = mockDocumentCategories.map((cat) => ({
+    ...cat,
+    types: filteredDocTypes.filter((d) => d.categoryId === cat.id),
+  }));
+
+  const getStatusWithApprovals = (projectId: number, docTypeId: number) => {
+    const approvalKey = `${projectId}-${docTypeId}`;
+    const approvals = mockReviewerApprovals[approvalKey];
+    if (approvals) {
+      return { status: getAggregateStatus(approvals), approvals };
+    }
+    return { status: getDocumentStatus(projectId, docTypeId), approvals: null };
+  };
+
+  if (isLoading) {
+    return (
+      <div className="page-container">
+        <SkeletonTable rows={10} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-container">
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">Document Hub</h1>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            Document status aggregated from Legal, Technical, and Finance reviewer approvals
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="btn-secondary">
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+          </Button>
+          <CreateCategoryDialog
+            trigger={
+              <Button variant="outline" className="btn-secondary">
+                <Sparkles className="w-4 h-4 mr-2" />
+                AI Category
+              </Button>
+            }
+            onCategoryCreated={(category) => {
+              toast.success(`Category "${category.name}" created`);
+            }}
+          />
+          <Button className="btn-primary" onClick={() => setShowUploadDialog(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Upload
+          </Button>
+        </div>
+      </div>
+
+      {/* Reviewer Legend */}
+      <div className="flex items-center gap-6 mb-6 text-sm">
+        <span className="text-[var(--color-text-tertiary)]">Reviewer Groups:</span>
+        {Object.entries(reviewerGroupConfig).map(([key, config]) => {
+          const Icon = config.icon;
+          return (
+            <div key={key} className="flex items-center gap-2">
+              <Icon className={cn("w-4 h-4", config.color)} />
+              <span className="text-[var(--color-text-secondary)]">{config.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Filters Row */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+          <Input
+            placeholder="Search documents..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="carta-input pl-10"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-48 carta-select">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {mockDocumentCategories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id.toString()}>
+                {cat.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center border border-[var(--color-border-default)] rounded-md overflow-hidden">
+          <button
+            onClick={() => setViewMode("matrix")}
+            className={cn(
+              "px-3 py-2 transition-colors",
+              viewMode === "matrix"
+                ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)]"
+            )}
+          >
+            <Grid3X3 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode("table")}
+            className={cn(
+              "px-3 py-2 transition-colors",
+              viewMode === "table"
+                ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)]"
+            )}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Matrix View */}
+      {viewMode === "matrix" && (
+        <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
+          <ScrollArea className="w-full">
+            <div className="min-w-max">
+              {/* Header Row */}
+              <div className="flex border-b border-[var(--color-border-subtle)]">
+                <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">
+                  <span className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                    Document Type
+                  </span>
+                </div>
+                {filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="w-32 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] text-center"
+                  >
+                    <span className="text-xs font-medium truncate block" title={project.name}>
+                      {project.code || project.name.split(" - ")[1] || project.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Document Type Rows grouped by Category */}
+              {docTypesByCategory
+                .filter((cat) => cat.types.length > 0)
+                .map((category) => (
+                  <div key={category.id}>
+                    {/* Category Header */}
+                    <div className="flex border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-hover)]">
+                      <div className="w-64 shrink-0 p-3 border-r border-[var(--color-border-subtle)]">
+                        <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                          {category.name}
+                        </span>
+                      </div>
+                      {filteredProjects.map((project) => (
+                        <div key={project.id} className="w-32 shrink-0 border-r border-[var(--color-border-subtle)]" />
+                      ))}
+                    </div>
+
+                    {/* Document Type Rows */}
+                    {category.types.map((docType) => (
+                      <div key={docType.id} className="flex border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors">
+                        <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] flex items-center gap-3">
+                          <FileText className="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" />
+                          <span className="text-sm truncate">{docType.name}</span>
+                          {docType.required && (
+                            <span className="text-[10px] text-[var(--color-semantic-error)]">*</span>
+                          )}
+                        </div>
+                        {filteredProjects.map((project) => {
+                          const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
+                          return (
+                            <div
+                              key={project.id}
+                              className="w-32 shrink-0 p-3 border-r border-[var(--color-border-subtle)] cursor-pointer hover:bg-[var(--color-bg-surface-active)] transition-colors flex flex-col items-center justify-center"
+                              onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
+                            >
+                              <StatusBadge status={status} />
+                              {approvals && <ReviewerStatusDots approvals={approvals} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === "table" && (
+        <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
+          <ScrollArea className="h-[600px]">
+            <table className="data-table w-full">
+              <thead className="sticky top-0 bg-[var(--color-bg-surface)] z-10">
+                <tr>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Document Type</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Category</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Project</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Status</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Reviewers</th>
+                  <th className="text-right p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDocTypes.flatMap((docType) =>
+                  filteredProjects.map((project) => {
+                    const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
+                    const category = mockDocumentCategories.find((c) => c.id === docType.categoryId);
+                    return (
+                      <tr
+                        key={`${project.id}-${docType.id}`}
+                        className="border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors cursor-pointer"
+                        onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
+                      >
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                            <span className="text-sm">{docType.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-[var(--color-text-secondary)]">{category?.name}</td>
+                        <td className="p-4 text-sm">{project.name}</td>
+                        <td className="p-4"><StatusBadge status={status} /></td>
+                        <td className="p-4">
+                          {approvals && <ReviewerStatusDots approvals={approvals} />}
+                        </td>
+                        <td className="p-4 text-right">
+                          <Button variant="ghost" size="sm" className="h-8">
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Document Drawer */}
+      {selectedCell && (
+        <DocumentDrawer
+          projectId={selectedCell.projectId}
+          docTypeId={selectedCell.docTypeId}
+          onClose={() => setSelectedCell(null)}
+          onUpload={() => setShowUploadDialog(true)}
+        />
+      )}
+
+      {/* Upload Dialog */}
+      <DocumentUploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+        projectId={selectedProjectId || undefined}
+        onSuccess={() => {
+          // Refresh documents list
+          toast.success("Documents uploaded successfully");
+        }}
+      />
+    </div>
+  );
+}
+
+export default function Documents() {
+  return (
+    <AppLayout>
+      <DocumentsContent />
+    </AppLayout>
+  );
+}

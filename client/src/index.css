@@ -1,0 +1,1055 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Inter font - primary */
+@font-face {
+  font-family: "Inter";
+  src: url("https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* JetBrains Mono - monospace */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPVmUsaaDhw.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARTA-INSPIRED DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* Border Radius - Consistent rounding */
+  --radius-none: 0;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* ─────────────────────────────────────────────────────────────
+     BACKGROUND COLORS (Dark Theme - Layered)
+     ───────────────────────────────────────────────────────────── */
+  --color-bg-base: oklch(0.12 0.015 260);           /* #0F1219 - Deepest background */
+  --color-bg-surface: oklch(0.17 0.02 260);         /* #1A1F2E - Card/panel backgrounds */
+  --color-bg-surface-elevated: oklch(0.20 0.02 260); /* #242B3D - Modals, dropdowns */
+  --color-bg-surface-hover: oklch(0.23 0.02 260);   /* #2D3548 - Hover states */
+  --color-bg-surface-active: oklch(0.26 0.02 260);  /* #363F54 - Active/pressed */
+
+  /* Map to Tailwind semantic colors */
+  --color-background: oklch(0.12 0.015 260);
+  --color-foreground: oklch(0.98 0.005 260);
+  --color-card: oklch(0.17 0.02 260);
+  --color-card-foreground: oklch(0.98 0.005 260);
+  --color-popover: oklch(0.20 0.02 260);
+  --color-popover-foreground: oklch(0.98 0.005 260);
+
+  /* ─────────────────────────────────────────────────────────────
+     TEXT COLORS (High contrast for readability)
+     ───────────────────────────────────────────────────────────── */
+  --color-text-primary: oklch(0.98 0.005 260);      /* #FFFFFF - Primary text */
+  --color-text-secondary: oklch(0.70 0.015 260);    /* #A0AEC0 - Secondary text */
+  --color-text-tertiary: oklch(0.52 0.015 260);     /* #6B7A90 - Hints, disabled */
+  --color-text-inverse: oklch(0.12 0.015 260);      /* #0F1219 - Text on light bg */
+
+  /* ─────────────────────────────────────────────────────────────
+     BRAND COLORS
+     ───────────────────────────────────────────────────────────── */
+  --color-brand-primary: oklch(0.68 0.17 50);       /* #E87722 - Primary orange */
+  --color-brand-primary-hover: oklch(0.73 0.16 55); /* #F59542 - Hover state */
+  --color-brand-primary-muted: oklch(0.68 0.17 50 / 0.15); /* Subtle backgrounds */
+
+  /* Map to Tailwind */
+  --color-primary: oklch(0.68 0.17 50);
+  --color-primary-foreground: oklch(0.12 0.015 260);
+  --color-accent: oklch(0.68 0.17 50);
+  --color-accent-foreground: oklch(0.12 0.015 260);
+  --color-ring: oklch(0.68 0.17 50);
+
+  /* ─────────────────────────────────────────────────────────────
+     SEMANTIC COLORS (Status & Feedback)
+     ───────────────────────────────────────────────────────────── */
+  /* Success - Green */
+  --color-semantic-success: oklch(0.65 0.17 160);   /* #10B981 */
+  --color-semantic-success-muted: oklch(0.65 0.17 160 / 0.15);
+  --color-success: oklch(0.65 0.17 160);
+  --color-success-foreground: oklch(0.12 0.015 260);
+
+  /* Warning - Amber */
+  --color-semantic-warning: oklch(0.78 0.15 75);    /* #F59E0B */
+  --color-semantic-warning-muted: oklch(0.78 0.15 75 / 0.15);
+  --color-warning: oklch(0.78 0.15 75);
+  --color-warning-foreground: oklch(0.12 0.015 260);
+
+  /* Error - Red */
+  --color-semantic-error: oklch(0.60 0.20 25);      /* #EF4444 */
+  --color-semantic-error-muted: oklch(0.60 0.20 25 / 0.15);
+  --color-destructive: oklch(0.60 0.20 25);
+  --color-destructive-foreground: oklch(0.98 0.005 260);
+
+  /* Info - Blue */
+  --color-semantic-info: oklch(0.60 0.18 250);      /* #3B82F6 */
+  --color-semantic-info-muted: oklch(0.60 0.18 250 / 0.15);
+  --color-info: oklch(0.60 0.18 250);
+  --color-info-foreground: oklch(0.98 0.005 260);
+
+  /* ─────────────────────────────────────────────────────────────
+     BORDER COLORS
+     ───────────────────────────────────────────────────────────── */
+  --color-border-default: oklch(0.28 0.02 260);     /* #2D3548 */
+  --color-border-subtle: oklch(0.22 0.02 260);      /* #242B3D */
+  --color-border-strong: oklch(0.38 0.02 260);      /* #4A5568 */
+  --color-border-focus: oklch(0.68 0.17 50);        /* Orange focus ring */
+
+  --color-border: oklch(0.28 0.02 260);
+  --color-input: oklch(0.17 0.02 260);
+
+  /* ─────────────────────────────────────────────────────────────
+     SECONDARY & MUTED
+     ───────────────────────────────────────────────────────────── */
+  --color-secondary: oklch(0.23 0.02 260);
+  --color-secondary-foreground: oklch(0.90 0.01 260);
+  --color-muted: oklch(0.25 0.02 260);
+  --color-muted-foreground: oklch(0.60 0.02 260);
+
+  /* ─────────────────────────────────────────────────────────────
+     SIDEBAR COLORS
+     ───────────────────────────────────────────────────────────── */
+  --color-sidebar: oklch(0.12 0.015 260);
+  --color-sidebar-foreground: oklch(0.90 0.01 260);
+  --color-sidebar-primary: oklch(0.68 0.17 50);
+  --color-sidebar-primary-foreground: oklch(0.12 0.015 260);
+  --color-sidebar-accent: oklch(0.23 0.02 260);
+  --color-sidebar-accent-foreground: oklch(0.90 0.01 260);
+  --color-sidebar-border: oklch(0.22 0.02 260);
+  --color-sidebar-ring: oklch(0.68 0.17 50);
+
+  /* ─────────────────────────────────────────────────────────────
+     CHART COLORS
+     ───────────────────────────────────────────────────────────── */
+  --color-chart-1: oklch(0.68 0.17 50);
+  --color-chart-2: oklch(0.65 0.17 160);
+  --color-chart-3: oklch(0.60 0.20 25);
+  --color-chart-4: oklch(0.60 0.18 250);
+  --color-chart-5: oklch(0.78 0.15 75);
+
+  /* ─────────────────────────────────────────────────────────────
+     TYPOGRAPHY
+     ───────────────────────────────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES
+   ═══════════════════════════════════════════════════════════════ */
+
+.light {
+  /* Background Colors */
+  --color-bg-base: oklch(0.98 0.005 260);
+  --color-bg-surface: oklch(1.0 0 0);
+  --color-bg-surface-elevated: oklch(1.0 0 0);
+  --color-bg-surface-hover: oklch(0.96 0.005 260);
+  --color-bg-surface-active: oklch(0.94 0.005 260);
+  
+  /* Map to Tailwind semantic colors */
+  --color-background: oklch(0.97 0.005 260);
+  --color-foreground: oklch(0.15 0.015 260);
+  --color-card: oklch(1.0 0 0);
+  --color-card-foreground: oklch(0.15 0.015 260);
+  --color-popover: oklch(1.0 0 0);
+  --color-popover-foreground: oklch(0.15 0.015 260);
+  
+  /* Text Colors */
+  --color-text-primary: oklch(0.15 0.015 260);
+  --color-text-secondary: oklch(0.45 0.015 260);
+  --color-text-tertiary: oklch(0.60 0.015 260);
+  --color-text-inverse: oklch(0.98 0.005 260);
+  
+  /* Border Colors */
+  --color-border-default: oklch(0.88 0.005 260);
+  --color-border-subtle: oklch(0.92 0.005 260);
+  --color-border-strong: oklch(0.80 0.005 260);
+  --color-border: oklch(0.88 0.005 260);
+  --color-input: oklch(1.0 0 0);
+  
+  /* Secondary & Muted */
+  --color-secondary: oklch(0.96 0.005 260);
+  --color-secondary-foreground: oklch(0.25 0.015 260);
+  --color-muted: oklch(0.96 0.005 260);
+  --color-muted-foreground: oklch(0.50 0.015 260);
+  
+  /* Sidebar Colors */
+  --color-sidebar: oklch(0.98 0.005 260);
+  --color-sidebar-foreground: oklch(0.25 0.015 260);
+  --color-sidebar-accent: oklch(0.96 0.005 260);
+  --color-sidebar-accent-foreground: oklch(0.25 0.015 260);
+  --color-sidebar-border: oklch(0.92 0.005 260);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+  }
+
+  /* Interactive elements cursor */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+
+  /* Focus visible for accessibility */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT STYLES - CARTA-INSPIRED
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ─────────────────────────────────────────────────────────────
+     LAYOUT SYSTEM
+     ───────────────────────────────────────────────────────────── */
+  .container {
+    width: 100%;
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  /* Page layout */
+  .page-container {
+    @apply px-6 py-6;
+  }
+
+  @media (max-width: 1023px) {
+    .page-container {
+      @apply px-4 py-4;
+    }
+  }
+
+  /* Section spacing */
+  .section-spacing {
+    @apply mb-8;
+  }
+
+  /* Card grid */
+  .card-grid {
+    @apply grid gap-6;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     CARDS - Clean, subtle borders
+     ───────────────────────────────────────────────────────────── */
+  .carta-card {
+    @apply bg-card rounded-lg p-6;
+    border: 1px solid var(--color-border-subtle);
+    transition: border-color 0.15s ease;
+  }
+
+  .carta-card:hover {
+    border-color: var(--color-border-default);
+  }
+
+  .carta-card-title {
+    @apply text-base font-semibold text-foreground mb-1;
+  }
+
+  .carta-card-description {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     BUTTONS - Clean, minimal
+     ───────────────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    background-color: var(--color-brand-primary);
+    color: white;
+    transition: background-color 0.15s ease;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-brand-primary-hover);
+  }
+
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--color-brand-primary);
+    outline-offset: 2px;
+  }
+
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-default);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     TABLES - Clean divider-only style
+     ───────────────────────────────────────────────────────────── */
+  .carta-table {
+    @apply w-full text-sm;
+  }
+
+  .carta-table thead th {
+    @apply text-xs font-medium uppercase tracking-wider text-left py-3 px-4;
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .carta-table tbody td {
+    @apply py-4 px-4;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .carta-table tbody tr {
+    transition: background-color 0.1s ease;
+  }
+
+  .carta-table tbody tr:hover {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .carta-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Legacy data-table support */
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply text-xs font-medium uppercase tracking-wider text-left py-3 px-3;
+    color: var(--color-text-secondary);
+  }
+
+  .data-table td {
+    @apply py-3 px-3;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .data-table tr:hover td {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     STATUS INDICATORS - Dot pattern
+     ───────────────────────────────────────────────────────────── */
+  .status-dot {
+    @apply inline-flex items-center gap-2 text-sm;
+  }
+
+  .status-dot::before {
+    content: "";
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  .status-dot-success::before {
+    background-color: var(--color-semantic-success);
+  }
+
+  .status-dot-warning::before {
+    background-color: var(--color-semantic-warning);
+  }
+
+  .status-dot-error::before {
+    background-color: var(--color-semantic-error);
+  }
+
+  .status-dot-info::before {
+    background-color: var(--color-semantic-info);
+  }
+
+  .status-dot-muted::before {
+    background-color: var(--color-text-tertiary);
+  }
+
+  /* Status badges - for emphasis */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-badge-success {
+    background-color: var(--color-semantic-success-muted);
+    color: var(--color-semantic-success);
+  }
+
+  .status-badge-warning {
+    background-color: var(--color-semantic-warning-muted);
+    color: var(--color-semantic-warning);
+  }
+
+  .status-badge-error {
+    background-color: var(--color-semantic-error-muted);
+    color: var(--color-semantic-error);
+  }
+
+  .status-badge-info {
+    background-color: var(--color-semantic-info-muted);
+    color: var(--color-semantic-info);
+  }
+
+  /* Legacy status pills */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-verified {
+    background-color: var(--color-semantic-success-muted);
+    color: var(--color-semantic-success);
+  }
+
+  .status-pending {
+    background-color: var(--color-semantic-warning-muted);
+    color: var(--color-semantic-warning);
+  }
+
+  .status-missing {
+    background-color: var(--color-semantic-error-muted);
+    color: var(--color-semantic-error);
+  }
+
+  .status-na {
+    @apply bg-muted/50 text-muted-foreground;
+  }
+
+  .status-open {
+    background-color: var(--color-brand-primary-muted);
+    color: var(--color-brand-primary);
+  }
+
+  .status-in-progress {
+    background-color: var(--color-semantic-info-muted);
+    color: var(--color-semantic-info);
+  }
+
+  .status-resolved {
+    background-color: var(--color-semantic-success-muted);
+    color: var(--color-semantic-success);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     INPUTS - Simple, clear
+     ───────────────────────────────────────────────────────────── */
+  .carta-input {
+    @apply w-full px-3 py-2.5 text-sm rounded-md;
+    background-color: var(--color-bg-base);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-primary);
+    transition: border-color 0.15s ease;
+  }
+
+  .carta-input::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  .carta-input:focus {
+    border-color: var(--color-border-focus);
+    outline: none;
+  }
+
+  .carta-input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .carta-input-error {
+    border-color: var(--color-semantic-error);
+  }
+
+  .carta-label {
+    @apply block text-sm font-medium mb-1.5;
+    color: var(--color-text-primary);
+  }
+
+  .carta-helper {
+    @apply text-xs mt-1.5;
+    color: var(--color-text-tertiary);
+  }
+
+  .carta-error {
+    @apply text-xs mt-1.5;
+    color: var(--color-semantic-error);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     NAVIGATION - Clean side nav
+     ───────────────────────────────────────────────────────────── */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors;
+    color: var(--color-text-secondary);
+  }
+
+  .nav-item:hover {
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  .nav-item-active {
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-primary);
+    border-left: 3px solid var(--color-brand-primary);
+    margin-left: -3px;
+    padding-left: calc(0.75rem + 3px);
+  }
+
+  .nav-divider {
+    @apply my-4;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     TAB NAVIGATION - Underline style
+     ───────────────────────────────────────────────────────────── */
+  .tab-nav {
+    @apply flex gap-6 border-b;
+    border-color: var(--color-border-subtle);
+  }
+
+  .tab-item {
+    @apply pb-3 text-sm font-medium transition-colors relative;
+    color: var(--color-text-secondary);
+  }
+
+  .tab-item:hover {
+    color: var(--color-text-primary);
+  }
+
+  .tab-item-active {
+    color: var(--color-text-primary);
+  }
+
+  .tab-item-active::after {
+    content: "";
+    @apply absolute bottom-0 left-0 right-0 h-0.5;
+    background-color: var(--color-brand-primary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     DRAWER - Right slide-in
+     ───────────────────────────────────────────────────────────── */
+  .drawer-backdrop {
+    @apply fixed inset-0 z-40;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  .drawer {
+    @apply fixed right-0 top-0 h-full z-50 flex flex-col;
+    background-color: var(--color-bg-surface);
+    border-left: 1px solid var(--color-border-subtle);
+    animation: slideIn 0.2s ease-out;
+  }
+
+  .drawer-sm {
+    width: 480px;
+  }
+
+  .drawer-md {
+    width: 640px;
+  }
+
+  .drawer-lg {
+    width: 50%;
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .drawer-header {
+    @apply flex items-center justify-between px-6 py-4 border-b sticky top-0;
+    background-color: var(--color-bg-surface);
+    border-color: var(--color-border-subtle);
+  }
+
+  .drawer-body {
+    @apply flex-1 overflow-y-auto px-6 py-4;
+  }
+
+  .drawer-footer {
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t sticky bottom-0;
+    background-color: var(--color-bg-surface);
+    border-color: var(--color-border-subtle);
+  }
+
+  /* Legacy side panel support */
+  .side-panel {
+    @apply fixed right-0 top-0 h-full z-50 flex flex-col overflow-hidden;
+    width: 640px;
+    background-color: var(--color-bg-surface);
+    border-left: 1px solid var(--color-border-subtle);
+    animation: slideIn 0.2s ease-out;
+  }
+
+  .side-panel-backdrop {
+    @apply fixed inset-0 z-40;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     EMPTY STATES
+     ───────────────────────────────────────────────────────────── */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-16 px-6 text-center;
+  }
+
+  .empty-state-icon {
+    @apply w-16 h-16 mb-4;
+    color: var(--color-text-tertiary);
+  }
+
+  .empty-state-title {
+    @apply text-lg font-semibold mb-2;
+    color: var(--color-text-primary);
+  }
+
+  .empty-state-description {
+    @apply text-sm max-w-xs mb-6;
+    color: var(--color-text-secondary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     SKELETON LOADERS
+     ───────────────────────────────────────────────────────────── */
+  .skeleton {
+    @apply rounded;
+    background-color: var(--color-bg-surface-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .skeleton-text {
+    @apply rounded h-4;
+    background-color: var(--color-bg-surface-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-title {
+    @apply rounded h-6 w-48;
+    background-color: var(--color-bg-surface-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-card {
+    @apply h-32 rounded-lg;
+    background-color: var(--color-bg-surface-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     COMMAND PALETTE
+     ───────────────────────────────────────────────────────────── */
+  .command-palette {
+    @apply fixed inset-0 z-50 flex items-start justify-center pt-24;
+  }
+
+  .command-palette-backdrop {
+    @apply absolute inset-0;
+    background-color: rgba(0, 0, 0, 0.6);
+  }
+
+  .command-palette-content {
+    @apply relative w-full max-w-xl rounded-lg overflow-hidden;
+    background-color: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border-default);
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.35);
+  }
+
+  .command-palette-input {
+    @apply w-full px-4 py-4 text-base bg-transparent border-0 outline-none;
+    color: var(--color-text-primary);
+  }
+
+  .command-palette-input::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  .command-palette-section {
+    @apply px-2 py-2 text-xs font-medium uppercase tracking-wider;
+    color: var(--color-text-tertiary);
+  }
+
+  .command-palette-item {
+    @apply flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors;
+  }
+
+  .command-palette-item:hover,
+  .command-palette-item-active {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .command-palette-shortcut {
+    @apply ml-auto text-xs;
+    color: var(--color-text-tertiary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     METRIC CARDS
+     ───────────────────────────────────────────────────────────── */
+  .metric-card {
+    @apply rounded-lg p-6;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .metric-value {
+    @apply text-3xl font-semibold tabular-nums;
+    color: var(--color-text-primary);
+  }
+
+  .metric-label {
+    @apply text-sm mt-1;
+    color: var(--color-text-secondary);
+  }
+
+  .metric-delta {
+    @apply text-xs font-medium mt-2;
+  }
+
+  .metric-delta-positive {
+    color: var(--color-semantic-success);
+  }
+
+  .metric-delta-negative {
+    color: var(--color-semantic-error);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     PROGRESS BARS - Thin, minimal
+     ───────────────────────────────────────────────────────────── */
+  .progress-bar {
+    @apply h-1.5 rounded-full overflow-hidden;
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .progress-bar-fill {
+    @apply h-full rounded-full transition-all duration-300;
+    background-color: var(--color-brand-primary);
+  }
+
+  .progress-bar-success .progress-bar-fill {
+    background-color: var(--color-semantic-success);
+  }
+
+  .progress-bar-warning .progress-bar-fill {
+    background-color: var(--color-semantic-warning);
+  }
+
+  .progress-bar-error .progress-bar-fill {
+    background-color: var(--color-semantic-error);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     MATRIX CELLS (Document Hub)
+     ───────────────────────────────────────────────────────────── */
+  .matrix-cell {
+    @apply p-3 text-center cursor-pointer transition-colors min-w-[100px];
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .matrix-cell:hover {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .matrix-header {
+    @apply font-medium text-xs uppercase tracking-wider;
+    background-color: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     GANTT CHART
+     ───────────────────────────────────────────────────────────── */
+  .gantt-bar {
+    @apply h-5 rounded-sm relative transition-all;
+  }
+
+  .gantt-bar-normal {
+    background-color: var(--color-brand-primary);
+    opacity: 0.8;
+  }
+
+  .gantt-bar-overdue {
+    background-color: var(--color-semantic-error);
+    opacity: 0.8;
+  }
+
+  .gantt-bar-complete {
+    background-color: var(--color-semantic-success);
+    opacity: 0.8;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     CONFIDENCE INDICATORS
+     ───────────────────────────────────────────────────────────── */
+  .confidence-dots {
+    @apply flex gap-0.5;
+  }
+
+  .confidence-dot {
+    @apply w-1.5 h-1.5 rounded-full;
+  }
+
+  .confidence-dot-filled {
+    background-color: var(--color-brand-primary);
+  }
+
+  .confidence-dot-empty {
+    background-color: var(--color-muted);
+  }
+
+  /* AI extraction indicator */
+  .ai-indicator {
+    @apply inline-flex items-center gap-1 text-xs;
+    color: var(--color-text-tertiary);
+  }
+
+  .ai-indicator::before {
+    content: "●";
+    font-size: 8px;
+    color: var(--color-brand-primary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     VIEW ALL LINK
+     ───────────────────────────────────────────────────────────── */
+  .view-all-link {
+    @apply text-sm font-medium transition-colors;
+    color: var(--color-text-secondary);
+  }
+
+  .view-all-link:hover {
+    color: var(--color-text-primary);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     ATTENTION ITEM
+     ───────────────────────────────────────────────────────────── */
+  .attention-item {
+    @apply rounded-lg p-4 flex items-start gap-3;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .attention-item-dot {
+    @apply w-2 h-2 rounded-full mt-2 flex-shrink-0;
+  }
+
+  .attention-item-dot-error {
+    background-color: var(--color-semantic-error);
+  }
+
+  .attention-item-dot-warning {
+    background-color: var(--color-semantic-warning);
+  }
+
+  .attention-item-dot-info {
+    background-color: var(--color-semantic-info);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     PROJECT CARD
+     ───────────────────────────────────────────────────────────── */
+  .project-card {
+    @apply rounded-lg p-6 cursor-pointer;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border-subtle);
+    transition: border-color 0.15s ease;
+  }
+
+  .project-card:hover {
+    border-color: var(--color-border-strong);
+  }
+
+  .project-card-title {
+    @apply text-base font-semibold mb-2;
+    color: var(--color-text-primary);
+  }
+
+  .project-card-meta {
+    @apply text-sm mb-4;
+    color: var(--color-text-secondary);
+  }
+
+  .project-card-stat {
+    @apply text-xs mt-3;
+    color: var(--color-text-tertiary);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* Custom scrollbar for dark theme */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-default) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+  }
+
+  /* Tabular numbers for data display */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Truncate with ellipsis */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Typography utilities */
+  .text-primary-color {
+    color: var(--color-text-primary);
+  }
+
+  .text-secondary-color {
+    color: var(--color-text-secondary);
+  }
+
+  .text-tertiary-color {
+    color: var(--color-text-tertiary);
+  }
+
+  /* Background utilities */
+  .bg-base {
+    background-color: var(--color-bg-base);
+  }
+
+  .bg-surface {
+    background-color: var(--color-bg-surface);
+  }
+
+  .bg-surface-elevated {
+    background-color: var(--color-bg-surface-elevated);
+  }
+
+  .bg-surface-hover {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  /* Border utilities */
+  .border-subtle {
+    border-color: var(--color-border-subtle);
+  }
+
+  .border-default {
+    border-color: var(--color-border-default);
+  }
+
+  .border-strong {
+    border-color: var(--color-border-strong);
+  }
+}

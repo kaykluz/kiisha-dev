@@ -1,0 +1,168 @@
+{
+  "title": "Client Portal Dashboard",
+  "uid": null,
+  "tags": ["kiisha", "portal", "client"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "editable": false,
+  "templating": {
+    "list": [
+      {
+        "name": "org_id",
+        "type": "constant",
+        "hide": 2,
+        "current": { "value": "${org_id}", "text": "${org_id}" }
+      },
+      {
+        "name": "client_account_id",
+        "type": "constant",
+        "hide": 2,
+        "current": { "value": "${client_account_id}", "text": "${client_account_id}" }
+      },
+      {
+        "name": "allowed_project_ids",
+        "type": "constant",
+        "hide": 2,
+        "current": { "value": "${allowed_project_ids}", "text": "${allowed_project_ids}" }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Energy Production This Month",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 5 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(value) as value FROM normalized_measurements WHERE organization_id = ${org_id} AND project_id IN (${allowed_project_ids}) AND metric_name = 'energy_production' AND timestamp >= DATE_FORMAT(NOW(), '%Y-%m-01')",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Current System Status",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 5 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT CASE WHEN AVG(CASE WHEN status = 'online' THEN 1 ELSE 0 END) >= 0.95 THEN 'Healthy' WHEN AVG(CASE WHEN status = 'online' THEN 1 ELSE 0 END) >= 0.8 THEN 'Degraded' ELSE 'Issues Detected' END as value FROM devices WHERE organization_id = ${org_id} AND project_id IN (${allowed_project_ids})",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "Healthy": { "color": "green", "text": "Healthy" } } },
+            { "type": "value", "options": { "Degraded": { "color": "yellow", "text": "Degraded" } } },
+            { "type": "value", "options": { "Issues Detected": { "color": "red", "text": "Issues Detected" } } }
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "CO2 Offset (kg)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 5 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(value) * 0.42 as value FROM normalized_measurements WHERE organization_id = ${org_id} AND project_id IN (${allowed_project_ids}) AND metric_name = 'energy_production' AND timestamp >= DATE_FORMAT(NOW(), '%Y-%m-01')",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "masskg",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Energy Production - Last 30 Days",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 10 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT DATE(timestamp) as time, SUM(value) as value, 'Daily Production' as metric FROM normalized_measurements WHERE organization_id = ${org_id} AND project_id IN (${allowed_project_ids}) AND metric_name = 'energy_production' AND timestamp >= NOW() - INTERVAL 30 DAY GROUP BY DATE(timestamp) ORDER BY time",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "hue"
+          },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "hidden" }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Monthly Comparison",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT DATE_FORMAT(timestamp, '%Y-%m') as month, SUM(value) as value FROM normalized_measurements WHERE organization_id = ${org_id} AND project_id IN (${allowed_project_ids}) AND metric_name = 'energy_production' AND timestamp >= NOW() - INTERVAL 12 MONTH GROUP BY DATE_FORMAT(timestamp, '%Y-%m') ORDER BY month",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Your Projects",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "${datasource_uid}" },
+      "targets": [
+        {
+          "rawSql": "SELECT p.name as 'Project', COALESCE(SUM(nm.value), 0) as 'This Month (kWh)', (SELECT COUNT(*) FROM devices d WHERE d.project_id = p.id AND d.status = 'online') as 'Active Devices' FROM projects p LEFT JOIN normalized_measurements nm ON nm.project_id = p.id AND nm.metric_name = 'energy_production' AND nm.timestamp >= DATE_FORMAT(NOW(), '%Y-%m-01') WHERE p.id IN (${allowed_project_ids}) GROUP BY p.id, p.name ORDER BY p.name",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}
