@@ -212,15 +212,15 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-// Expandable nav item component
-function ExpandableNavItem({ 
-  item, 
-  location, 
+// Expandable nav item component - O11-inspired clean design
+function ExpandableNavItem({
+  item,
+  location,
   sidebarCollapsed,
   expandedItems,
-  toggleExpanded 
-}: { 
-  item: NavItem; 
+  toggleExpanded
+}: {
+  item: NavItem;
   location: string;
   sidebarCollapsed: boolean;
   expandedItems: Set<string>;
@@ -240,23 +240,23 @@ function ExpandableNavItem({
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "w-full flex items-center justify-center p-2 rounded-md text-sm font-medium transition-colors",
+                "w-10 h-10 flex items-center justify-center rounded-xl transition-all",
                 isActive || isChildActive
                   ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)]"
-                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
               )}
             >
-              <Icon className="w-4 h-4 flex-shrink-0" />
+              <Icon className="w-[18px] h-[18px]" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start" className="w-48">
-            <div className="px-2 py-1.5 text-xs font-medium text-[var(--color-text-tertiary)]">
+          <DropdownMenuContent side="right" align="start" className="w-52 bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
+            <div className="px-3 py-2 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
               {item.label}
             </div>
             {item.children?.map((child) => (
-              <DropdownMenuItem key={child.path} asChild>
+              <DropdownMenuItem key={child.path} asChild className="py-2">
                 <Link href={child.path} className="flex items-center cursor-pointer">
-                  <child.icon className="w-4 h-4 mr-2" />
+                  <child.icon className="w-4 h-4 mr-2 text-[var(--color-text-tertiary)]" />
                   {child.label}
                 </Link>
               </DropdownMenuItem>
@@ -270,13 +270,13 @@ function ExpandableNavItem({
       <Link href={item.path}>
         <button
           className={cn(
-            "w-full flex items-center justify-center p-2 rounded-md text-sm font-medium transition-colors",
+            "w-10 h-10 flex items-center justify-center rounded-xl transition-all",
             isActive
-              ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)] border-l-3 border-[var(--color-brand-primary)]"
-              : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
+              ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)] ring-1 ring-[var(--color-brand-primary)]/30"
+              : "text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
           )}
         >
-          <Icon className="w-4 h-4 flex-shrink-0" />
+          <Icon className="w-[18px] h-[18px]" />
         </button>
       </Link>
     );
@@ -289,14 +289,14 @@ function ExpandableNavItem({
         <button
           onClick={() => toggleExpanded(item.path)}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all",
             isActive || isChildActive
               ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)]"
               : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
           )}
         >
-          <Icon className="w-4 h-4 flex-shrink-0" />
-          <span className="flex-1 text-left">{item.label}</span>
+          <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+          <span className="flex-1 text-left font-medium">{item.label}</span>
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-[var(--color-text-tertiary)]" />
           ) : (
@@ -304,7 +304,7 @@ function ExpandableNavItem({
           )}
         </button>
         {isExpanded && (
-          <div className="ml-4 mt-1 space-y-0.5 border-l border-[var(--color-border-subtle)] pl-3">
+          <div className="ml-6 mt-1 space-y-0.5 border-l border-[var(--color-border-subtle)] pl-3">
             {item.children?.map((child) => {
               const ChildIcon = child.icon;
               const isChildItemActive = location === child.path || location.startsWith(child.path + "/");
@@ -312,9 +312,9 @@ function ExpandableNavItem({
                 <Link key={child.path} href={child.path}>
                   <button
                     className={cn(
-                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all",
                       isChildItemActive
-                        ? "bg-[var(--color-brand-primary-muted)] text-[var(--color-brand-primary)] font-medium"
+                        ? "bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)] font-medium"
                         : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
                     )}
                   >
@@ -334,13 +334,13 @@ function ExpandableNavItem({
     <Link href={item.path}>
       <button
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all",
           isActive
-            ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)] border-l-3 border-[var(--color-brand-primary)] -ml-[3px] pl-[calc(0.75rem+3px)]"
+            ? "bg-[var(--color-bg-surface-hover)] text-[var(--color-text-primary)] font-medium"
             : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface-hover)] hover:text-[var(--color-text-primary)]"
         )}
       >
-        <Icon className="w-4 h-4 flex-shrink-0" />
+        <Icon className="w-[18px] h-[18px] flex-shrink-0" />
         <span>{item.label}</span>
       </button>
     </Link>
@@ -423,74 +423,65 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <ProjectContext.Provider value={{ selectedProjectId, setSelectedProjectId }}>
       <div className="h-screen bg-[var(--color-bg-base)] flex overflow-hidden">
-        {/* Left Sidebar - Fixed 240px */}
+        {/* Left Sidebar - O11-inspired design */}
         <aside
           className={cn(
-            "h-screen flex-shrink-0 flex flex-col transition-all duration-200 overflow-hidden",
-            "bg-[var(--color-bg-surface)] border-r border-[var(--color-border-subtle)]",
-            sidebarCollapsed ? "w-16" : "w-60"
+            "h-screen flex-shrink-0 flex flex-col transition-all duration-300 ease-out overflow-hidden",
+            "bg-[var(--color-bg-base)] border-r border-[var(--color-border-subtle)]",
+            sidebarCollapsed ? "w-14" : "w-56"
           )}
         >
           {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-[var(--color-border-subtle)]">
+          <div className={cn(
+            "h-14 flex items-center border-b border-[var(--color-border-subtle)]",
+            sidebarCollapsed ? "justify-center px-2" : "justify-between px-3"
+          )}>
+            <Link href="/dashboard">
+              <div className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/30 transition-shadow">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="font-semibold text-[var(--color-text-primary)] tracking-tight">KIISHA</span>
+                )}
+              </div>
+            </Link>
             {!sidebarCollapsed && (
-              <Link href="/dashboard">
-                <div className="flex items-center gap-2.5 cursor-pointer">
-                  <div className="w-8 h-8 rounded-lg bg-[var(--color-brand-primary)] flex items-center justify-center">
-                    <Zap className="w-4.5 h-4.5 text-white" />
-                  </div>
-                  <span className="font-semibold text-[var(--color-text-primary)]">KIISHA</span>
-                </div>
-              </Link>
-            )}
-            {sidebarCollapsed && (
-              <Link href="/dashboard">
-                <div className="w-8 h-8 rounded-lg bg-[var(--color-brand-primary)] flex items-center justify-center cursor-pointer mx-auto">
-                  <Zap className="w-4.5 h-4.5 text-white" />
-                </div>
-              </Link>
-            )}
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-1.5 rounded-md hover:bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
-            >
-              {sidebarCollapsed ? (
-                <PanelLeft className="w-4 h-4" />
-              ) : (
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all"
+              >
                 <PanelLeftClose className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Search trigger */}
+          <div className={cn("py-3", sidebarCollapsed ? "px-2" : "px-3")}>
+            <button
+              onClick={commandPalette.open}
+              className={cn(
+                "flex items-center rounded-xl text-[var(--color-text-tertiary)] transition-all",
+                sidebarCollapsed
+                  ? "w-10 h-10 justify-center hover:bg-[var(--color-bg-surface-hover)]"
+                  : "w-full gap-2 px-3 py-2.5 text-sm bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)]"
+              )}
+            >
+              <Search className="w-4 h-4 flex-shrink-0" />
+              {!sidebarCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Search...</span>
+                  <kbd className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)]">⌘K</kbd>
+                </>
               )}
             </button>
           </div>
 
-          {/* Search trigger */}
-          {!sidebarCollapsed && (
-            <div className="px-3 py-3">
-              <button
-                onClick={commandPalette.open}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-[var(--color-text-tertiary)] bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors"
-              >
-                <Search className="w-4 h-4" />
-                <span className="flex-1 text-left">Search...</span>
-                <kbd className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-bg-surface-hover)]">⌘K</kbd>
-              </button>
-            </div>
-          )}
-          {sidebarCollapsed && (
-            <div className="px-3 py-3">
-              <button
-                onClick={commandPalette.open}
-                className="w-full flex items-center justify-center p-2 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-surface-hover)] transition-colors"
-              >
-                <Search className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
           {/* Navigation */}
           <ScrollArea className="flex-1">
-            <nav className="px-3 py-2">
+            <nav className={cn("py-2", sidebarCollapsed ? "px-2" : "px-3")}>
               {/* Main Navigation */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {sidebarNav.map((item) => (
                   <ExpandableNavItem
                     key={item.path}
@@ -641,22 +632,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </ScrollArea>
 
           {/* Theme toggle */}
-          <div className="px-3 pb-2">
+          <div className={cn("pb-2", sidebarCollapsed ? "px-2" : "px-3")}>
             <ThemeToggle collapsed={sidebarCollapsed} />
           </div>
 
-          {/* User section at bottom */}
-          <div className="border-t border-[var(--color-border-subtle)] p-3">
+          {/* User section at bottom - O11-inspired clean design */}
+          <div className={cn(
+            "border-t border-[var(--color-border-subtle)]",
+            sidebarCollapsed ? "p-2" : "p-3"
+          )}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-[var(--color-bg-surface-hover)] transition-colors",
-                    sidebarCollapsed && "justify-center"
+                    "w-full flex items-center gap-3 rounded-xl hover:bg-[var(--color-bg-surface-hover)] transition-all",
+                    sidebarCollapsed ? "justify-center p-2" : "px-2 py-2"
                   )}
                 >
-                  <div className="w-8 h-8 rounded-full bg-[var(--color-brand-primary-muted)] flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-[var(--color-brand-primary)]" />
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center flex-shrink-0 ring-1 ring-[var(--color-brand-primary)]/30">
+                    <span className="text-sm font-medium text-[var(--color-brand-primary)]">
+                      {(user.name || "U").charAt(0).toUpperCase()}
+                    </span>
                   </div>
                   {!sidebarCollapsed && (
                     <>
@@ -664,28 +660,32 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
                           {user.name || "User"}
                         </div>
-                        <div className="text-xs text-[var(--color-text-tertiary)]">Cloudbreak</div>
+                        <div className="text-xs text-[var(--color-text-tertiary)]">{user.email?.split('@')[0] || 'user'}</div>
                       </div>
                       <ChevronDown className="w-4 h-4 text-[var(--color-text-tertiary)]" />
                     </>
                   )}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" className="w-48">
-                <DropdownMenuItem asChild>
+              <DropdownMenuContent align="end" side="top" className="w-52 bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
+                <div className="px-3 py-2 border-b border-[var(--color-border-subtle)]">
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">{user.name || "User"}</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">{user.email}</div>
+                </div>
+                <DropdownMenuItem asChild className="py-2">
                   <Link href="/profile" className="flex items-center cursor-pointer">
-                    <User className="w-4 h-4 mr-2" />
+                    <User className="w-4 h-4 mr-2 text-[var(--color-text-tertiary)]" />
                     Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="py-2">
                   <Link href="/settings" className="flex items-center cursor-pointer">
-                    <Settings className="w-4 h-4 mr-2" />
+                    <Settings className="w-4 h-4 mr-2 text-[var(--color-text-tertiary)]" />
                     Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logout()}>
+                <DropdownMenuSeparator className="bg-[var(--color-border-subtle)]" />
+                <DropdownMenuItem onClick={() => logout()} className="py-2 text-[var(--color-semantic-error)]">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
@@ -696,32 +696,32 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          {/* Top Header */}
-          <header className="h-14 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] flex items-center px-6 shrink-0">
+          {/* Top Header - O11-inspired clean header */}
+          <header className="h-14 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-base)] flex items-center px-6 shrink-0">
             {/* Back navigation + Page title */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {selectedProject ? (
                 <>
                   <button
                     onClick={() => setSelectedProjectId(null)}
-                    className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                    className="flex items-center gap-1.5 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    Projects
+                    <span className="hidden sm:inline">Projects</span>
                   </button>
-                  <span className="text-[var(--color-text-tertiary)]">/</span>
-                  <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                  <span className="text-[var(--color-border-default)]">›</span>
+                  <h1 className="text-base font-medium text-[var(--color-text-primary)]">
                     {selectedProject.name}
                   </h1>
                 </>
               ) : (
                 <>
-                  <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                  <h1 className="text-base font-medium text-[var(--color-text-primary)]">
                     {mockPortfolio.name}
                   </h1>
                   {currentTab && (
                     <>
-                      <span className="text-[var(--color-text-tertiary)]">/</span>
+                      <span className="text-[var(--color-border-default)]">›</span>
                       <span className="text-sm text-[var(--color-text-secondary)]">
                         {currentTab.label}
                       </span>

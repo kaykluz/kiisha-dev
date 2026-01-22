@@ -175,119 +175,131 @@ function DashboardContent() {
   ].slice(0, 5);
 
   return (
-    <div className="page-container">
-      {/* Page Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{selectedProjectId ? filteredProjects[0]?.name : mockPortfolio.name}</h1>
-          <p className="page-subtitle">
-            {selectedProjectId 
-              ? `${filteredProjects[0]?.technology} • ${filteredProjects[0]?.capacityMw} MW • ${filteredProjects[0]?.state}`
-              : `${filteredProjects.length} projects • ${totalCapacityMw.toFixed(1)} MW total capacity`
-            }
-          </p>
+    <div className="p-6 lg:p-8">
+      {/* Page Header - O11-inspired welcome style */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center">
+            <Zap className="w-5 h-5 text-[var(--color-brand-primary)]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">
+              {selectedProjectId ? filteredProjects[0]?.name : `Welcome back`}
+            </h1>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              {selectedProjectId
+                ? `${filteredProjects[0]?.technology} • ${filteredProjects[0]?.capacityMw} MW • ${filteredProjects[0]?.state}`
+                : `Manage your renewable energy portfolio`
+              }
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <div className="metric-card">
-          <div className="flex items-center justify-between mb-3">
-            <span className="metric-label">Total Sites</span>
-            <Building2 className="w-5 h-5 text-[var(--color-text-tertiary)]" />
+      {/* Stats Row - O11-inspired clean cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-[var(--color-bg-surface)] rounded-2xl p-5 border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-semantic-info)]/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-[var(--color-semantic-info)]" />
+            </div>
+            <TrendingUp className="w-4 h-4 text-[var(--color-semantic-success)]" />
           </div>
-          <div className="metric-value">{filteredProjects.length}</div>
-          <div className="metric-change positive">
-            <TrendingUp className="w-3 h-3" />
-            +2 this quarter
-          </div>
+          <div className="text-3xl font-semibold text-[var(--color-text-primary)] tabular-nums">{filteredProjects.length}</div>
+          <div className="text-sm text-[var(--color-text-secondary)] mt-1">Total Sites</div>
         </div>
 
-        <div className="metric-card">
-          <div className="flex items-center justify-between mb-3">
-            <span className="metric-label">Total Capacity</span>
-            <Zap className="w-5 h-5 text-[var(--color-text-tertiary)]" />
+        <div className="bg-[var(--color-bg-surface)] rounded-2xl p-5 border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-brand-primary)]/10 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-[var(--color-brand-primary)]" />
+            </div>
           </div>
-          <div className="metric-value">
+          <div className="text-3xl font-semibold text-[var(--color-text-primary)] tabular-nums">
             {totalCapacityMw.toFixed(1)}
             <span className="text-lg font-normal text-[var(--color-text-tertiary)] ml-1">MW</span>
           </div>
-          {totalCapacityMwh > 0 && (
-            <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
-              + {totalCapacityMwh.toFixed(1)} MWh storage
+          <div className="text-sm text-[var(--color-text-secondary)] mt-1">Total Capacity</div>
+        </div>
+
+        <div className="bg-[var(--color-bg-surface)] rounded-2xl p-5 border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-semantic-success)]/10 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-[var(--color-semantic-success)]" />
             </div>
-          )}
+            <span className="text-xs font-medium text-[var(--color-semantic-success)] bg-[var(--color-semantic-success)]/10 px-2 py-1 rounded-full">{diligencePercent}%</span>
+          </div>
+          <div className="h-2 bg-[var(--color-bg-surface-hover)] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[var(--color-semantic-success)] to-emerald-400 rounded-full transition-all duration-500"
+              style={{ width: `${diligencePercent}%` }}
+            />
+          </div>
+          <div className="text-sm text-[var(--color-text-secondary)] mt-3">Diligence Progress</div>
         </div>
 
-        <div className="metric-card">
-          <div className="flex items-center justify-between mb-3">
-            <span className="metric-label">Diligence Progress</span>
-            <FileText className="w-5 h-5 text-[var(--color-text-tertiary)]" />
+        <div className="bg-[var(--color-bg-surface)] rounded-2xl p-5 border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-semantic-warning)]/10 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-[var(--color-semantic-warning)]" />
+            </div>
           </div>
-          <div className="metric-value">{diligencePercent}%</div>
-          <div className="progress-bar mt-2">
-            <div className="progress-bar-fill" style={{ width: `${diligencePercent}%` }} />
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <div className="flex items-center justify-between mb-3">
-            <span className="metric-label">Open Items</span>
-            <AlertTriangle className="w-5 h-5 text-[var(--color-text-tertiary)]" />
-          </div>
-          <div className="metric-value">{openRfis + activeAlerts}</div>
-          <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
+          <div className="text-3xl font-semibold text-[var(--color-text-primary)] tabular-nums">{openRfis + activeAlerts}</div>
+          <div className="text-sm text-[var(--color-text-secondary)] mt-1">
             {openRfis} RFIs • {activeAlerts} alerts
           </div>
         </div>
       </div>
 
-      {/* Customer Portal Quick Access */}
+      {/* Customer Portal Quick Access - O11-inspired feature card with image background */}
       <div className="mb-8">
-        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-yellow-500/10 border border-orange-500/20 rounded-xl p-6">
-          <div className="flex items-center justify-between">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border-subtle)]">
+          {/* Background image with overlay */}
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-30"
+            style={{
+              backgroundImage: `url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1200&q=80')`,
+              filter: 'sepia(20%) saturate(70%)'
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-bg-surface)] via-[var(--color-bg-surface)]/90 to-transparent" />
+
+          <div className="relative p-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-                <Users className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <Users className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Customer Portal</h3>
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  Self-service portal for customers to view invoices, track payments, and monitor their solar assets
+                <p className="text-sm text-[var(--color-text-secondary)] max-w-md">
+                  Self-service portal for customers to view invoices and monitor their solar assets
                 </p>
                 {customerStats && (
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="text-sm">
-                      <span className="font-semibold text-orange-400">{customerStats.totalCustomers}</span>
-                      <span className="text-[var(--color-text-secondary)] ml-1">customers</span>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-sm bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)] px-2 py-0.5 rounded-full font-medium">
+                      {customerStats.totalCustomers} customers
                     </span>
-                    <span className="text-slate-600">•</span>
-                    <span className="text-sm">
-                      <span className="font-semibold text-green-400">{customerStats.activePortalUsers}</span>
-                      <span className="text-[var(--color-text-secondary)] ml-1">active portal users</span>
+                    <span className="text-sm bg-[var(--color-semantic-success)]/10 text-[var(--color-semantic-success)] px-2 py-0.5 rounded-full font-medium">
+                      {customerStats.activePortalUsers} active
                     </span>
                     {customerStats.customersWithPendingInvoices > 0 && (
-                      <>
-                        <span className="text-slate-600">•</span>
-                        <span className="text-sm">
-                          <span className="font-semibold text-amber-400">{customerStats.customersWithPendingInvoices}</span>
-                          <span className="text-[var(--color-text-secondary)] ml-1">with pending invoices</span>
-                        </span>
-                      </>
+                      <span className="text-sm bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)] px-2 py-0.5 rounded-full font-medium">
+                        {customerStats.customersWithPendingInvoices} pending
+                      </span>
                     )}
                   </div>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Link href="/admin/customers">
-                <Button variant="outline" className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10">
+                <Button variant="outline" className="h-10 border-[var(--color-border-default)] hover:bg-[var(--color-bg-surface-hover)] rounded-xl">
                   <Settings className="w-4 h-4 mr-2" />
-                  Manage Customers
+                  Manage
                 </Button>
               </Link>
               <Link href="/portal/login">
-                <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                <Button className="h-10 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 rounded-xl shadow-lg shadow-amber-500/20">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open Portal
                 </Button>
@@ -298,15 +310,15 @@ function DashboardContent() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Needs Attention */}
-        <div className="col-span-2 space-y-6">
-          {/* Needs Attention Section */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Needs Attention Section - O11-inspired clean cards */}
           <section>
-            <div className="section-header">
-              <h2 className="section-title">Needs Attention</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Needs Attention</h2>
               <Link href="/workspace">
-                <button className="text-sm text-[var(--color-brand-primary)] hover:underline flex items-center gap-1">
+                <button className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center gap-1 transition-colors">
                   View all <ChevronRight className="w-4 h-4" />
                 </button>
               </Link>
@@ -319,12 +331,12 @@ function DashboardContent() {
                 description="No critical items need your attention right now."
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {attentionItems.map((item) => (
-                  <div key={item.id} className="attention-item">
-                    <div 
+                  <div key={item.id} className="bg-[var(--color-bg-surface)] rounded-xl p-4 flex items-start gap-3 border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors group">
+                    <div
                       className={cn(
-                        "attention-item-dot",
+                        "w-2 h-2 rounded-full mt-2 flex-shrink-0",
                         item.severity === 'critical' ? "bg-[var(--color-semantic-error)]" :
                         item.severity === 'high' ? "bg-[var(--color-semantic-warning)]" :
                         "bg-[var(--color-semantic-info)]"
@@ -336,8 +348,10 @@ function DashboardContent() {
                           {item.title}
                         </span>
                         <span className={cn(
-                          "status-badge text-[10px]",
-                          item.type === 'alert' ? "status-badge-error" : "status-badge-warning"
+                          "text-[10px] font-medium px-2 py-0.5 rounded-full",
+                          item.type === 'alert'
+                            ? "bg-[var(--color-semantic-error)]/10 text-[var(--color-semantic-error)]"
+                            : "bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)]"
                         )}>
                           {item.type === 'alert' ? 'Alert' : 'RFI'}
                         </span>
@@ -349,7 +363,7 @@ function DashboardContent() {
                         <span>{new Date(item.date).toLocaleDateString()}</span>
                       </div>
                     </div>
-                    <button className="p-1.5 rounded hover:bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)]">
+                    <button className="p-2 rounded-lg hover:bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-all">
                       <ArrowUpRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -358,73 +372,73 @@ function DashboardContent() {
             )}
           </section>
 
-          {/* Filter Controls */}
+          {/* Filter Controls - O11-inspired clean filters */}
           <section className="mb-6">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                <span className="text-sm font-medium text-[var(--color-text-secondary)]">Filter Assets:</span>
+              <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
+                <Filter className="w-4 h-4" />
+                <span className="text-sm">Filters:</span>
               </div>
-              
+
               <Select value={countryFilter} onValueChange={setCountryFilter}>
-                <SelectTrigger className="w-[150px] h-8 text-xs bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)]">
+                <SelectTrigger className="w-[150px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
                   {COUNTRY_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-8 text-xs bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)]">
+                <SelectTrigger className="w-[140px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
                   {STATUS_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={classificationFilter} onValueChange={setClassificationFilter}>
-                <SelectTrigger className="w-[160px] h-8 text-xs bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)]">
+                <SelectTrigger className="w-[160px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
                   <SelectValue placeholder="Classification" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
                   {CLASSIFICATION_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              
+
               {hasActiveFilters && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={clearFilters}
-                  className="h-8 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                  className="h-9 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded-xl"
                 >
-                  <X className="w-3 h-3 mr-1" />
+                  <X className="w-4 h-4 mr-1" />
                   Clear
                 </Button>
               )}
-              
+
               {hasActiveFilters && (
                 <div className="flex items-center gap-1.5 ml-2">
                   {countryFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full">
                       {COUNTRY_OPTIONS.find(o => o.value === countryFilter)?.label}
                     </Badge>
                   )}
                   {statusFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs capitalize">
+                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full capitalize">
                       {statusFilter}
                     </Badge>
                   )}
                   {classificationFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full">
                       {CLASSIFICATION_OPTIONS.find(o => o.value === classificationFilter)?.label}
                     </Badge>
                   )}
@@ -433,28 +447,26 @@ function DashboardContent() {
             </div>
           </section>
 
-          {/* Map Section - Project-Level Assets */}
+          {/* Map Section - O11-inspired clean container */}
           <section>
-            <div className="section-header">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                <h2 className="section-title">Asset Locations</h2>
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Asset Locations</h2>
               </div>
-              <div className="flex items-center gap-2">
-                <Select value={mapColorBy} onValueChange={(v) => setMapColorBy(v as 'status' | 'classification')}>
-                  <SelectTrigger className="w-[130px] h-7 text-xs bg-transparent border-[var(--color-border-subtle)]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MAP_COLOR_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={mapColorBy} onValueChange={(v) => setMapColorBy(v as 'status' | 'classification')}>
+                <SelectTrigger className="w-[130px] h-8 text-xs bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
+                  {MAP_COLOR_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-card)] p-0 overflow-hidden">
-              <ProjectAssetsMap 
+            <div className="rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
+              <ProjectAssetsMap
                 filters={hasActiveFilters ? filters : undefined}
                 colorBy={mapColorBy}
                 height="350px"
@@ -462,29 +474,29 @@ function DashboardContent() {
             </div>
           </section>
 
-          {/* Asset Portfolio Distribution - Project-Level Assets */}
+          {/* Asset Portfolio Distribution - O11-inspired section */}
           <section>
-            <div className="section-header">
-              <h2 className="section-title">Asset Portfolio Distribution</h2>
-              <span className="text-xs text-[var(--color-text-tertiary)]">
-                {hasActiveFilters ? 'Filtered view' : 'All project-level assets'}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Asset Portfolio Distribution</h2>
+              <span className="text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-surface-hover)] px-2 py-1 rounded-full">
+                {hasActiveFilters ? 'Filtered view' : 'All assets'}
               </span>
             </div>
             <ProjectClassificationCharts filters={hasActiveFilters ? filters : undefined} />
           </section>
         </div>
 
-        {/* Right Column - Projects List */}
+        {/* Right Column - Projects List - O11-inspired clean cards */}
         <div>
           <section>
-            <div className="section-header">
-              <h2 className="section-title">Projects</h2>
-              <span className="text-xs text-[var(--color-text-tertiary)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Projects</h2>
+              <span className="text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-surface-hover)] px-2 py-1 rounded-full">
                 {filteredProjects.length} total
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {filteredProjects.slice(0, 6).map((project) => {
                 const TechIcon = techIcons[project.technology] || Sun;
                 const projectDiligence = mockDiligenceProgress.filter(d => d.projectId === project.id);
@@ -492,45 +504,51 @@ function DashboardContent() {
                   (acc, d) => ({ total: acc.total + d.totalItems, verified: acc.verified + d.verifiedItems }),
                   { total: 0, verified: 0 }
                 );
-                const progressPercent = progress.total > 0 
-                  ? Math.round((progress.verified / progress.total) * 100) 
+                const progressPercent = progress.total > 0
+                  ? Math.round((progress.verified / progress.total) * 100)
                   : 0;
 
                 return (
-                  <div 
-                    key={project.id} 
-                    className="project-card"
+                  <div
+                    key={project.id}
+                    className="bg-[var(--color-bg-surface)] rounded-xl p-4 cursor-pointer border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-all group"
                     onClick={() => setSelectedProjectId(project.id)}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <TechIcon className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                        <span className="font-medium text-sm text-[var(--color-text-primary)]">
-                          {project.name}
-                        </span>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-surface-hover)] flex items-center justify-center group-hover:bg-[var(--color-brand-primary)]/10 transition-colors">
+                          <TechIcon className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-brand-primary)] transition-colors" />
+                        </div>
+                        <div>
+                          <span className="font-medium text-sm text-[var(--color-text-primary)] block">
+                            {project.name}
+                          </span>
+                          <span className="text-xs text-[var(--color-text-tertiary)]">
+                            {project.capacityMw ? `${project.capacityMw} MW` : `${project.capacityMwh} MWh`} • {project.state}
+                          </span>
+                        </div>
                       </div>
                       <span className={cn(
-                        "status-badge text-[10px]",
-                        project.status === "operational" ? "status-badge-success" :
-                        project.status === "construction" ? "status-badge-warning" : "status-badge-info"
+                        "text-[10px] font-medium px-2 py-0.5 rounded-full",
+                        project.status === "operational"
+                          ? "bg-[var(--color-semantic-success)]/10 text-[var(--color-semantic-success)]"
+                          : project.status === "construction"
+                          ? "bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)]"
+                          : "bg-[var(--color-semantic-info)]/10 text-[var(--color-semantic-info)]"
                       )}>
                         {project.stage}
                       </span>
                     </div>
-                    
-                    <div className="text-xs text-[var(--color-text-tertiary)] mb-3">
-                      {project.capacityMw ? `${project.capacityMw} MW` : `${project.capacityMwh} MWh`} • {project.state}
-                    </div>
 
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-bar-fill" 
-                        style={{ width: `${progressPercent}%` }} 
+                    <div className="h-1.5 bg-[var(--color-bg-surface-hover)] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[var(--color-brand-primary)] to-amber-400 rounded-full transition-all duration-300"
+                        style={{ width: `${progressPercent}%` }}
                       />
                     </div>
                     <div className="flex justify-between mt-2 text-xs text-[var(--color-text-tertiary)]">
                       <span>Diligence</span>
-                      <span>{progressPercent}%</span>
+                      <span className="font-medium">{progressPercent}%</span>
                     </div>
                   </div>
                 );
@@ -538,7 +556,7 @@ function DashboardContent() {
             </div>
 
             {filteredProjects.length > 6 && (
-              <button className="w-full mt-4 py-2 text-sm text-[var(--color-brand-primary)] hover:underline">
+              <button className="w-full mt-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-all">
                 View all {filteredProjects.length} projects
               </button>
             )}
