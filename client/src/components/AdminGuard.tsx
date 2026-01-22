@@ -5,7 +5,7 @@
  * Shows "Not authorized" page for non-admin users (per security spec).
  */
 
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthProvider";
 import { Loader2, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";

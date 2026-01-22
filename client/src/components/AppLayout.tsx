@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthProvider";
 import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import {

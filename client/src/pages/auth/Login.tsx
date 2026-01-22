@@ -44,11 +44,32 @@ export default function Login() {
 
   // Email/password login mutation
   const loginMutation = trpc.multiAuth.loginWithEmail.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.success) {
-        // Cookie is set server-side with httpOnly flag for security
-        // No need to set it client-side
-        setLocation("/dashboard");
+        // Wait briefly for cookie to be set
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Verify session before redirect
+        try {
+          const utils = trpc.useUtils();
+          await utils.authSession.getSession.invalidate();
+          const session = await utils.authSession.getSession.fetch();
+
+          if (session.authenticated) {
+            setLocation("/dashboard");
+          } else {
+            // Retry once more after delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const retrySession = await utils.authSession.getSession.fetch();
+            if (retrySession.authenticated) {
+              setLocation("/dashboard");
+            } else {
+              setError("Session could not be established. Please try again.");
+            }
+          }
+        } catch (err) {
+          setError("Failed to establish session. Please try again.");
+        }
       }
     },
     onError: (err) => {

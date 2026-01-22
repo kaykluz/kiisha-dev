@@ -13,15 +13,35 @@ export default function OAuthCallback() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleCallbackMutation = trpc.multiAuth.handleCallback.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.success) {
-        // Cookie is set server-side with httpOnly flag for security
-        // No need to set it client-side
         setStatus("success");
-        // Redirect to dashboard after short delay
-        setTimeout(() => {
-          setLocation("/dashboard");
-        }, 1500);
+
+        // Wait and verify session is established
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+          const utils = trpc.useUtils();
+          await utils.authSession.getSession.invalidate();
+          const session = await utils.authSession.getSession.fetch();
+
+          if (session.authenticated) {
+            setLocation("/dashboard");
+          } else {
+            // Retry with longer delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const retrySession = await utils.authSession.getSession.fetch();
+            if (retrySession.authenticated) {
+              setLocation("/dashboard");
+            } else {
+              setStatus("error");
+              setErrorMessage("Failed to establish session after authentication");
+            }
+          }
+        } catch (err) {
+          setStatus("error");
+          setErrorMessage("Authentication failed. Please try again.");
+        }
       }
     },
     onError: (err) => {
