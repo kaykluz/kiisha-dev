@@ -7688,7 +7688,7 @@ export const clientScopeGrants = mysqlTable("clientScopeGrants", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   grantedBy: int("grantedBy"),
 }, (table) => ({
-  uniqueGrant: unique().on(table.clientAccountId, table.grantType, table.orgId, table.targetId),
+  uniqueGrant: unique("csg_unique_grant").on(table.clientAccountId, table.grantType, table.orgId, table.targetId),
   orgIdx: index("client_scope_grants_org_idx").on(table.orgId),
   clientIdx: index("client_scope_grants_client_idx").on(table.clientAccountId),
 }));
