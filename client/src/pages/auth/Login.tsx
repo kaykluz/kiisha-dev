@@ -47,8 +47,9 @@ export default function Login() {
     onSuccess: (data) => {
       if (data.success && data.sessionToken) {
         // Store session token with duration based on Remember Me
+        // Cookie name must be app_session_id to match COOKIE_NAME in shared/const.ts
         const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 days or 1 day
-        document.cookie = `session=${data.sessionToken}; path=/; max-age=${maxAge}`;
+        document.cookie = `app_session_id=${data.sessionToken}; path=/; max-age=${maxAge}`;
         setLocation("/dashboard");
       }
     },

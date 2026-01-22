@@ -285,8 +285,10 @@ export const multiAuthRouter = router({
       );
       
       let userId: number;
+      let userOpenId: string;
+      let userName: string;
       let isNewUser = false;
-      
+
       if (existingOAuthAccount) {
         // Update tokens and login
         await db.updateOAuthAccountTokens(
@@ -296,6 +298,17 @@ export const multiAuthRouter = router({
           tokenResponse.expires_in ? new Date(Date.now() + tokenResponse.expires_in * 1000) : undefined
         );
         userId = existingOAuthAccount.userId;
+
+        // Get the user's openId for session
+        const user = await db.getUserById(userId);
+        if (!user) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "User not found after OAuth link"
+          });
+        }
+        userOpenId = user.openId;
+        userName = user.name || userInfo.name;
         
         // Sync profile if picture changed
         if (userInfo.picture) {
@@ -309,6 +322,8 @@ export const multiAuthRouter = router({
         
         if (existingUser) {
           userId = existingUser.id;
+          userOpenId = existingUser.openId;
+          userName = existingUser.name || userInfo.name;
           // Link this OAuth account to existing user
           await db.createOAuthAccount({
             userId,
@@ -320,7 +335,7 @@ export const multiAuthRouter = router({
             providerEmail: userInfo.email,
             providerName: userInfo.name
           });
-          
+
           // Sync profile picture if not set
           if (userInfo.picture && !existingUser.avatarUrl) {
             await db.updateUserProfile(userId, {
@@ -335,8 +350,10 @@ export const multiAuthRouter = router({
             avatarUrl: userInfo.picture,
             provider: input.provider
           });
-          
+
           userId = newUser.id;
+          userOpenId = newUser.openId;
+          userName = userInfo.name;
           isNewUser = true;
           
           // Create OAuth account link
@@ -354,15 +371,8 @@ export const multiAuthRouter = router({
         }
       }
       
-      // Create session
-      const sessionToken = crypto.randomBytes(32).toString("hex");
-      await db.createUserSession({
-        userId,
-        sessionId: sessionToken,
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
-        userAgent: ctx.req?.headers?.["user-agent"] || undefined,
-        ipAddress: ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || undefined
-      });
+      // Create JWT session token using SDK (this is what the auth system expects)
+      const sessionToken = await sdk.createSessionToken(userOpenId, { name: userName });
       
       // Log login activity
       try {
@@ -525,18 +535,13 @@ export const multiAuthRouter = router({
         });
       }
       
-      // Create session with duration based on rememberMe
-      const sessionToken = crypto.randomBytes(32).toString("hex");
-      const sessionDuration = input.rememberMe 
+      // Create JWT session token using SDK (this is what the auth system expects)
+      const sessionDuration = input.rememberMe
         ? 30 * 24 * 60 * 60 * 1000  // 30 days
         : 24 * 60 * 60 * 1000;       // 1 day
-      
-      await db.createUserSession({
-        userId: user.id,
-        sessionId: sessionToken,
-        expiresAt: new Date(Date.now() + sessionDuration),
-        userAgent: ctx.req?.headers?.["user-agent"] || undefined,
-        ipAddress: ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || undefined
+      const sessionToken = await sdk.createSessionToken(user.openId, {
+        name: user.name || "",
+        expiresInMs: sessionDuration
       });
       
       // Log successful login
