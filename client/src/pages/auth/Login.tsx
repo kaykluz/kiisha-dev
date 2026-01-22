@@ -45,11 +45,9 @@ export default function Login() {
   // Email/password login mutation
   const loginMutation = trpc.multiAuth.loginWithEmail.useMutation({
     onSuccess: (data) => {
-      if (data.success && data.sessionToken) {
-        // Store session token with duration based on Remember Me
-        // Cookie name must be app_session_id to match COOKIE_NAME in shared/const.ts
-        const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30 days or 1 day
-        document.cookie = `app_session_id=${data.sessionToken}; path=/; max-age=${maxAge}`;
+      if (data.success) {
+        // Cookie is set server-side with httpOnly flag for security
+        // No need to set it client-side
         setLocation("/dashboard");
       }
     },

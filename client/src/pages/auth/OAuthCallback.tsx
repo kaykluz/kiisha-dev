@@ -14,10 +14,9 @@ export default function OAuthCallback() {
 
   const handleCallbackMutation = trpc.multiAuth.handleCallback.useMutation({
     onSuccess: (data) => {
-      if (data.success && data.sessionToken) {
-        // Store session token using the correct cookie name (app_session_id)
-        // This must match COOKIE_NAME from shared/const.ts
-        document.cookie = `app_session_id=${data.sessionToken}; path=/; max-age=${365 * 24 * 60 * 60}`;
+      if (data.success) {
+        // Cookie is set server-side with httpOnly flag for security
+        // No need to set it client-side
         setStatus("success");
         // Redirect to dashboard after short delay
         setTimeout(() => {

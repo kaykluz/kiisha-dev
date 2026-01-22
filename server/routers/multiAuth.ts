@@ -3,6 +3,8 @@ import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { sdk } from "../_core/sdk";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
@@ -372,8 +374,18 @@ export const multiAuthRouter = router({
       }
       
       // Create JWT session token using SDK (this is what the auth system expects)
-      const sessionToken = await sdk.createSessionToken(userOpenId, { name: userName });
-      
+      const sessionToken = await sdk.createSessionToken(userOpenId, {
+        name: userName,
+        expiresInMs: ONE_YEAR_MS
+      });
+
+      // Set the session cookie server-side with proper httpOnly flag
+      // This is how the Manus OAuth flow works and is required for security
+      if (ctx.res) {
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      }
+
       // Log login activity
       try {
         await db.createLoginActivity({
@@ -387,10 +399,9 @@ export const multiAuthRouter = router({
         // Don't fail login if activity logging fails
         console.error("Failed to log login activity:", e);
       }
-      
+
       return {
         success: true,
-        sessionToken,
         isNewUser,
         user: {
           id: userId,
@@ -543,7 +554,13 @@ export const multiAuthRouter = router({
         name: user.name || "",
         expiresInMs: sessionDuration
       });
-      
+
+      // Set the session cookie server-side with proper httpOnly flag
+      if (ctx.res) {
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: sessionDuration });
+      }
+
       // Log successful login
       const ipAddress = ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || null;
       const userAgent = ctx.req?.headers?.["user-agent"] || null;
@@ -615,7 +632,6 @@ export const multiAuthRouter = router({
       
       return {
         success: true,
-        sessionToken,
         isSuspicious,
         suspiciousReason: isSuspicious ? suspiciousReason : undefined,
         user: {
