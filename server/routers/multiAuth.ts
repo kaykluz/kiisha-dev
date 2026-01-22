@@ -312,7 +312,7 @@ export const multiAuthRouter = router({
           // Link this OAuth account to existing user
           await db.createOAuthAccount({
             userId,
-            provider: input.provider,
+            oauthProvider: input.provider,
             providerAccountId: userInfo.id,
             accessToken: tokenResponse.access_token,
             refreshToken: tokenResponse.refresh_token,
@@ -342,7 +342,7 @@ export const multiAuthRouter = router({
           // Create OAuth account link
           await db.createOAuthAccount({
             userId,
-            provider: input.provider,
+            oauthProvider: input.provider,
             providerAccountId: userInfo.id,
             accessToken: tokenResponse.access_token,
             refreshToken: tokenResponse.refresh_token,
@@ -786,7 +786,7 @@ export const multiAuthRouter = router({
         // Create new link
         await db.createOAuthAccount({
           userId: ctx.user.id,
-          provider: input.provider,
+          oauthProvider: input.provider,
           providerAccountId: userInfo.id,
           accessToken: tokenResponse.access_token,
           refreshToken: tokenResponse.refresh_token,
@@ -968,7 +968,7 @@ export const multiAuthRouter = router({
       }
       
       await db.upsertOAuthProviderConfig({
-        provider: input.provider,
+        oauthProvider: input.provider,
         clientId: input.clientId,
         clientSecret: input.clientSecret,
         isEnabled: true,
@@ -1018,7 +1018,7 @@ export const multiAuthRouter = router({
       const existing = await db.getOAuthProviderConfig(input.provider);
       if (existing) {
         await db.upsertOAuthProviderConfig({
-          provider: input.provider as any,
+          oauthProvider: input.provider as any,
           clientId: existing.clientId,
           clientSecret: existing.clientSecret,
           isEnabled: input.enabled,

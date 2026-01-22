@@ -12913,7 +12913,7 @@ export async function getOAuthAccountByProvider(
   const [result] = await db.select()
     .from(oauthAccounts)
     .where(and(
-      eq(oauthAccounts.provider, provider),
+      eq(oauthAccounts.oauthProvider, provider),
       eq(oauthAccounts.providerAccountId, providerAccountId),
       eq(oauthAccounts.isActive, true)
     ))
@@ -12971,7 +12971,7 @@ export async function getOAuthProviderConfig(
     const [orgConfig] = await db.select()
       .from(oauthProviderConfigs)
       .where(and(
-        eq(oauthProviderConfigs.provider, provider),
+        eq(oauthProviderConfigs.oauthProvider, provider),
         eq(oauthProviderConfigs.organizationId, organizationId),
         eq(oauthProviderConfigs.isEnabled, true)
       ))
@@ -12984,7 +12984,7 @@ export async function getOAuthProviderConfig(
   const [globalConfig] = await db.select()
     .from(oauthProviderConfigs)
     .where(and(
-      eq(oauthProviderConfigs.provider, provider),
+      eq(oauthProviderConfigs.oauthProvider, provider),
       sql`${oauthProviderConfigs.organizationId} IS NULL`,
       eq(oauthProviderConfigs.isEnabled, true)
     ))
@@ -13001,7 +13001,7 @@ export async function upsertOAuthProviderConfig(data: InsertOAuthProviderConfig)
   if (!db) return 0;
   
   // Check if config exists
-  const existing = await getOAuthProviderConfig(data.provider, data.organizationId ?? undefined);
+  const existing = await getOAuthProviderConfig(data.oauthProvider, data.organizationId ?? undefined);
   
   if (existing) {
     await db.update(oauthProviderConfigs)
@@ -13200,7 +13200,7 @@ export async function linkOAuthAccountToUser(
   // Create new link
   return await createOAuthAccount({
     userId,
-    provider,
+    oauthProvider: provider,
     providerAccountId,
     providerEmail: providerData.email,
     providerName: providerData.name,
@@ -13255,7 +13255,7 @@ export async function deleteOAuthAccount(userId: number, provider: string): Prom
   await db.delete(oauthAccounts)
     .where(and(
       eq(oauthAccounts.userId, userId),
-      eq(oauthAccounts.provider, provider)
+      eq(oauthAccounts.oauthProvider, provider)
     ));
 }
 
@@ -13297,7 +13297,7 @@ export async function getOAuthProviderConfigs(): Promise<OAuthProviderConfig[]> 
   const configs = await db.select()
     .from(oauthProviderConfigs)
     .where(sql`${oauthProviderConfigs.organizationId} IS NULL`)
-    .orderBy(oauthProviderConfigs.provider);
+    .orderBy(oauthProviderConfigs.oauthProvider);
   
   return configs;
 }
@@ -13312,7 +13312,7 @@ export async function toggleOAuthProvider(provider: string, enabled: boolean): P
   await db.update(oauthProviderConfigs)
     .set({ isEnabled: enabled, updatedAt: new Date() })
     .where(and(
-      eq(oauthProviderConfigs.provider, provider),
+      eq(oauthProviderConfigs.oauthProvider, provider),
       sql`${oauthProviderConfigs.organizationId} IS NULL`
     ));
 }
@@ -13331,7 +13331,7 @@ export async function updateOAuthProviderTestResult(provider: string, success: b
       updatedAt: new Date() 
     })
     .where(and(
-      eq(oauthProviderConfigs.provider, provider),
+      eq(oauthProviderConfigs.oauthProvider, provider),
       sql`${oauthProviderConfigs.organizationId} IS NULL`
     ));
 }

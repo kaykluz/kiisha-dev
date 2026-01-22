@@ -6617,20 +6617,15 @@ export type InsertAssetImportTemplate = typeof assetImportTemplates.$inferInsert
  * OAuth Accounts - Links external OAuth providers to users
  * Supports multiple providers per user for account linking
  */
-export const oauthProviderEnum = mysqlEnum("oauthProvider", [
-  "manus",
-  "google", 
-  "github",
-  "microsoft",
-  "email"
-]);
+// OAuth provider values
+const oauthProviderValues = ["manus", "google", "github", "microsoft", "email"] as const;
 
 export const oauthAccounts = mysqlTable("oauthAccounts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  
-  // Provider info
-  provider: oauthProviderEnum.notNull(),
+
+  // Provider info - using explicit column name
+  oauthProvider: mysqlEnum("oauthProvider", oauthProviderValues).notNull(),
   providerAccountId: varchar("providerAccountId", { length: 255 }).notNull(), // External ID from provider
   
   // OAuth tokens (encrypted at rest)
@@ -6653,7 +6648,7 @@ export const oauthAccounts = mysqlTable("oauthAccounts", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("oauthAccounts_userId_idx").on(table.userId),
-  index("oauthAccounts_provider_providerAccountId_idx").on(table.provider, table.providerAccountId),
+  index("oauthAccounts_provider_providerAccountId_idx").on(table.oauthProvider, table.providerAccountId),
 ]);
 
 export type OAuthAccount = typeof oauthAccounts.$inferSelect;
@@ -6667,9 +6662,9 @@ export const oauthProviderConfigs = mysqlTable("oauthProviderConfigs", {
   id: int("id").autoincrement().primaryKey(),
   organizationId: int("organizationId"), // Null for global/default config
   
-  // Provider
-  provider: oauthProviderEnum.notNull(),
-  
+  // Provider - using explicit column name to match DB
+  oauthProvider: mysqlEnum("oauthProvider", oauthProviderValues).notNull(),
+
   // OAuth credentials (encrypted)
   clientId: varchar("clientId", { length: 255 }).notNull(),
   clientSecret: text("clientSecret").notNull(), // Encrypted
@@ -6690,7 +6685,7 @@ export const oauthProviderConfigs = mysqlTable("oauthProviderConfigs", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("oauthProviderConfigs_organizationId_idx").on(table.organizationId),
-  index("oauthProviderConfigs_provider_idx").on(table.provider),
+  index("oauthProviderConfigs_provider_idx").on(table.oauthProvider),
 ]);
 
 export type OAuthProviderConfig = typeof oauthProviderConfigs.$inferSelect;
