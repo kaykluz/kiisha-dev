@@ -152,50 +152,63 @@
 
 /* ═══════════════════════════════════════════════════════════════
    LIGHT THEME OVERRIDES
-   Clean, minimal light variant
+   O11-inspired clean, minimal light variant
    ═══════════════════════════════════════════════════════════════ */
 
 .light {
-  /* Background Colors */
-  --color-bg-base: oklch(0.98 0.003 0);
-  --color-bg-surface: oklch(1.0 0 0);
-  --color-bg-surface-elevated: oklch(1.0 0 0);
-  --color-bg-surface-hover: oklch(0.96 0.003 0);
-  --color-bg-surface-active: oklch(0.94 0.003 0);
+  /* Background Colors - Warm off-white base */
+  --color-bg-base: oklch(0.985 0.002 90);           /* Warm off-white */
+  --color-bg-surface: oklch(1.0 0 0);               /* Pure white cards */
+  --color-bg-surface-elevated: oklch(1.0 0 0);      /* White modals */
+  --color-bg-surface-hover: oklch(0.97 0.002 90);   /* Subtle warm hover */
+  --color-bg-surface-active: oklch(0.95 0.002 90);  /* Active state */
 
   /* Map to Tailwind semantic colors */
-  --color-background: oklch(0.97 0.003 0);
-  --color-foreground: oklch(0.12 0.005 0);
+  --color-background: oklch(0.985 0.002 90);
+  --color-foreground: oklch(0.15 0.01 0);
   --color-card: oklch(1.0 0 0);
-  --color-card-foreground: oklch(0.12 0.005 0);
+  --color-card-foreground: oklch(0.15 0.01 0);
   --color-popover: oklch(1.0 0 0);
-  --color-popover-foreground: oklch(0.12 0.005 0);
+  --color-popover-foreground: oklch(0.15 0.01 0);
 
-  /* Text Colors */
-  --color-text-primary: oklch(0.12 0.005 0);
-  --color-text-secondary: oklch(0.45 0.005 0);
-  --color-text-tertiary: oklch(0.60 0.005 0);
-  --color-text-inverse: oklch(0.98 0.003 0);
+  /* Text Colors - High contrast for readability */
+  --color-text-primary: oklch(0.15 0.01 0);         /* Near black */
+  --color-text-secondary: oklch(0.40 0.01 0);       /* Medium gray */
+  --color-text-tertiary: oklch(0.55 0.01 0);        /* Light gray */
+  --color-text-inverse: oklch(0.98 0.002 90);       /* White text */
 
-  /* Border Colors */
-  --color-border-default: oklch(0.88 0.003 0);
-  --color-border-subtle: oklch(0.92 0.003 0);
-  --color-border-strong: oklch(0.80 0.003 0);
-  --color-border: oklch(0.88 0.003 0);
-  --color-input: oklch(1.0 0 0);
+  /* Border Colors - Subtle, almost invisible */
+  --color-border-default: oklch(0.90 0.002 90);
+  --color-border-subtle: oklch(0.94 0.002 90);
+  --color-border-strong: oklch(0.85 0.002 90);
+  --color-border: oklch(0.90 0.002 90);
+  --color-input: oklch(0.98 0.002 90);
 
   /* Secondary & Muted */
-  --color-secondary: oklch(0.96 0.003 0);
-  --color-secondary-foreground: oklch(0.20 0.005 0);
-  --color-muted: oklch(0.96 0.003 0);
-  --color-muted-foreground: oklch(0.50 0.005 0);
+  --color-secondary: oklch(0.96 0.002 90);
+  --color-secondary-foreground: oklch(0.20 0.01 0);
+  --color-muted: oklch(0.96 0.002 90);
+  --color-muted-foreground: oklch(0.45 0.01 0);
+
+  /* Brand Colors - Slightly deeper for light mode */
+  --color-primary: oklch(0.65 0.18 65);             /* Deeper amber */
+  --color-primary-foreground: oklch(1.0 0 0);       /* White text on primary */
+  --color-accent: oklch(0.65 0.18 65);
+  --color-accent-foreground: oklch(1.0 0 0);
+  --color-ring: oklch(0.65 0.18 65);
+
+  /* Semantic Colors - Adjusted for light mode */
+  --color-success: oklch(0.55 0.18 155);
+  --color-warning: oklch(0.68 0.16 70);
+  --color-destructive: oklch(0.55 0.22 25);
+  --color-info: oklch(0.55 0.15 240);
 
   /* Sidebar Colors */
-  --color-sidebar: oklch(0.98 0.003 0);
-  --color-sidebar-foreground: oklch(0.20 0.005 0);
-  --color-sidebar-accent: oklch(0.96 0.003 0);
-  --color-sidebar-accent-foreground: oklch(0.20 0.005 0);
-  --color-sidebar-border: oklch(0.92 0.003 0);
+  --color-sidebar: oklch(0.99 0.002 90);
+  --color-sidebar-foreground: oklch(0.20 0.01 0);
+  --color-sidebar-accent: oklch(0.96 0.002 90);
+  --color-sidebar-accent-foreground: oklch(0.15 0.01 0);
+  --color-sidebar-border: oklch(0.94 0.002 90);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1088,5 +1101,476 @@
 
   .border-strong {
     border-color: var(--color-border-strong);
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE TRANSITIONS & MICRO-INTERACTIONS
+   O11-inspired smooth, subtle animations
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* Page enter animation */
+  .page-enter {
+    animation: pageEnter 0.3s ease-out;
+  }
+
+  @keyframes pageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Slide up animation */
+  .slide-up {
+    animation: slideUp 0.25s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Scale in animation */
+  .scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Stagger children animations */
+  .stagger-children > * {
+    animation: staggerFadeIn 0.3s ease-out backwards;
+  }
+
+  .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+  .stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+  .stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+  .stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+  .stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+  .stagger-children > *:nth-child(7) { animation-delay: 300ms; }
+  .stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+
+  @keyframes staggerFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Hover lift effect */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Hover glow effect */
+  .hover-glow {
+    transition: box-shadow 0.2s ease;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 0 4px var(--color-brand-primary-muted);
+  }
+
+  /* Pulse animation for notifications */
+  .pulse-dot {
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 0.7;
+    }
+  }
+
+  /* Shimmer effect for loading states */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-surface-hover) 0%,
+      var(--color-bg-surface-active) 50%,
+      var(--color-bg-surface-hover) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Smooth expand/collapse */
+  .expand-collapse {
+    transition: max-height 0.3s ease, opacity 0.2s ease;
+    overflow: hidden;
+  }
+
+  /* Button press effect */
+  .press-effect:active {
+    transform: scale(0.98);
+  }
+
+  /* Smooth color transitions */
+  .color-transition {
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  /* Focus ring animation */
+  .focus-ring-animated:focus-visible {
+    animation: focusRing 0.2s ease-out;
+  }
+
+  @keyframes focusRing {
+    from {
+      box-shadow: 0 0 0 0 var(--color-ring);
+    }
+    to {
+      box-shadow: 0 0 0 3px var(--color-ring);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+   O11-inspired minimal toast styling
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .toast-container {
+    @apply fixed bottom-6 right-6 z-50 flex flex-col gap-3;
+    max-width: 400px;
+  }
+
+  .toast {
+    @apply flex items-start gap-3 p-4 rounded-2xl shadow-lg;
+    background-color: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border-subtle);
+    animation: toastEnter 0.3s ease-out;
+  }
+
+  .toast-success {
+    border-left: 3px solid var(--color-semantic-success);
+  }
+
+  .toast-error {
+    border-left: 3px solid var(--color-semantic-error);
+  }
+
+  .toast-warning {
+    border-left: 3px solid var(--color-semantic-warning);
+  }
+
+  .toast-info {
+    border-left: 3px solid var(--color-semantic-info);
+  }
+
+  .toast-icon {
+    @apply flex-shrink-0 w-5 h-5 mt-0.5;
+  }
+
+  .toast-content {
+    @apply flex-1 min-w-0;
+  }
+
+  .toast-title {
+    @apply text-sm font-medium;
+    color: var(--color-text-primary);
+  }
+
+  .toast-description {
+    @apply text-sm mt-0.5;
+    color: var(--color-text-secondary);
+  }
+
+  .toast-close {
+    @apply flex-shrink-0 p-1 rounded-lg transition-colors;
+    color: var(--color-text-tertiary);
+  }
+
+  .toast-close:hover {
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-secondary);
+  }
+
+  @keyframes toastEnter {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .toast-exit {
+    animation: toastExit 0.2s ease-in forwards;
+  }
+
+  @keyframes toastExit {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DATA VISUALIZATION ENHANCEMENTS
+   Chart and graph styling
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* Chart container */
+  .chart-container {
+    @apply rounded-2xl p-6;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .chart-title {
+    @apply text-base font-medium mb-1;
+    color: var(--color-text-primary);
+  }
+
+  .chart-subtitle {
+    @apply text-sm mb-6;
+    color: var(--color-text-secondary);
+  }
+
+  /* Legend styling */
+  .chart-legend {
+    @apply flex flex-wrap gap-4 mt-4 pt-4 border-t;
+    border-color: var(--color-border-subtle);
+  }
+
+  .chart-legend-item {
+    @apply flex items-center gap-2 text-sm;
+    color: var(--color-text-secondary);
+  }
+
+  .chart-legend-dot {
+    @apply w-3 h-3 rounded-full;
+  }
+
+  /* Donut chart center text */
+  .donut-center {
+    @apply absolute inset-0 flex flex-col items-center justify-center;
+  }
+
+  .donut-center-value {
+    @apply text-3xl font-semibold tabular-nums;
+    color: var(--color-text-primary);
+  }
+
+  .donut-center-label {
+    @apply text-sm;
+    color: var(--color-text-secondary);
+  }
+
+  /* Bar chart styling */
+  .bar-chart-bar {
+    @apply rounded-t-lg transition-all duration-300;
+    background: linear-gradient(180deg, var(--color-brand-primary) 0%, var(--color-brand-primary-hover) 100%);
+  }
+
+  .bar-chart-bar:hover {
+    filter: brightness(1.1);
+  }
+
+  /* Line chart styling */
+  .line-chart-line {
+    stroke: var(--color-brand-primary);
+    stroke-width: 2;
+    fill: none;
+  }
+
+  .line-chart-area {
+    fill: url(#chartGradient);
+    opacity: 0.2;
+  }
+
+  .line-chart-dot {
+    fill: var(--color-brand-primary);
+    stroke: var(--color-bg-surface);
+    stroke-width: 2;
+  }
+
+  /* Sparkline */
+  .sparkline {
+    @apply h-8;
+  }
+
+  .sparkline-line {
+    stroke: var(--color-brand-primary);
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .sparkline-area {
+    fill: var(--color-brand-primary);
+    opacity: 0.1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ENHANCED TABLE STYLING
+   O11-inspired clean table design
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .table-enhanced {
+    @apply w-full text-sm;
+  }
+
+  .table-enhanced thead {
+    @apply sticky top-0 z-10;
+    background-color: var(--color-bg-surface);
+  }
+
+  .table-enhanced th {
+    @apply text-left py-3 px-4 text-[11px] font-medium uppercase tracking-wider;
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .table-enhanced td {
+    @apply py-3.5 px-4;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .table-enhanced tbody tr {
+    @apply transition-colors duration-150;
+  }
+
+  .table-enhanced tbody tr:hover {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .table-enhanced tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Sortable header */
+  .table-header-sortable {
+    @apply cursor-pointer select-none;
+  }
+
+  .table-header-sortable:hover {
+    color: var(--color-text-primary);
+  }
+
+  /* Row selection */
+  .table-row-selected {
+    background-color: var(--color-brand-primary-muted) !important;
+  }
+
+  /* Expandable row */
+  .table-row-expandable {
+    @apply cursor-pointer;
+  }
+
+  .table-row-expanded {
+    background-color: var(--color-bg-surface-hover);
+  }
+
+  .table-row-detail {
+    @apply px-4 py-4;
+    background-color: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  /* Table pagination */
+  .table-pagination {
+    @apply flex items-center justify-between px-4 py-3 border-t;
+    border-color: var(--color-border-subtle);
+  }
+
+  .table-pagination-info {
+    @apply text-sm;
+    color: var(--color-text-secondary);
+  }
+
+  .table-pagination-buttons {
+    @apply flex items-center gap-1;
+  }
+
+  .table-pagination-button {
+    @apply px-3 py-1.5 rounded-lg text-sm transition-colors;
+    color: var(--color-text-secondary);
+  }
+
+  .table-pagination-button:hover:not(:disabled) {
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-primary);
+  }
+
+  .table-pagination-button:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .table-pagination-button-active {
+    background-color: var(--color-brand-primary-muted);
+    color: var(--color-brand-primary);
   }
 }
