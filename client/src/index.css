@@ -27,13 +27,14 @@
    ═══════════════════════════════════════════════════════════════ */
 
 @theme inline {
-  /* Border Radius - Slightly softer rounding */
+  /* Border Radius - O11-inspired soft rounding */
   --radius-none: 0;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
   --radius-full: 9999px;
 
   /* ─────────────────────────────────────────────────────────────
@@ -209,10 +210,11 @@
   html {
     font-family: var(--font-sans);
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: 0;
+    letter-spacing: -0.011em;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   body {
@@ -298,24 +300,56 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     CARDS - Clean, subtle borders
+     CARDS - O11-inspired minimal style
      ───────────────────────────────────────────────────────────── */
   .carta-card {
-    @apply bg-card rounded-lg p-6;
+    @apply bg-card p-6;
+    border-radius: var(--radius-xl);
     border: 1px solid var(--color-border-subtle);
-    transition: border-color 0.15s ease;
+    transition: all 0.2s ease;
   }
 
   .carta-card:hover {
     border-color: var(--color-border-default);
+    box-shadow: 0 4px 12px -2px oklch(0 0 0 / 0.08);
   }
 
   .carta-card-title {
-    @apply text-base font-semibold text-foreground mb-1;
+    @apply text-base font-medium text-foreground mb-1;
+    letter-spacing: -0.02em;
   }
 
   .carta-card-description {
-    @apply text-sm text-muted-foreground;
+    @apply text-sm text-muted-foreground leading-relaxed;
+  }
+
+  /* Hero card with background image - O11 style */
+  .hero-card {
+    @apply relative overflow-hidden;
+    border-radius: var(--radius-xl);
+    min-height: 200px;
+  }
+
+  .hero-card-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent;
+  }
+
+  .hero-card-content {
+    @apply absolute bottom-0 left-0 right-0 p-6;
+  }
+
+  /* Empty state card with dashed border - O11 style */
+  .empty-card {
+    @apply flex flex-col items-center justify-center p-8 text-center cursor-pointer;
+    border: 2px dashed var(--color-border-default);
+    border-radius: var(--radius-xl);
+    transition: all 0.2s ease;
+    min-height: 160px;
+  }
+
+  .empty-card:hover {
+    border-color: var(--color-brand-primary);
+    background-color: var(--color-brand-primary-muted);
   }
 
   /* ─────────────────────────────────────────────────────────────

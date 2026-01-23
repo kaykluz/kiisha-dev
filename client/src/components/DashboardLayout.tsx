@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, FileText, Briefcase, ClipboardList, Calendar, CheckSquare, Wrench, Settings, Layers, Users, MessageSquare, Send, Plug, User, Activity, LayoutGrid, Inbox, Shield, Building2, RefreshCw, FileCheck, ListChecks, Zap, ChevronRight } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, FileText, Briefcase, ClipboardList, Calendar, CheckSquare, Wrench, Settings, Layers, Users, MessageSquare, Send, Plug, User, Activity, LayoutGrid, Inbox, Shield, Building2, RefreshCw, FileCheck, ListChecks, Zap, ChevronDown, Search, Sun, Moon } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -66,9 +66,9 @@ const adminMenuItems = [
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
+const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
+const MAX_WIDTH = 400;
 
 export default function DashboardLayout({
   children,
@@ -91,21 +91,21 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[var(--color-bg-base)]">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[var(--color-brand-primary)] flex items-center justify-center shadow-lg shadow-[var(--color-brand-primary)]/20">
-              <Zap className="w-6 h-6 text-[var(--color-bg-base)]" />
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+              <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-[var(--color-text-primary)]">KIISHA</span>
+            <span className="text-xl font-semibold text-foreground tracking-tight">KIISHA</span>
           </div>
           
-          <div className="flex flex-col items-center gap-4 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Sign in to continue
             </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
+            <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
               Access to this dashboard requires authentication. Continue to launch the login flow.
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function DashboardLayout({
               window.location.href = "/login";
             }}
             size="lg"
-            className="w-full h-12 bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] text-white rounded-xl shadow-lg shadow-[var(--color-brand-primary)]/20 hover:shadow-xl transition-all"
+            className="w-full"
           >
             Sign in
           </Button>
@@ -155,6 +155,19 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleTheme = () => {
+    const newIsDark = !isDark;
+    setIsDark(newIsDark);
+    if (newIsDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    }
+  };
 
   useEffect(() => {
     if (isCollapsed) {
@@ -197,43 +210,42 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
-          className="border-r border-[var(--color-border-subtle)] bg-[var(--color-sidebar)]"
+          className="border-r border-sidebar-border bg-sidebar"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-auto py-4 border-b border-[var(--color-border-subtle)]">
-            <div className="flex flex-col gap-4 px-3 transition-all w-full">
-              {/* Logo and Toggle Row */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={toggleSidebar}
-                  className="h-9 w-9 flex items-center justify-center hover:bg-[var(--color-bg-surface-hover)] rounded-lg transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] shrink-0"
-                  aria-label="Toggle navigation"
-                >
-                  <PanelLeft className="h-4 w-4 text-[var(--color-text-tertiary)]" />
-                </button>
-                {!isCollapsed && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--color-brand-primary)] flex items-center justify-center">
-                      <Zap className="w-4 h-4 text-[var(--color-bg-base)]" />
-                    </div>
-                    <span className="font-bold text-lg tracking-tight text-[var(--color-text-primary)]">
-                      KIISHA
-                    </span>
-                  </div>
-                )}
+          {/* O11-style Header with Logo */}
+          <SidebarHeader className="py-5 px-4 border-b border-sidebar-border">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4 text-primary-foreground" />
               </div>
-              {/* Workspace Switcher */}
               {!isCollapsed && (
-                <div>
-                  <WorkspaceSwitcher />
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold text-sm text-foreground tracking-tight">KIISHA</span>
+                  <span className="text-[11px] text-muted-foreground truncate">Energy Platform</span>
                 </div>
               )}
             </div>
+            {/* Workspace Switcher */}
+            {!isCollapsed && (
+              <div className="mt-4">
+                <WorkspaceSwitcher />
+              </div>
+            )}
           </SidebarHeader>
 
-          <SidebarContent className="gap-0 py-2 scrollbar-thin">
+          <SidebarContent className="py-4 px-3">
+            {/* Navigation Section Label - O11 style */}
+            {!isCollapsed && (
+              <div className="px-3 mb-2">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                  Navigation
+                </span>
+              </div>
+            )}
+            
             {/* Main Navigation */}
-            <SidebarMenu className="px-3 py-1">
+            <SidebarMenu>
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -242,12 +254,13 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className="h-10 transition-all duration-150"
+                      className="h-9 rounded-lg transition-colors"
                     >
                       <item.icon
-                        className={`h-4 w-4 transition-colors ${isActive ? "text-[var(--color-brand-primary)]" : "text-[var(--color-text-tertiary)]"}`}
+                        className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        strokeWidth={isActive ? 2 : 1.5}
                       />
-                      <span className={isActive ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"}>
+                      <span className={`text-[13px] ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                         {item.label}
                       </span>
                     </SidebarMenuButton>
@@ -257,12 +270,14 @@ function DashboardLayoutContent({
             </SidebarMenu>
 
             {/* Compliance Section */}
-            <div className="px-4 py-3 mt-4">
-              <span className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-widest">
-                Compliance
-              </span>
-            </div>
-            <SidebarMenu className="px-3 py-1">
+            {!isCollapsed && (
+              <div className="px-3 mt-6 mb-2">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                  Compliance
+                </span>
+              </div>
+            )}
+            <SidebarMenu>
               {complianceMenuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -271,12 +286,13 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className="h-10 transition-all duration-150"
+                      className="h-9 rounded-lg transition-colors"
                     >
                       <item.icon
-                        className={`h-4 w-4 transition-colors ${isActive ? "text-[var(--color-brand-primary)]" : "text-[var(--color-text-tertiary)]"}`}
+                        className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        strokeWidth={isActive ? 2 : 1.5}
                       />
-                      <span className={isActive ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"}>
+                      <span className={`text-[13px] ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                         {item.label}
                       </span>
                     </SidebarMenuButton>
@@ -288,12 +304,14 @@ function DashboardLayoutContent({
             {/* Admin Section - Only visible to admins */}
             {user?.role === 'admin' && (
               <>
-                <div className="px-4 py-3 mt-4">
-                  <span className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-widest">
-                    Admin
-                  </span>
-                </div>
-                <SidebarMenu className="px-3 py-1">
+                {!isCollapsed && (
+                  <div className="px-3 mt-6 mb-2">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
+                      Admin
+                    </span>
+                  </div>
+                )}
+                <SidebarMenu>
                   {adminMenuItems.map(item => {
                     const isActive = location === item.path;
                     return (
@@ -302,12 +320,13 @@ function DashboardLayoutContent({
                           isActive={isActive}
                           onClick={() => setLocation(item.path)}
                           tooltip={item.label}
-                          className="h-10 transition-all duration-150"
+                          className="h-9 rounded-lg transition-colors"
                         >
                           <item.icon
-                            className={`h-4 w-4 transition-colors ${isActive ? "text-[var(--color-brand-primary)]" : "text-[var(--color-text-tertiary)]"}`}
+                            className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                            strokeWidth={isActive ? 2 : 1.5}
                           />
-                          <span className={isActive ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"}>
+                          <span className={`text-[13px] ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                             {item.label}
                           </span>
                         </SidebarMenuButton>
@@ -319,55 +338,86 @@ function DashboardLayoutContent({
             )}
           </SidebarContent>
 
-          <SidebarFooter className="p-3 border-t border-[var(--color-border-subtle)]">
+          {/* O11-style Footer */}
+          <SidebarFooter className="p-3 border-t border-sidebar-border">
+            {/* Support & Toggle Row */}
+            {!isCollapsed && (
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <button
+                  onClick={toggleTheme}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-sidebar-accent transition-colors"
+                  aria-label="Toggle theme"
+                >
+                  {isDark ? (
+                    <Sun className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Moon className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                <button
+                  onClick={toggleSidebar}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-sidebar-accent transition-colors"
+                  aria-label="Toggle sidebar"
+                >
+                  <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            )}
+            
+            {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-[var(--color-bg-surface-hover)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)]">
-                  <Avatar className="h-9 w-9 border border-[var(--color-border-subtle)] shrink-0">
-                    <AvatarFallback className="text-xs font-semibold bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]">
+                <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-sidebar-accent transition-colors focus:outline-none">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden text-left">
-                    <p className="text-sm font-medium truncate leading-none text-[var(--color-text-primary)]">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-tertiary)] truncate mt-1">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden" />
+                  {!isCollapsed && (
+                    <>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-medium truncate text-foreground">
+                          {user?.name || "-"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {user?.email || "-"}
+                        </p>
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </>
+                  )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 align="end" 
-                className="w-56 bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)] rounded-xl shadow-xl"
+                side="top"
+                className="w-56"
               >
-                <div className="px-3 py-2 border-b border-[var(--color-border-subtle)]">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{user?.name}</p>
-                  <p className="text-xs text-[var(--color-text-tertiary)]">{user?.email}</p>
+                <div className="px-3 py-2.5 border-b border-border">
+                  <p className="text-sm font-medium text-foreground">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
                 </div>
                 <div className="py-1">
                   <DropdownMenuItem
                     onClick={() => setLocation('/profile')}
-                    className="cursor-pointer rounded-lg mx-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-hover)]"
+                    className="cursor-pointer"
                   >
                     <User className="mr-3 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setLocation('/settings')}
-                    className="cursor-pointer rounded-lg mx-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface-hover)]"
+                    className="cursor-pointer"
                   >
                     <Settings className="mr-3 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
                 </div>
-                <DropdownMenuSeparator className="bg-[var(--color-border-subtle)]" />
+                <DropdownMenuSeparator />
                 <div className="py-1">
                   <DropdownMenuItem
                     onClick={logout}
-                    className="cursor-pointer rounded-lg mx-1 text-[var(--color-semantic-error)] hover:bg-[var(--color-semantic-error-muted)] focus:text-[var(--color-semantic-error)]"
+                    className="cursor-pointer text-destructive focus:text-destructive"
                   >
                     <LogOut className="mr-3 h-4 w-4" />
                     <span>Sign out</span>
@@ -377,8 +427,10 @@ function DashboardLayoutContent({
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
+        
+        {/* Resize Handle */}
         <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-[var(--color-brand-primary)]/30 transition-colors ${isCollapsed ? "hidden" : ""}`}
+          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/30 transition-colors ${isCollapsed ? "hidden" : ""}`}
           onMouseDown={() => {
             if (isCollapsed) return;
             setIsResizing(true);
@@ -387,22 +439,31 @@ function DashboardLayoutContent({
         />
       </div>
 
-      <SidebarInset className="bg-[var(--color-bg-base)]">
-        {isMobile && (
-          <div className="flex border-b border-[var(--color-border-subtle)] h-14 items-center justify-between bg-[var(--color-bg-base)]/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)]" />
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-[var(--color-brand-primary)] flex items-center justify-center">
-                  <Zap className="w-3 h-3 text-[var(--color-bg-base)]" />
-                </div>
-                <span className="font-semibold text-[var(--color-text-primary)]">
-                  {activeMenuItem?.label ?? "Menu"}
-                </span>
-              </div>
-            </div>
+      <SidebarInset className="bg-background">
+        {/* Top Bar - O11 style */}
+        <div className="flex border-b border-border h-14 items-center justify-between bg-background px-6 sticky top-0 z-40">
+          <div className="flex items-center gap-4">
+            {isMobile && (
+              <SidebarTrigger className="h-8 w-8 rounded-lg" />
+            )}
+            {/* Search - O11 style */}
+            <button className="flex items-center gap-2 h-9 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-muted-foreground text-sm min-w-[200px]">
+              <Search className="h-4 w-4" />
+              <span>Search...</span>
+              <kbd className="ml-auto text-[10px] font-medium bg-background px-1.5 py-0.5 rounded border border-border">⌘K</kbd>
+            </button>
           </div>
-        )}
+          
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-foreground font-medium">{user?.name}</span>
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
+                {user?.name?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
+        
         <main className="flex-1">{children}</main>
       </SidebarInset>
     </>
