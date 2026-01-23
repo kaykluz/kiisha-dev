@@ -134,7 +134,18 @@ function generateTotpToken(secret: string, counter: number): string {
   return code.toString().padStart(6, '0');
 }
 
+// Helper function to check if user is a PLATFORM superuser (sees ALL data across all orgs)
+function isSuperuser(user: { role?: string; isSuperuser?: boolean }): boolean {
+  return user.role === 'superuser_admin' || user.isSuperuser === true;
+}
+
+// Helper function to check if user is an organization admin (sees data within their org only)
+function isOrgAdmin(user: { role?: string }): boolean {
+  return user.role === 'admin';
+}
+
 // Helper function to check if user has admin-level access (admin, superuser_admin, or isSuperuser)
+// NOTE: Use isSuperuser() for platform-wide access, this is for permission checks within an org
 function isAdminOrSuperuser(user: { role?: string; isSuperuser?: boolean }): boolean {
   return user.role === 'admin' || user.role === 'superuser_admin' || user.isSuperuser === true;
 }
@@ -871,10 +882,12 @@ export const appRouter = router({
   // Asset = Project-level investable unit (e.g., "UMZA Oil Mill Solar+BESS")
   projects: router({
     list: protectedProcedure.query(async ({ ctx }) => {
-      // Admin users see all projects, others see only their accessible projects
-      if (isAdminOrSuperuser(ctx.user)) {
+      // ONLY platform superusers see ALL projects across all organizations
+      // Org admins and regular users see only projects within their organization(s)
+      if (isSuperuser(ctx.user)) {
         return db.getAllProjects();
       }
+      // For org admins and regular users, return only their accessible projects
       return db.getProjectsForUser(ctx.user.id);
     }),
     
@@ -891,8 +904,22 @@ export const appRouter = router({
         configurationProfile: z.string().optional(),
         networkTopology: z.string().optional(),
       }).optional())
-      .query(async ({ input }) => {
-        return db.getProjectsWithFilters(input);
+      .query(async ({ ctx, input }) => {
+        // ONLY superusers can see all projects without org filter
+        if (isSuperuser(ctx.user)) {
+          return db.getProjectsWithFilters(input);
+        }
+        // For non-superusers, get their organization IDs and filter
+        const userOrgIds = await db.getUserOrganizationIds(ctx.user.id);
+        if (userOrgIds.length === 0) {
+          return []; // User has no org memberships, return empty
+        }
+        // If organizationId filter provided, verify user has access to it
+        if (input?.organizationId && !userOrgIds.includes(input.organizationId)) {
+          return []; // User doesn't have access to requested org
+        }
+        // Filter by user's organizations
+        return db.getProjectsWithFilters({ ...input, userOrgIds });
       }),
     
     // Get classification statistics for project-level assets
@@ -1971,7 +1998,8 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
           return db.getRfisByProject(input.projectId, isInvestor);
         }
         // Without projectId, return RFIs only from projects user has access to
-        if (isAdminOrSuperuser(ctx.user)) {
+        // ONLY superusers see ALL RFIs across all organizations
+        if (isSuperuser(ctx.user)) {
           return db.getAllRfis(false);
         }
         return db.getRfisForUser(ctx.user.id);
