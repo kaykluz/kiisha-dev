@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { router, protectedProcedure } from '../_core/trpc';
-import { invokeLLM } from '../_core/llm';
+import { invokeLLMForOrg } from '../providers/llmService';
 import * as db from '../db';
 
 const messageSchema = z.object({
@@ -216,10 +216,9 @@ export const aiChatRouter = router({
           });
         }
 
-        // Invoke the LLM
-        const response = await invokeLLM({
-          messages: llmMessages,
-        });
+        // Invoke the LLM using org's configured integration
+        const orgId = ctx.user.activeOrgId || 1;
+        const response = await invokeLLMForOrg(orgId, llmMessages);
 
         // Extract the response content
         const assistantMessage = response.choices[0]?.message;

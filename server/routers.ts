@@ -134,13 +134,18 @@ function generateTotpToken(secret: string, counter: number): string {
   return code.toString().padStart(6, '0');
 }
 
+// Helper function to check if user has admin-level access (admin, superuser_admin, or isSuperuser)
+function isAdminOrSuperuser(user: { role?: string; isSuperuser?: boolean }): boolean {
+  return user.role === 'admin' || user.role === 'superuser_admin' || user.isSuperuser === true;
+}
+
 // Permission middleware - PRODUCTION: Real RBAC enforcement
 const withProjectAccess = protectedProcedure.use(async (opts) => {
   const { ctx, next } = opts;
   const input = (opts as any).rawInput as { projectId?: number };
   if (input?.projectId) {
-    // Admin users have access to all projects
-    if (ctx.user.role === 'admin') {
+    // Admin and superuser users have access to all projects
+    if (isAdminOrSuperuser(ctx.user)) {
       return next({ ctx });
     }
     const hasAccess = await db.canUserAccessProject(ctx.user.id, input.projectId);
@@ -156,7 +161,7 @@ const withProjectEdit = protectedProcedure.use(async (opts) => {
   const input = (opts as any).rawInput as { projectId?: number };
   if (input?.projectId) {
     // Admin users can edit all projects
-    if (ctx.user.role === 'admin') {
+    if (isAdminOrSuperuser(ctx.user)) {
       return next({ ctx });
     }
     const canEdit = await db.canUserEditProject(ctx.user.id, input.projectId);
@@ -309,7 +314,7 @@ export const appRouter = router({
         const job = await db.getJob(input.jobId);
         if (!job) return null;
         // SECURITY: Only job owner or admin can view job status
-        if (job.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+        if (job.userId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           return null; // Return null instead of FORBIDDEN to avoid leaking job existence
         }
         return formatJobStatusResponse(job);
@@ -320,7 +325,7 @@ export const appRouter = router({
         const job = await db.getJobByCorrelationId(input.correlationId);
         if (!job) return null;
         // SECURITY: Only job owner or admin can view job status
-        if (job.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+        if (job.userId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           return null; // Return null instead of FORBIDDEN to avoid leaking job existence
         }
         return formatJobStatusResponse(job);
@@ -351,7 +356,7 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         // SECURITY: Filter to only jobs owned by current user (or admin sees all)
         const jobs = await db.getJobsByEntity(input.entityType, input.entityId, input.status);
-        const filteredJobs = ctx.user.role === 'admin' 
+        const filteredJobs = isAdminOrSuperuser(ctx.user) 
           ? jobs 
           : jobs.filter(j => j.userId === ctx.user.id);
         return filteredJobs.map(formatJobStatusResponse);
@@ -361,7 +366,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const job = await db.getJob(input.jobId);
         // SECURITY: Only job owner or admin can retry
-        const canAccess = job && (job.userId === ctx.user.id || ctx.user.role === 'admin');
+        const canAccess = job && (job.userId === ctx.user.id || isAdminOrSuperuser(ctx.user));
         if (!job || !canAccess) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Job not found' });
         }
@@ -383,7 +388,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const job = await db.getJob(input.jobId);
         // SECURITY: Only job owner or admin can cancel
-        const canAccess = job && (job.userId === ctx.user.id || ctx.user.role === 'admin');
+        const canAccess = job && (job.userId === ctx.user.id || isAdminOrSuperuser(ctx.user));
         if (!job || !canAccess) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Job not found' });
         }
@@ -395,7 +400,7 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const job = await db.getJob(input.jobId);
         // SECURITY: Only job owner or admin can view logs
-        const canAccess = job && (job.userId === ctx.user.id || ctx.user.role === 'admin');
+        const canAccess = job && (job.userId === ctx.user.id || isAdminOrSuperuser(ctx.user));
         if (!job || !canAccess) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Job not found' });
         }
@@ -411,7 +416,7 @@ export const appRouter = router({
         offset: z.number().min(0).optional(),
       }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
         }
         const jobs = await db.getAllJobs({
@@ -437,7 +442,7 @@ export const appRouter = router({
         status: z.enum(['queued', 'processing', 'completed', 'failed', 'cancelled']).optional(),
       }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
         }
         return db.getJobsCount({ status: input.status });
@@ -446,7 +451,7 @@ export const appRouter = router({
     bulkRetry: protectedProcedure
       .input(z.object({ jobIds: z.array(z.number()) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
         }
         let successful = 0;
@@ -867,7 +872,7 @@ export const appRouter = router({
   projects: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       // Admin users see all projects, others see only their accessible projects
-      if (ctx.user.role === 'admin') {
+      if (isAdminOrSuperuser(ctx.user)) {
         return db.getAllProjects();
       }
       return db.getProjectsForUser(ctx.user.id);
@@ -1042,7 +1047,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // Only admins can set team/dept/org level preferences
-        if (input.scopeType !== "user" && ctx.user.role !== "admin") {
+        if (input.scopeType !== "user" && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can set team/department/organization view preferences" });
         }
         // Users can only set their own preferences
@@ -1064,7 +1069,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // Only admins can clear team/dept/org level preferences
-        if (input.scopeType !== "user" && ctx.user.role !== "admin") {
+        if (input.scopeType !== "user" && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can clear team/department/organization view preferences" });
         }
         // Users can only clear their own preferences
@@ -1222,13 +1227,13 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // Only admins can create system templates (no organizationId)
-        if (!input.organizationId && ctx.user.role !== "admin") {
+        if (!input.organizationId && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can create system templates" });
         }
         
         const templateId = await db.createViewTemplate({
           ...input,
-          isSystem: !input.organizationId && ctx.user.role === "admin",
+          isSystem: !input.organizationId && isAdminOrSuperuser(ctx.user),
           createdBy: ctx.user.id,
         });
         
@@ -1308,7 +1313,7 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "View not found" });
         }
         
-        if (view.createdById !== ctx.user.id && ctx.user.role !== "admin") {
+        if (view.createdById !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only view owner or admin can see analytics" });
         }
         
@@ -1588,7 +1593,7 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "View not found" });
         }
         
-        if (view.createdById !== ctx.user.id && ctx.user.role !== "admin") {
+        if (view.createdById !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only view owner or admin can see audit log" });
         }
         
@@ -1645,7 +1650,7 @@ export const appRouter = router({
         if (!doc) return null;
         
         // Verify user has access to the document's project
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const hasAccess = await db.canUserAccessProject(ctx.user.id, doc.projectId);
           if (!hasAccess) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'No access to this document' });
@@ -1837,7 +1842,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!doc) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document not found' });
         
         // Only admin can restore
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can restore archived documents' });
         }
         
@@ -1891,7 +1896,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!doc) throw new TRPCError({ code: 'NOT_FOUND', message: 'Document not found' });
         
         // Verify access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const hasAccess = await db.canUserAccessProject(ctx.user.id, doc.projectId);
           if (!hasAccess) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'No access to this document' });
@@ -1956,7 +1961,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
       .query(async ({ ctx, input }) => {
         if (input?.projectId) {
           // Verify user has access to this project
-          if (ctx.user.role !== 'admin') {
+          if (!isAdminOrSuperuser(ctx.user)) {
             const hasAccess = await db.canUserAccessProject(ctx.user.id, input.projectId);
             if (!hasAccess) {
               throw new TRPCError({ code: 'FORBIDDEN', message: 'No access to this project' });
@@ -1966,7 +1971,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
           return db.getRfisByProject(input.projectId, isInvestor);
         }
         // Without projectId, return RFIs only from projects user has access to
-        if (ctx.user.role === 'admin') {
+        if (isAdminOrSuperuser(ctx.user)) {
           return db.getAllRfis(false);
         }
         return db.getRfisForUser(ctx.user.id);
@@ -1978,7 +1983,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) return null;
         
         // Verify user has access to the RFI's project
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const hasAccess = await db.canUserAccessProject(ctx.user.id, rfi.projectId);
           if (!hasAccess) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'No access to this item' });
@@ -2081,7 +2086,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         }
         
         // 4. Verify user has edit access (admin bypasses)
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to create links in this project' });
@@ -2121,7 +2126,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         }
         
         // 4. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to create links in this project' });
@@ -2160,7 +2165,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         }
         
         // 4. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to create links in this project' });
@@ -2200,7 +2205,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) throw new TRPCError({ code: 'NOT_FOUND', message: 'RFI not found' });
         
         // Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to archive RFIs in this project' });
@@ -2230,7 +2235,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) throw new TRPCError({ code: 'NOT_FOUND', message: 'RFI not found' });
         
         // Only admin can restore
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can restore archived RFIs' });
         }
         
@@ -2265,7 +2270,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) throw new TRPCError({ code: 'NOT_FOUND', message: 'RFI not found' });
         
         // 2. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to remove links in this project' });
@@ -2295,7 +2300,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) throw new TRPCError({ code: 'NOT_FOUND', message: 'RFI not found' });
         
         // 2. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to remove links in this project' });
@@ -2325,7 +2330,7 @@ Respond with JSON: { "category": "category name", "documentType": "specific type
         if (!rfi) throw new TRPCError({ code: 'NOT_FOUND', message: 'RFI not found' });
         
         // 2. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, rfi.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to remove links in this project' });
@@ -2718,7 +2723,7 @@ Respond with JSON array of extractions.`;
         if (!checklist) throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist not found' });
         
         // Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, checklist.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to archive checklist items' });
@@ -2747,7 +2752,7 @@ Respond with JSON array of extractions.`;
         if (!item) throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist item not found' });
         
         // Only admin can restore
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can restore archived checklist items' });
         }
         
@@ -2796,7 +2801,7 @@ Respond with JSON array of extractions.`;
         }
         
         // 5. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, checklist.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to create links in this project' });
@@ -2830,7 +2835,7 @@ Respond with JSON array of extractions.`;
         if (!checklist) throw new TRPCError({ code: 'NOT_FOUND', message: 'Checklist not found' });
         
         // 3. Verify user has edit access
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const canEdit = await db.canUserEditProject(ctx.user.id, checklist.projectId);
           if (!canEdit) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not have permission to remove links in this project' });
@@ -3270,7 +3275,7 @@ Respond with JSON array of extractions.`;
         }
         
         // Verify user has access to project
-        if (ctx.user.role !== 'admin') {
+        if (!isAdminOrSuperuser(ctx.user)) {
           const hasAccess = await db.canUserAccessProject(ctx.user.id, input.projectId);
           if (!hasAccess) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'No access to this project' });
@@ -4179,7 +4184,7 @@ Respond with JSON array of extractions.`;
       }))
       .query(async ({ ctx, input }) => {
         // Only admins and regular users can see internal comments
-        const includeInternal = ctx.user.role === 'admin' || ctx.user.role === 'user';
+        const includeInternal = isAdminOrSuperuser(ctx.user) || ctx.user.role === 'user';
         return db.getCommentsByResource(input.resourceType, input.resourceId, includeInternal);
       }),
 
@@ -4190,7 +4195,7 @@ Respond with JSON array of extractions.`;
         resourceId: z.number(),
       }))
       .query(async ({ ctx, input }) => {
-        const includeInternal = ctx.user.role === 'admin' || ctx.user.role === 'user';
+        const includeInternal = isAdminOrSuperuser(ctx.user) || ctx.user.role === 'user';
         return db.getCommentCount(input.resourceType, input.resourceId, includeInternal);
       }),
 
@@ -4244,7 +4249,7 @@ Respond with JSON array of extractions.`;
         if (!comment) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' });
         }
-        if (comment.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+        if (comment.userId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only edit your own comments' });
         }
         await db.updateComment(input.id, input.content);
@@ -4260,7 +4265,7 @@ Respond with JSON array of extractions.`;
         if (!comment) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' });
         }
-        if (comment.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+        if (comment.userId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only delete your own comments' });
         }
         // Soft delete - update content to show deleted, preserve record
@@ -4329,7 +4334,7 @@ Respond with JSON array of extractions.`;
         includeResolved: z.boolean().optional().default(true),
       }))
       .query(async ({ ctx, input }) => {
-        const includeInternal = ctx.user.role === 'admin' || ctx.user.role === 'user';
+        const includeInternal = isAdminOrSuperuser(ctx.user) || ctx.user.role === 'user';
         return db.getCommentsByResourceWithResolved(
           input.resourceType, 
           input.resourceId, 
@@ -4345,7 +4350,7 @@ Respond with JSON array of extractions.`;
         resourceId: z.number(),
       }))
       .query(async ({ ctx, input }) => {
-        const includeInternal = ctx.user.role === 'admin' || ctx.user.role === 'user';
+        const includeInternal = isAdminOrSuperuser(ctx.user) || ctx.user.role === 'user';
         return db.getUnresolvedCommentCount(input.resourceType, input.resourceId, includeInternal);
       }),
   }),
@@ -7782,7 +7787,7 @@ Respond with JSON array of extractions.`;
           if (!instance) {
             throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
           }
-          if (instance.ownerUserId !== ctx.user.id && ctx.user.role !== 'admin') {
+          if (instance.ownerUserId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'Only owner can update instance' });
           }
           
@@ -7802,7 +7807,7 @@ Respond with JSON array of extractions.`;
           if (!instance) {
             throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
           }
-          if (instance.ownerUserId !== ctx.user.id && ctx.user.role !== 'admin') {
+          if (instance.ownerUserId !== ctx.user.id && !isAdminOrSuperuser(ctx.user)) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'Only owner can fork instance' });
           }
           
@@ -7897,7 +7902,7 @@ Respond with JSON array of extractions.`;
           }
           
           // Non-admins require approval
-          const requiresApproval = ctx.user.role !== 'admin';
+          const requiresApproval = !isAdminOrSuperuser(ctx.user);
           
           return db.createRollout({
             orgId: memberships[0].organizationId,
@@ -7942,7 +7947,7 @@ Respond with JSON array of extractions.`;
           approvalNotes: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-          if (ctx.user.role !== 'admin') {
+          if (!isAdminOrSuperuser(ctx.user)) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can approve rollouts' });
           }
           const memberships = await db.getOrganizationMemberships(ctx.user.id);
@@ -7964,7 +7969,7 @@ Respond with JSON array of extractions.`;
           rejectionReason: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-          if (ctx.user.role !== 'admin') {
+          if (!isAdminOrSuperuser(ctx.user)) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can reject rollouts' });
           }
           const memberships = await db.getOrganizationMemberships(ctx.user.id);
@@ -7987,7 +7992,7 @@ Respond with JSON array of extractions.`;
           timezone: z.string().default("UTC"),
         }))
         .mutation(async ({ ctx, input }) => {
-          if (ctx.user.role !== 'admin') {
+          if (!isAdminOrSuperuser(ctx.user)) {
             throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can schedule rollouts' });
           }
           const rollout = await db.getRollout(input.rolloutId);
