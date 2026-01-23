@@ -1,4 +1,15 @@
-import { ENV } from "./env";
+/**
+ * Core LLM Module
+ * 
+ * Provides the invokeLLM function that uses the platform-configured LLM provider.
+ * The LLM provider is configured by superusers at the platform level (orgId=0).
+ * 
+ * Supported providers: OpenAI, Anthropic, Gemini, DeepSeek, Grok, Llama
+ * Fallback: Manus (with superuser alert logging)
+ */
+
+import { getPlatformLLMAdapter } from '../providers/factory';
+import type { LLMMessage, LLMChatOptions, LLMChatResponse } from '../providers/interfaces';
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -66,6 +77,9 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  temperature?: number;
+  topP?: number;
+  top_p?: number;
 };
 
 export type ToolCall = {
@@ -110,223 +124,169 @@ export type ResponseFormat =
   | { type: "json_object" }
   | { type: "json_schema"; json_schema: JsonSchema };
 
-const ensureArray = (
-  value: MessageContent | MessageContent[]
-): MessageContent[] => (Array.isArray(value) ? value : [value]);
-
-const normalizeContentPart = (
-  part: MessageContent
-): TextContent | ImageContent | FileContent => {
-  if (typeof part === "string") {
-    return { type: "text", text: part };
+/**
+ * Normalize message content to a string for the adapter.
+ */
+function normalizeMessageContent(content: MessageContent | MessageContent[]): string {
+  if (typeof content === 'string') {
+    return content;
   }
-
-  if (part.type === "text") {
-    return part;
+  
+  if (Array.isArray(content)) {
+    return content.map(part => {
+      if (typeof part === 'string') return part;
+      if (part.type === 'text') return part.text;
+      return JSON.stringify(part);
+    }).join('\n');
   }
-
-  if (part.type === "image_url") {
-    return part;
+  
+  if (content.type === 'text') {
+    return content.text;
   }
+  
+  return JSON.stringify(content);
+}
 
-  if (part.type === "file_url") {
-    return part;
-  }
+/**
+ * Convert InvokeParams messages to LLMMessage format.
+ */
+function convertMessages(messages: Message[]): LLMMessage[] {
+  return messages.map(m => ({
+    role: m.role as 'system' | 'user' | 'assistant' | 'tool',
+    content: normalizeMessageContent(m.content),
+  }));
+}
 
-  throw new Error("Unsupported message content part");
-};
-
-const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
-
-  if (role === "tool" || role === "function") {
-    const content = ensureArray(message.content)
-      .map(part => (typeof part === "string" ? part : JSON.stringify(part)))
-      .join("\n");
-
-    return {
-      role,
-      name,
-      tool_call_id,
-      content,
-    };
-  }
-
-  const contentParts = ensureArray(message.content).map(normalizeContentPart);
-
-  // If there's only text content, collapse to a single string for compatibility
-  if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
-  }
-
+/**
+ * Convert LLMChatResponse to InvokeResult format.
+ */
+function convertResponse(response: LLMChatResponse): InvokeResult {
   return {
-    role,
-    name,
-    content: contentParts,
+    id: response.id,
+    created: Date.now(),
+    model: response.model,
+    choices: response.choices.map(c => ({
+      index: c.index,
+      message: {
+        role: c.message.role as Role,
+        content: c.message.content || '',
+        tool_calls: c.message.toolCalls?.map(tc => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        })),
+      },
+      finish_reason: c.finishReason,
+    })),
+    usage: response.usage ? {
+      prompt_tokens: response.usage.promptTokens,
+      completion_tokens: response.usage.completionTokens,
+      total_tokens: response.usage.totalTokens,
+    } : undefined,
   };
-};
+}
 
-const normalizeToolChoice = (
-  toolChoice: ToolChoice | undefined,
-  tools: Tool[] | undefined
-): "none" | "auto" | ToolChoiceExplicit | undefined => {
-  if (!toolChoice) return undefined;
-
-  if (toolChoice === "none" || toolChoice === "auto") {
-    return toolChoice;
-  }
-
-  if (toolChoice === "required") {
-    if (!tools || tools.length === 0) {
-      throw new Error(
-        "tool_choice 'required' was provided but no tools were configured"
-      );
-    }
-
-    if (tools.length > 1) {
-      throw new Error(
-        "tool_choice 'required' needs a single tool or specify the tool name explicitly"
-      );
-    }
-
-    return {
-      type: "function",
-      function: { name: tools[0].function.name },
-    };
-  }
-
-  if ("name" in toolChoice) {
-    return {
-      type: "function",
-      function: { name: toolChoice.name },
-    };
-  }
-
-  return toolChoice;
-};
-
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
-
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-};
-
-const normalizeResponseFormat = ({
-  responseFormat,
-  response_format,
-  outputSchema,
-  output_schema,
-}: {
-  responseFormat?: ResponseFormat;
-  response_format?: ResponseFormat;
-  outputSchema?: OutputSchema;
-  output_schema?: OutputSchema;
-}):
-  | { type: "json_schema"; json_schema: JsonSchema }
-  | { type: "text" }
-  | { type: "json_object" }
-  | undefined => {
-  const explicitFormat = responseFormat || response_format;
-  if (explicitFormat) {
-    if (
-      explicitFormat.type === "json_schema" &&
-      !explicitFormat.json_schema?.schema
-    ) {
-      throw new Error(
-        "responseFormat json_schema requires a defined schema object"
-      );
-    }
-    return explicitFormat;
-  }
-
-  const schema = outputSchema || output_schema;
-  if (!schema) return undefined;
-
-  if (!schema.name || !schema.schema) {
-    throw new Error("outputSchema requires both name and schema");
-  }
-
-  return {
-    type: "json_schema",
-    json_schema: {
-      name: schema.name,
-      schema: schema.schema,
-      ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}),
-    },
-  };
-};
-
+/**
+ * Invoke the platform-configured LLM.
+ * 
+ * This function uses the LLM provider configured by superusers at the platform level.
+ * All organizations share the same LLM configuration.
+ * 
+ * Supported providers: OpenAI, Anthropic, Gemini, DeepSeek, Grok, Llama
+ * Fallback: Manus (with superuser alert logging)
+ * 
+ * @param params - The invocation parameters
+ * @returns The LLM response
+ */
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
   const {
     messages,
     tools,
     toolChoice,
     tool_choice,
-    outputSchema,
-    output_schema,
-    responseFormat,
-    response_format,
+    maxTokens,
+    max_tokens,
+    temperature,
+    topP,
+    top_p,
   } = params;
 
-  const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
-    messages: messages.map(normalizeMessage),
-  };
-
+  // Get the platform-configured LLM adapter
+  const adapter = await getPlatformLLMAdapter();
+  
+  // Convert messages to adapter format
+  const llmMessages = convertMessages(messages);
+  
+  // Build options
+  const options: LLMChatOptions = {};
+  
+  if (maxTokens || max_tokens) {
+    options.maxTokens = maxTokens || max_tokens;
+  }
+  
+  if (temperature !== undefined) {
+    options.temperature = temperature;
+  }
+  
+  if (topP !== undefined || top_p !== undefined) {
+    options.topP = topP || top_p;
+  }
+  
   if (tools && tools.length > 0) {
-    payload.tools = tools;
+    options.tools = tools.map(t => ({
+      type: 'function' as const,
+      function: {
+        name: t.function.name,
+        description: t.function.description,
+        parameters: t.function.parameters,
+      },
+    }));
   }
-
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
+  
+  const resolvedToolChoice = toolChoice || tool_choice;
+  if (resolvedToolChoice) {
+    if (typeof resolvedToolChoice === 'string') {
+      options.toolChoice = resolvedToolChoice;
+    } else if ('name' in resolvedToolChoice) {
+      options.toolChoice = { type: 'function', function: { name: resolvedToolChoice.name } };
+    } else {
+      options.toolChoice = resolvedToolChoice;
+    }
   }
+  
+  // Call the adapter
+  const response = await adapter.chat(llmMessages, options);
+  
+  // Convert response to InvokeResult format
+  return convertResponse(response);
+}
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
-
-  const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat,
-    response_format,
-    outputSchema,
-    output_schema,
+/**
+ * Invoke the LLM with structured JSON output.
+ * 
+ * @param params - The invocation parameters (must include response_format with json_schema)
+ * @returns The LLM response with parsed JSON
+ */
+export async function invokeLLMStructured<T>(
+  params: InvokeParams & { response_format: { type: 'json_schema'; json_schema: JsonSchema } }
+): Promise<{ data: T; raw: InvokeResult }> {
+  const adapter = await getPlatformLLMAdapter();
+  
+  const llmMessages = convertMessages(params.messages);
+  
+  const schema = params.response_format.json_schema;
+  
+  const result = await adapter.structuredOutput<T>(llmMessages, {
+    name: schema.name,
+    schema: schema.schema,
+    strict: schema.strict,
   });
-
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
-
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
-  }
-
-  return (await response.json()) as InvokeResult;
+  
+  return {
+    data: result.data,
+    raw: convertResponse(result.raw),
+  };
 }

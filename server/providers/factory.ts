@@ -28,6 +28,10 @@ import { SupabaseStorageAdapter } from './adapters/storage/supabase';
 import { ManusLLMAdapter } from './adapters/llm/manus';
 import { OpenAILLMAdapter } from './adapters/llm/openai';
 import { AnthropicLLMAdapter } from './adapters/llm/anthropic';
+import { GeminiLLMAdapter } from './adapters/llm/gemini';
+import { DeepSeekLLMAdapter } from './adapters/llm/deepseek';
+import { GrokLLMAdapter } from './adapters/llm/grok';
+import { LlamaLLMAdapter } from './adapters/llm/llama';
 import { SendGridEmailAdapter } from './adapters/email/sendgrid';
 import { MailgunEmailAdapter } from './adapters/email/mailgun';
 import { PostmarkEmailAdapter } from './adapters/email/postmark';
@@ -87,43 +91,120 @@ export async function getStorageAdapter(orgId: number): Promise<StorageProviderA
   return adapter;
 }
 
+// Platform-wide LLM configuration ID (superuser-controlled)
+const PLATFORM_LLM_ORG_ID = 0;
+
+// Track Manus fallback for alerting
+let lastManusFallbackAlert: number = 0;
+const MANUS_FALLBACK_ALERT_INTERVAL = 60 * 60 * 1000; // 1 hour between alerts
+
 /**
- * Get or create an LLM provider adapter for an organization.
+ * Log alert to superusers when Manus fallback is triggered.
  */
-export async function getLLMAdapter(orgId: number): Promise<LLMProviderAdapter> {
-  const cacheKey = getCacheKey(orgId, 'llm');
+async function logManusFallbackAlert(reason: string): Promise<void> {
+  const now = Date.now();
+  if (now - lastManusFallbackAlert < MANUS_FALLBACK_ALERT_INTERVAL) {
+    return; // Don't spam alerts
+  }
+  lastManusFallbackAlert = now;
+  
+  console.error(`[LLM FALLBACK ALERT] Using Manus fallback LLM. Reason: ${reason}`);
+  console.error('[LLM FALLBACK ALERT] Superusers should configure a primary LLM provider (OpenAI, Anthropic, Gemini, DeepSeek, Grok, or Llama)');
+  
+  // Log to database for superuser visibility
+  try {
+    const db = await getDb();
+    if (db) {
+      await db.insert(integrationEvents).values({
+        integrationId: 0, // Platform-level event
+        eventType: 'llm_fallback',
+        eventData: {
+          reason,
+          timestamp: new Date().toISOString(),
+          message: 'Platform fell back to Manus LLM. Configure a primary LLM provider.',
+        },
+        createdAt: new Date(),
+      } as InsertIntegrationEvent);
+    }
+  } catch (err) {
+    console.error('[LLM FALLBACK ALERT] Failed to log to database:', err);
+  }
+}
+
+/**
+ * Create an LLM adapter instance for a given provider.
+ */
+function createLLMAdapter(provider: string): LLMProviderAdapter {
+  switch (provider) {
+    case 'openai':
+      return new OpenAILLMAdapter();
+    case 'anthropic':
+      return new AnthropicLLMAdapter();
+    case 'gemini':
+      return new GeminiLLMAdapter();
+    case 'deepseek':
+      return new DeepSeekLLMAdapter();
+    case 'grok':
+      return new GrokLLMAdapter();
+    case 'llama':
+      return new LlamaLLMAdapter();
+    default:
+      return new ManusLLMAdapter();
+  }
+}
+
+/**
+ * Get the platform-wide LLM adapter (superuser-configured).
+ * This is used by all organizations across the platform.
+ * 
+ * Priority:
+ * 1. Platform-configured LLM (orgId=0)
+ * 2. Manus (absolute last resort, with superuser alert)
+ */
+export async function getPlatformLLMAdapter(): Promise<LLMProviderAdapter> {
+  const cacheKey = getCacheKey(PLATFORM_LLM_ORG_ID, 'llm');
   
   if (adapterCache.has(cacheKey)) {
     return adapterCache.get(cacheKey) as LLMProviderAdapter;
   }
   
-  const integration = await getActiveIntegration(orgId, 'llm');
+  // Check for platform-wide LLM configuration (orgId=0)
+  const integration = await getActiveIntegration(PLATFORM_LLM_ORG_ID, 'llm');
   
   let adapter: LLMProviderAdapter;
   
-  if (!integration || integration.provider === 'manus') {
-    adapter = new ManusLLMAdapter();
-    await adapter.initialize({});
-  } else {
+  if (integration && integration.provider !== 'manus') {
+    // Use the platform-configured LLM
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
     
-    switch (integration.provider) {
-      case 'openai':
-        adapter = new OpenAILLMAdapter();
-        break;
-      case 'anthropic':
-        adapter = new AnthropicLLMAdapter();
-        break;
-      default:
-        adapter = new ManusLLMAdapter();
-    }
-    
+    adapter = createLLMAdapter(integration.provider);
     await adapter.initialize(config, secrets);
+    
+    console.log(`[LLM] Using platform-configured provider: ${integration.provider}`);
+  } else {
+    // No platform LLM configured - fall back to Manus with alert
+    await logManusFallbackAlert('No platform LLM integration configured');
+    
+    adapter = new ManusLLMAdapter();
+    await adapter.initialize({});
   }
   
   adapterCache.set(cacheKey, adapter);
   return adapter;
+}
+
+/**
+ * Get or create an LLM provider adapter.
+ * 
+ * This function now uses the platform-wide LLM configuration (orgId=0)
+ * which is controlled by superusers only. All organizations share the same LLM.
+ * 
+ * @param _orgId - Deprecated, kept for backwards compatibility. Ignored.
+ */
+export async function getLLMAdapter(_orgId?: number): Promise<LLMProviderAdapter> {
+  // Always use platform-wide LLM configuration
+  return getPlatformLLMAdapter();
 }
 
 /**
