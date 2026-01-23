@@ -97,6 +97,7 @@ import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { JobNotifications } from "./components/JobNotifications";
 import { GlobalAIChat } from "./components/GlobalAIChat";
 import { AdminGuard } from "./components/AdminGuard";
+import { AuthProvider } from "./contexts/AuthProvider";
 
 // Wrapper component for admin-only routes
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -347,10 +348,12 @@ function App() {
       <ThemeProvider defaultTheme="dark" switchable>
         <WebSocketProvider>
           <TooltipProvider>
-            <Toaster />
-            <JobNotifications />
-            <Router />
-            <GlobalAIChat />
+            <AuthProvider>
+              <Toaster />
+              <JobNotifications />
+              <Router />
+              <GlobalAIChat />
+            </AuthProvider>
           </TooltipProvider>
         </WebSocketProvider>
       </ThemeProvider>
