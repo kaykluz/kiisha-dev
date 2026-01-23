@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══════════════════════════════════════════════════════════════
+   KIISHA DESIGN SYSTEM v2.0
+   Inspired by O11.ai elegance + Railway.app power
+   "An intelligent, peaceful workspace for energy professionals"
+   ═══════════════════════════════════════════════════════════════ */
+
 /* Inter font - primary */
 @font-face {
   font-family: "Inter";
@@ -12,7 +18,7 @@
   font-display: swap;
 }
 
-/* JetBrains Mono - monospace */
+/* JetBrains Mono - monospace for code/data */
 @font-face {
   font-family: "JetBrains Mono";
   src: url("https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPVmUsaaDhw.woff2") format("woff2");
@@ -21,180 +27,218 @@
   font-display: swap;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   O11-INSPIRED DESIGN TOKENS
-   Modern, clean dark theme with warm accents
-   ═══════════════════════════════════════════════════════════════ */
-
 @theme inline {
-  /* Border Radius - Slightly softer rounding */
+  /* ─────────────────────────────────────────────────────────────
+     BORDER RADIUS - Refined, modern rounding
+     ───────────────────────────────────────────────────────────── */
   --radius-none: 0;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
+  --radius-sm: 0.375rem;    /* 6px */
+  --radius-md: 0.5rem;      /* 8px */
+  --radius-lg: 0.75rem;     /* 12px */
+  --radius-xl: 1rem;        /* 16px */
+  --radius-2xl: 1.25rem;    /* 20px */
   --radius-full: 9999px;
 
   /* ─────────────────────────────────────────────────────────────
-     BACKGROUND COLORS (Ultra-dark Theme)
+     BACKGROUND COLORS - Deep, rich dark theme
+     Inspired by Railway's peaceful darkness
      ───────────────────────────────────────────────────────────── */
-  --color-bg-base: oklch(0.10 0.005 0);              /* #0f0f0f - Near black base */
-  --color-bg-surface: oklch(0.14 0.005 0);           /* #1c1c1c - Card/panel backgrounds */
-  --color-bg-surface-elevated: oklch(0.16 0.005 0);  /* #222222 - Modals, dropdowns */
-  --color-bg-surface-hover: oklch(0.18 0.005 0);     /* #292929 - Hover states */
-  --color-bg-surface-active: oklch(0.20 0.005 0);    /* #303030 - Active/pressed */
+  --color-bg-base: #0D0D0D;                /* Near-black base */
+  --color-bg-surface: #1A1A2E;             /* Cards, panels - with subtle blue undertone */
+  --color-bg-surface-elevated: #16213E;    /* Modals, dropdowns - deeper blue */
+  --color-bg-surface-hover: #1E1E3A;       /* Hover states */
+  --color-bg-surface-active: #252545;      /* Active/pressed states */
 
   /* Map to Tailwind semantic colors */
-  --color-background: oklch(0.10 0.005 0);
-  --color-foreground: oklch(0.97 0.005 0);
-  --color-card: oklch(0.14 0.005 0);
-  --color-card-foreground: oklch(0.97 0.005 0);
-  --color-popover: oklch(0.16 0.005 0);
-  --color-popover-foreground: oklch(0.97 0.005 0);
+  --color-background: #0D0D0D;
+  --color-foreground: #FFFFFF;
+  --color-card: #1A1A2E;
+  --color-card-foreground: #FFFFFF;
+  --color-popover: #16213E;
+  --color-popover-foreground: #FFFFFF;
 
   /* ─────────────────────────────────────────────────────────────
-     TEXT COLORS (Softer contrast for eye comfort)
+     TEXT COLORS - 4-level hierarchy for clarity
      ───────────────────────────────────────────────────────────── */
-  --color-text-primary: oklch(0.97 0.005 0);         /* #f5f5f5 - Primary text */
-  --color-text-secondary: oklch(0.62 0.005 0);       /* #8a8a8a - Secondary text */
-  --color-text-tertiary: oklch(0.45 0.005 0);        /* #5a5a5a - Hints, disabled */
-  --color-text-inverse: oklch(0.10 0.005 0);         /* #0f0f0f - Text on light bg */
+  --color-text-primary: #FFFFFF;           /* Headings, important text */
+  --color-text-secondary: #A0A0B0;         /* Body text, descriptions */
+  --color-text-tertiary: #6B6B7B;          /* Placeholder, hints */
+  --color-text-muted: #4A4A5A;             /* Timestamps, metadata */
+  --color-text-inverse: #0D0D0D;           /* Text on light backgrounds */
 
   /* ─────────────────────────────────────────────────────────────
-     BRAND COLORS - Warm Golden/Amber Accent
+     KIISHA BRAND - Warm Orange Accent
+     Energy, warmth, and action
      ───────────────────────────────────────────────────────────── */
-  --color-brand-primary: oklch(0.75 0.15 75);        /* Warm amber/gold */
-  --color-brand-primary-hover: oklch(0.80 0.14 75);  /* Lighter amber hover */
-  --color-brand-primary-muted: oklch(0.75 0.15 75 / 0.12); /* Subtle backgrounds */
+  --color-brand-primary: #F97316;          /* Kiisha Orange */
+  --color-brand-primary-hover: #FB923C;    /* Lighter orange hover */
+  --color-brand-primary-muted: rgba(249, 115, 22, 0.12); /* Subtle backgrounds */
 
   /* Map to Tailwind */
-  --color-primary: oklch(0.75 0.15 75);
-  --color-primary-foreground: oklch(0.10 0.005 0);
-  --color-accent: oklch(0.75 0.15 75);
-  --color-accent-foreground: oklch(0.10 0.005 0);
-  --color-ring: oklch(0.75 0.15 75);
+  --color-primary: #F97316;
+  --color-primary-foreground: #FFFFFF;
+  --color-accent: #F97316;
+  --color-accent-foreground: #FFFFFF;
+  --color-ring: #F97316;
 
   /* ─────────────────────────────────────────────────────────────
-     SEMANTIC COLORS (Status & Feedback)
+     STATUS COLORS - Clear, accessible feedback
      ───────────────────────────────────────────────────────────── */
-  /* Success - Soft Green */
-  --color-semantic-success: oklch(0.70 0.15 155);   /* Soft teal-green */
-  --color-semantic-success-muted: oklch(0.70 0.15 155 / 0.12);
-  --color-success: oklch(0.70 0.15 155);
-  --color-success-foreground: oklch(0.10 0.005 0);
+  /* Success - Vibrant Green */
+  --color-semantic-success: #22C55E;
+  --color-semantic-success-muted: rgba(34, 197, 94, 0.12);
+  --color-success: #22C55E;
+  --color-success-foreground: #FFFFFF;
 
-  /* Warning - Amber */
-  --color-semantic-warning: oklch(0.78 0.14 70);    /* Warm amber */
-  --color-semantic-warning-muted: oklch(0.78 0.14 70 / 0.12);
-  --color-warning: oklch(0.78 0.14 70);
-  --color-warning-foreground: oklch(0.10 0.005 0);
+  /* Warning - Bright Yellow */
+  --color-semantic-warning: #EAB308;
+  --color-semantic-warning-muted: rgba(234, 179, 8, 0.12);
+  --color-warning: #EAB308;
+  --color-warning-foreground: #0D0D0D;
 
-  /* Error - Soft Red */
-  --color-semantic-error: oklch(0.65 0.18 25);      /* Softer red */
-  --color-semantic-error-muted: oklch(0.65 0.18 25 / 0.12);
-  --color-destructive: oklch(0.65 0.18 25);
-  --color-destructive-foreground: oklch(0.97 0.005 0);
+  /* Error - Clear Red */
+  --color-semantic-error: #EF4444;
+  --color-semantic-error-muted: rgba(239, 68, 68, 0.12);
+  --color-destructive: #EF4444;
+  --color-destructive-foreground: #FFFFFF;
 
-  /* Info - Soft Blue */
-  --color-semantic-info: oklch(0.65 0.15 240);      /* Soft blue */
-  --color-semantic-info-muted: oklch(0.65 0.15 240 / 0.12);
-  --color-info: oklch(0.65 0.15 240);
-  --color-info-foreground: oklch(0.97 0.005 0);
+  /* Info - Calm Blue */
+  --color-semantic-info: #3B82F6;
+  --color-semantic-info-muted: rgba(59, 130, 246, 0.12);
+  --color-info: #3B82F6;
+  --color-info-foreground: #FFFFFF;
 
   /* ─────────────────────────────────────────────────────────────
-     BORDER COLORS - Very subtle
+     PROJECT LIFECYCLE STATUS COLORS
      ───────────────────────────────────────────────────────────── */
-  --color-border-default: oklch(0.22 0.005 0);      /* #2a2a2a - Default border */
-  --color-border-subtle: oklch(0.18 0.005 0);       /* #242424 - Very subtle */
-  --color-border-strong: oklch(0.30 0.005 0);       /* #3d3d3d - Emphasized */
-  --color-border-focus: oklch(0.75 0.15 75);        /* Amber focus ring */
+  --color-status-prospecting: #EC4899;     /* Pink */
+  --color-status-development: #3B82F6;     /* Blue */
+  --color-status-construction: #EAB308;    /* Yellow */
+  --color-status-operational: #22C55E;     /* Green */
+  --color-status-feasibility: #A855F7;     /* Purple */
+  --color-status-cod: #14B8A6;             /* Teal */
 
-  --color-border: oklch(0.22 0.005 0);
-  --color-input: oklch(0.14 0.005 0);
+  /* ─────────────────────────────────────────────────────────────
+     BORDER COLORS - Subtle, refined
+     ───────────────────────────────────────────────────────────── */
+  --color-border-default: #2D2D3A;         /* Default borders */
+  --color-border-subtle: #252532;          /* Very subtle separators */
+  --color-border-strong: #3D3D4A;          /* Emphasized borders */
+  --color-border-focus: #F97316;           /* Focus ring */
+
+  --color-border: #2D2D3A;
+  --color-input: #1E1E2E;
 
   /* ─────────────────────────────────────────────────────────────
      SECONDARY & MUTED
      ───────────────────────────────────────────────────────────── */
-  --color-secondary: oklch(0.18 0.005 0);
-  --color-secondary-foreground: oklch(0.85 0.005 0);
-  --color-muted: oklch(0.20 0.005 0);
-  --color-muted-foreground: oklch(0.55 0.005 0);
+  --color-secondary: #1E1E2E;
+  --color-secondary-foreground: #A0A0B0;
+  --color-muted: #252532;
+  --color-muted-foreground: #6B6B7B;
 
   /* ─────────────────────────────────────────────────────────────
-     SIDEBAR COLORS - Matches base for seamless look
+     SIDEBAR - Seamless integration with base
      ───────────────────────────────────────────────────────────── */
-  --color-sidebar: oklch(0.10 0.005 0);
-  --color-sidebar-foreground: oklch(0.85 0.005 0);
-  --color-sidebar-primary: oklch(0.75 0.15 75);
-  --color-sidebar-primary-foreground: oklch(0.10 0.005 0);
-  --color-sidebar-accent: oklch(0.18 0.005 0);
-  --color-sidebar-accent-foreground: oklch(0.85 0.005 0);
-  --color-sidebar-border: oklch(0.18 0.005 0);
-  --color-sidebar-ring: oklch(0.75 0.15 75);
+  --color-sidebar: #0D0D0D;
+  --color-sidebar-foreground: #A0A0B0;
+  --color-sidebar-primary: #F97316;
+  --color-sidebar-primary-foreground: #FFFFFF;
+  --color-sidebar-accent: #1A1A2E;
+  --color-sidebar-accent-foreground: #FFFFFF;
+  --color-sidebar-border: #252532;
+  --color-sidebar-ring: #F97316;
 
   /* ─────────────────────────────────────────────────────────────
-     CHART COLORS - Harmonious palette
+     CHART COLORS - Harmonious data visualization
      ───────────────────────────────────────────────────────────── */
-  --color-chart-1: oklch(0.75 0.15 75);   /* Amber */
-  --color-chart-2: oklch(0.70 0.15 155);  /* Teal */
-  --color-chart-3: oklch(0.65 0.18 25);   /* Coral */
-  --color-chart-4: oklch(0.65 0.15 240);  /* Blue */
-  --color-chart-5: oklch(0.70 0.12 320);  /* Purple */
+  --color-chart-1: #F97316;   /* Kiisha Orange */
+  --color-chart-2: #22C55E;   /* Success Green */
+  --color-chart-3: #3B82F6;   /* Info Blue */
+  --color-chart-4: #A855F7;   /* Purple */
+  --color-chart-5: #14B8A6;   /* Teal */
 
   /* ─────────────────────────────────────────────────────────────
      TYPOGRAPHY
      ───────────────────────────────────────────────────────────── */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ─────────────────────────────────────────────────────────────
+     SPACING TOKENS (4px base unit)
+     ───────────────────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ─────────────────────────────────────────────────────────────
+     ANIMATION TIMING
+     ───────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   LIGHT THEME OVERRIDES
-   Clean, minimal light variant
+   LIGHT THEME - Clean, minimal, professional
    ═══════════════════════════════════════════════════════════════ */
 
 .light {
   /* Background Colors */
-  --color-bg-base: oklch(0.98 0.003 0);
-  --color-bg-surface: oklch(1.0 0 0);
-  --color-bg-surface-elevated: oklch(1.0 0 0);
-  --color-bg-surface-hover: oklch(0.96 0.003 0);
-  --color-bg-surface-active: oklch(0.94 0.003 0);
+  --color-bg-base: #F8F9FA;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-surface-elevated: #FFFFFF;
+  --color-bg-surface-hover: #F1F3F5;
+  --color-bg-surface-active: #E9ECEF;
 
   /* Map to Tailwind semantic colors */
-  --color-background: oklch(0.97 0.003 0);
-  --color-foreground: oklch(0.12 0.005 0);
-  --color-card: oklch(1.0 0 0);
-  --color-card-foreground: oklch(0.12 0.005 0);
-  --color-popover: oklch(1.0 0 0);
-  --color-popover-foreground: oklch(0.12 0.005 0);
+  --color-background: #F8F9FA;
+  --color-foreground: #0D0D0D;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0D0D0D;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0D0D0D;
 
   /* Text Colors */
-  --color-text-primary: oklch(0.12 0.005 0);
-  --color-text-secondary: oklch(0.45 0.005 0);
-  --color-text-tertiary: oklch(0.60 0.005 0);
-  --color-text-inverse: oklch(0.98 0.003 0);
+  --color-text-primary: #0D0D0D;
+  --color-text-secondary: #495057;
+  --color-text-tertiary: #868E96;
+  --color-text-muted: #ADB5BD;
+  --color-text-inverse: #FFFFFF;
 
   /* Border Colors */
-  --color-border-default: oklch(0.88 0.003 0);
-  --color-border-subtle: oklch(0.92 0.003 0);
-  --color-border-strong: oklch(0.80 0.003 0);
-  --color-border: oklch(0.88 0.003 0);
-  --color-input: oklch(1.0 0 0);
+  --color-border-default: #DEE2E6;
+  --color-border-subtle: #E9ECEF;
+  --color-border-strong: #CED4DA;
+  --color-border: #DEE2E6;
+  --color-input: #FFFFFF;
 
   /* Secondary & Muted */
-  --color-secondary: oklch(0.96 0.003 0);
-  --color-secondary-foreground: oklch(0.20 0.005 0);
-  --color-muted: oklch(0.96 0.003 0);
-  --color-muted-foreground: oklch(0.50 0.005 0);
+  --color-secondary: #F1F3F5;
+  --color-secondary-foreground: #495057;
+  --color-muted: #F8F9FA;
+  --color-muted-foreground: #868E96;
 
   /* Sidebar Colors */
-  --color-sidebar: oklch(0.98 0.003 0);
-  --color-sidebar-foreground: oklch(0.20 0.005 0);
-  --color-sidebar-accent: oklch(0.96 0.003 0);
-  --color-sidebar-accent-foreground: oklch(0.20 0.005 0);
-  --color-sidebar-border: oklch(0.92 0.003 0);
+  --color-sidebar: #FFFFFF;
+  --color-sidebar-foreground: #495057;
+  --color-sidebar-accent: #F1F3F5;
+  --color-sidebar-accent-foreground: #0D0D0D;
+  --color-sidebar-border: #E9ECEF;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -212,12 +256,23 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: 0;
+    letter-spacing: -0.011em;
   }
 
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background-color: var(--color-brand-primary);
+    color: white;
   }
 
   /* Interactive elements cursor */
@@ -238,10 +293,51 @@
     outline: 2px solid var(--color-ring);
     outline-offset: 2px;
   }
+
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--color-text-primary);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  h1 { font-size: 1.875rem; line-height: 1.25; }  /* 30px */
+  h2 { font-size: 1.5rem; line-height: 1.3; }     /* 24px */
+  h3 { font-size: 1.25rem; line-height: 1.4; }    /* 20px */
+  h4 { font-size: 1.125rem; line-height: 1.4; }   /* 18px */
+
+  /* Body text */
+  p {
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Links */
+  a {
+    color: var(--color-brand-primary);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  a:hover {
+    color: var(--color-brand-primary-hover);
+  }
+
+  /* Code */
+  code, pre {
+    font-family: var(--font-mono);
+  }
+
+  code {
+    font-size: 0.875em;
+    background-color: var(--color-bg-surface);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   COMPONENT STYLES - CARTA-INSPIRED
+   COMPONENT STYLES
    ═══════════════════════════════════════════════════════════════ */
 
 @layer components {
@@ -253,21 +349,21 @@
     max-width: 1280px;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
   }
 
   @media (min-width: 640px) {
     .container {
-      padding-left: 1rem;
-      padding-right: 1rem;
+      padding-left: var(--space-6);
+      padding-right: var(--space-6);
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
+      padding-left: var(--space-8);
+      padding-right: var(--space-8);
     }
   }
 
@@ -289,7 +385,7 @@
 
   /* Section spacing */
   .section-spacing {
-    @apply mb-8;
+    margin-bottom: var(--space-8);
   }
 
   /* Card grid */
@@ -298,38 +394,66 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     CARDS - Clean, subtle borders
+     CARDS - Railway-inspired with subtle glow
      ───────────────────────────────────────────────────────────── */
-  .carta-card {
-    @apply bg-card rounded-lg p-6;
+  .kiisha-card {
+    background-color: var(--color-card);
     border: 1px solid var(--color-border-subtle);
-    transition: border-color 0.15s ease;
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    transition: all var(--duration-normal) var(--ease-out);
   }
 
-  .carta-card:hover {
+  .kiisha-card:hover {
     border-color: var(--color-border-default);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .kiisha-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-1);
+  }
+
+  .kiisha-card-description {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+  }
+
+  /* Legacy carta-card support */
+  .carta-card {
+    @apply kiisha-card;
   }
 
   .carta-card-title {
-    @apply text-base font-semibold text-foreground mb-1;
+    @apply kiisha-card-title;
   }
 
   .carta-card-description {
-    @apply text-sm text-muted-foreground;
+    @apply kiisha-card-description;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     BUTTONS - Clean, minimal
+     BUTTONS - Clean, modern with smooth transitions
      ───────────────────────────────────────────────────────────── */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    @apply inline-flex items-center justify-center gap-2 font-medium text-sm;
     background-color: var(--color-brand-primary);
     color: white;
-    transition: background-color 0.15s ease;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .btn-primary:hover:not(:disabled) {
     background-color: var(--color-brand-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
   }
 
   .btn-primary:focus-visible {
@@ -342,22 +466,27 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    @apply inline-flex items-center justify-center gap-2 font-medium text-sm;
     background-color: transparent;
     color: var(--color-text-primary);
     border: 1px solid var(--color-border-default);
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .btn-secondary:hover:not(:disabled) {
     background-color: var(--color-bg-surface-hover);
+    border-color: var(--color-border-strong);
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md font-medium text-sm;
+    @apply inline-flex items-center justify-center gap-2 font-medium text-sm;
     background-color: transparent;
     color: var(--color-text-secondary);
-    transition: background-color 0.15s ease, color 0.15s ease;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .btn-ghost:hover:not(:disabled) {
@@ -365,57 +494,56 @@
     color: var(--color-text-primary);
   }
 
+  .btn-destructive {
+    @apply inline-flex items-center justify-center gap-2 font-medium text-sm;
+    background-color: var(--color-semantic-error);
+    color: white;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
+  }
+
+  .btn-destructive:hover:not(:disabled) {
+    background-color: #DC2626;
+  }
+
   /* ─────────────────────────────────────────────────────────────
      TABLES - Clean divider-only style
      ───────────────────────────────────────────────────────────── */
-  .carta-table {
+  .kiisha-table {
     @apply w-full text-sm;
   }
 
-  .carta-table thead th {
-    @apply text-xs font-medium uppercase tracking-wider text-left py-3 px-4;
+  .kiisha-table thead th {
+    @apply text-xs font-semibold uppercase tracking-wider text-left py-3 px-4;
+    color: var(--color-text-tertiary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .kiisha-table tbody td {
+    @apply py-4 px-4;
     color: var(--color-text-secondary);
     border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .carta-table tbody td {
-    @apply py-4 px-4;
-    border-bottom: 1px solid var(--color-border-subtle);
+  .kiisha-table tbody tr {
+    transition: background-color var(--duration-fast) var(--ease-out);
   }
 
-  .carta-table tbody tr {
-    transition: background-color 0.1s ease;
-  }
-
-  .carta-table tbody tr:hover {
+  .kiisha-table tbody tr:hover {
     background-color: var(--color-bg-surface-hover);
   }
 
-  .carta-table tbody tr:last-child td {
+  .kiisha-table tbody tr:last-child td {
     border-bottom: none;
   }
 
-  /* Legacy data-table support */
-  .data-table {
-    @apply w-full text-sm;
-  }
-
-  .data-table th {
-    @apply text-xs font-medium uppercase tracking-wider text-left py-3 px-3;
-    color: var(--color-text-secondary);
-  }
-
-  .data-table td {
-    @apply py-3 px-3;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .data-table tr:hover td {
-    background-color: var(--color-bg-surface-hover);
-  }
+  /* Legacy support */
+  .carta-table { @apply kiisha-table; }
+  .data-table { @apply kiisha-table; }
 
   /* ─────────────────────────────────────────────────────────────
-     STATUS INDICATORS - Dot pattern
+     STATUS INDICATORS - Dot pattern with pulse animation
      ───────────────────────────────────────────────────────────── */
   .status-dot {
     @apply inline-flex items-center gap-2 text-sm;
@@ -428,27 +556,45 @@
 
   .status-dot-success::before {
     background-color: var(--color-semantic-success);
+    box-shadow: 0 0 0 2px var(--color-semantic-success-muted);
   }
 
   .status-dot-warning::before {
     background-color: var(--color-semantic-warning);
+    box-shadow: 0 0 0 2px var(--color-semantic-warning-muted);
   }
 
   .status-dot-error::before {
     background-color: var(--color-semantic-error);
+    box-shadow: 0 0 0 2px var(--color-semantic-error-muted);
   }
 
   .status-dot-info::before {
     background-color: var(--color-semantic-info);
+    box-shadow: 0 0 0 2px var(--color-semantic-info-muted);
   }
 
   .status-dot-muted::before {
     background-color: var(--color-text-tertiary);
   }
 
-  /* Status badges - for emphasis */
+  /* Active status with pulse animation */
+  .status-dot-active::before {
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 2px var(--color-semantic-success-muted);
+    }
+    50% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+
+  /* Status badges */
   .status-badge {
-    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
   }
 
   .status-badge-success {
@@ -471,24 +617,52 @@
     color: var(--color-semantic-info);
   }
 
+  /* Project lifecycle status badges */
+  .status-badge-prospecting {
+    background-color: rgba(236, 72, 153, 0.12);
+    color: var(--color-status-prospecting);
+  }
+
+  .status-badge-development {
+    background-color: rgba(59, 130, 246, 0.12);
+    color: var(--color-status-development);
+  }
+
+  .status-badge-construction {
+    background-color: rgba(234, 179, 8, 0.12);
+    color: var(--color-status-construction);
+  }
+
+  .status-badge-operational {
+    background-color: rgba(34, 197, 94, 0.12);
+    color: var(--color-status-operational);
+  }
+
+  .status-badge-feasibility {
+    background-color: rgba(168, 85, 247, 0.12);
+    color: var(--color-status-feasibility);
+  }
+
+  .status-badge-cod {
+    background-color: rgba(20, 184, 166, 0.12);
+    color: var(--color-status-cod);
+  }
+
   /* Legacy status pills */
   .status-pill {
-    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium;
+    @apply status-badge;
   }
 
   .status-verified {
-    background-color: var(--color-semantic-success-muted);
-    color: var(--color-semantic-success);
+    @apply status-badge-success;
   }
 
   .status-pending {
-    background-color: var(--color-semantic-warning-muted);
-    color: var(--color-semantic-warning);
+    @apply status-badge-warning;
   }
 
   .status-missing {
-    background-color: var(--color-semantic-error-muted);
-    color: var(--color-semantic-error);
+    @apply status-badge-error;
   }
 
   .status-na {
@@ -501,64 +675,77 @@
   }
 
   .status-in-progress {
-    background-color: var(--color-semantic-info-muted);
-    color: var(--color-semantic-info);
+    @apply status-badge-info;
   }
 
   .status-resolved {
-    background-color: var(--color-semantic-success-muted);
-    color: var(--color-semantic-success);
+    @apply status-badge-success;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     INPUTS - Simple, clear
+     INPUTS - Clean, focused
      ───────────────────────────────────────────────────────────── */
-  .carta-input {
-    @apply w-full px-3 py-2.5 text-sm rounded-md;
-    background-color: var(--color-bg-base);
+  .kiisha-input {
+    @apply w-full text-sm;
+    background-color: var(--color-input);
     border: 1px solid var(--color-border-default);
     color: var(--color-text-primary);
-    transition: border-color 0.15s ease;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius-md);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
-  .carta-input::placeholder {
+  .kiisha-input::placeholder {
     color: var(--color-text-tertiary);
   }
 
-  .carta-input:focus {
-    border-color: var(--color-border-focus);
+  .kiisha-input:focus {
+    border-color: var(--color-brand-primary);
+    box-shadow: 0 0 0 3px var(--color-brand-primary-muted);
     outline: none;
   }
 
-  .carta-input:disabled {
+  .kiisha-input:disabled {
     @apply opacity-50 cursor-not-allowed;
+    background-color: var(--color-muted);
   }
 
-  .carta-input-error {
+  .kiisha-input-error {
     border-color: var(--color-semantic-error);
   }
 
-  .carta-label {
+  .kiisha-input-error:focus {
+    box-shadow: 0 0 0 3px var(--color-semantic-error-muted);
+  }
+
+  .kiisha-label {
     @apply block text-sm font-medium mb-1.5;
     color: var(--color-text-primary);
   }
 
-  .carta-helper {
+  .kiisha-helper {
     @apply text-xs mt-1.5;
     color: var(--color-text-tertiary);
   }
 
-  .carta-error {
+  .kiisha-error {
     @apply text-xs mt-1.5;
     color: var(--color-semantic-error);
   }
 
+  /* Legacy support */
+  .carta-input { @apply kiisha-input; }
+  .carta-label { @apply kiisha-label; }
+  .carta-helper { @apply kiisha-helper; }
+  .carta-error { @apply kiisha-error; }
+
   /* ─────────────────────────────────────────────────────────────
-     NAVIGATION - Clean side nav
+     NAVIGATION - Clean side nav with active indicator
      ───────────────────────────────────────────────────────────── */
   .nav-item {
-    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium;
     color: var(--color-text-secondary);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .nav-item:hover {
@@ -569,27 +756,43 @@
   .nav-item-active {
     background-color: var(--color-bg-surface-hover);
     color: var(--color-text-primary);
-    border-left: 3px solid var(--color-brand-primary);
-    margin-left: -3px;
-    padding-left: calc(0.75rem + 3px);
+    position: relative;
+  }
+
+  .nav-item-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background-color: var(--color-brand-primary);
+    border-radius: 0 2px 2px 0;
   }
 
   .nav-divider {
-    @apply my-4;
+    margin: var(--space-4) 0;
     border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .nav-section-label {
+    @apply text-xs font-semibold uppercase tracking-wider px-3 py-2;
+    color: var(--color-text-tertiary);
   }
 
   /* ─────────────────────────────────────────────────────────────
      TAB NAVIGATION - Underline style
      ───────────────────────────────────────────────────────────── */
   .tab-nav {
-    @apply flex gap-6 border-b;
-    border-color: var(--color-border-subtle);
+    @apply flex gap-1;
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .tab-item {
-    @apply pb-3 text-sm font-medium transition-colors relative;
+    @apply px-4 py-3 text-sm font-medium relative;
     color: var(--color-text-secondary);
+    transition: color var(--duration-fast) var(--ease-out);
   }
 
   .tab-item:hover {
@@ -602,44 +805,38 @@
 
   .tab-item-active::after {
     content: "";
-    @apply absolute bottom-0 left-0 right-0 h-0.5;
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
     background-color: var(--color-brand-primary);
+    border-radius: 2px 2px 0 0;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     DRAWER - Right slide-in
+     DRAWER / SIDE PANEL - Smooth slide-in
      ───────────────────────────────────────────────────────────── */
   .drawer-backdrop {
     @apply fixed inset-0 z-40;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
   }
 
   .drawer {
     @apply fixed right-0 top-0 h-full z-50 flex flex-col;
     background-color: var(--color-bg-surface);
     border-left: 1px solid var(--color-border-subtle);
-    animation: slideIn 0.2s ease-out;
+    animation: slideInRight var(--duration-slow) var(--ease-out);
   }
 
-  .drawer-sm {
-    width: 480px;
-  }
+  .drawer-sm { width: 480px; }
+  .drawer-md { width: 640px; }
+  .drawer-lg { width: 50%; }
 
-  .drawer-md {
-    width: 640px;
-  }
-
-  .drawer-lg {
-    width: 50%;
-  }
-
-  @keyframes slideIn {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
-    }
+  @keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
   }
 
   .drawer-header {
@@ -659,21 +856,11 @@
   }
 
   /* Legacy side panel support */
-  .side-panel {
-    @apply fixed right-0 top-0 h-full z-50 flex flex-col overflow-hidden;
-    width: 640px;
-    background-color: var(--color-bg-surface);
-    border-left: 1px solid var(--color-border-subtle);
-    animation: slideIn 0.2s ease-out;
-  }
-
-  .side-panel-backdrop {
-    @apply fixed inset-0 z-40;
-    background-color: rgba(0, 0, 0, 0.5);
-  }
+  .side-panel { @apply drawer drawer-md; }
+  .side-panel-backdrop { @apply drawer-backdrop; }
 
   /* ─────────────────────────────────────────────────────────────
-     EMPTY STATES
+     EMPTY STATES - Centered, helpful
      ───────────────────────────────────────────────────────────── */
   .empty-state {
     @apply flex flex-col items-center justify-center py-16 px-6 text-center;
@@ -690,67 +877,65 @@
   }
 
   .empty-state-description {
-    @apply text-sm max-w-xs mb-6;
+    @apply text-sm max-w-sm mb-6;
     color: var(--color-text-secondary);
   }
 
   /* ─────────────────────────────────────────────────────────────
-     SKELETON LOADERS
+     SKELETON LOADERS - Smooth pulse
      ───────────────────────────────────────────────────────────── */
   .skeleton {
     @apply rounded;
-    background-color: var(--color-bg-surface-hover);
-    animation: pulse 1.5s ease-in-out infinite;
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-surface-hover) 25%,
+      var(--color-bg-surface-active) 50%,
+      var(--color-bg-surface-hover) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeletonPulse 1.5s ease-in-out infinite;
   }
 
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 1;
-    }
+  @keyframes skeletonPulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   .skeleton-text {
-    @apply rounded h-4;
-    background-color: var(--color-bg-surface-hover);
-    animation: pulse 1.5s ease-in-out infinite;
+    @apply skeleton rounded h-4;
   }
 
   .skeleton-title {
-    @apply rounded h-6 w-48;
-    background-color: var(--color-bg-surface-hover);
-    animation: pulse 1.5s ease-in-out infinite;
+    @apply skeleton rounded h-6 w-48;
   }
 
   .skeleton-card {
-    @apply h-32 rounded-lg;
-    background-color: var(--color-bg-surface-hover);
-    animation: pulse 1.5s ease-in-out infinite;
+    @apply skeleton h-32 rounded-lg;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     COMMAND PALETTE
+     COMMAND PALETTE - Railway-inspired
      ───────────────────────────────────────────────────────────── */
   .command-palette {
-    @apply fixed inset-0 z-50 flex items-start justify-center pt-24;
+    @apply fixed inset-0 z-50 flex items-start justify-center;
+    padding-top: 15vh;
   }
 
   .command-palette-backdrop {
     @apply absolute inset-0;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
   }
 
   .command-palette-content {
-    @apply relative w-full max-w-xl rounded-lg overflow-hidden;
+    @apply relative w-full max-w-xl rounded-xl overflow-hidden;
     background-color: var(--color-bg-surface-elevated);
     border: 1px solid var(--color-border-default);
-    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
   .command-palette-input {
-    @apply w-full px-4 py-4 text-base bg-transparent border-0 outline-none;
+    @apply w-full px-5 py-4 text-base bg-transparent border-0 outline-none;
     color: var(--color-text-primary);
   }
 
@@ -759,12 +944,13 @@
   }
 
   .command-palette-section {
-    @apply px-2 py-2 text-xs font-medium uppercase tracking-wider;
+    @apply px-3 py-2 text-xs font-semibold uppercase tracking-wider;
     color: var(--color-text-tertiary);
   }
 
   .command-palette-item {
-    @apply flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors;
+    @apply flex items-center gap-3 px-4 py-3 cursor-pointer;
+    transition: background-color var(--duration-fast) var(--ease-out);
   }
 
   .command-palette-item:hover,
@@ -773,12 +959,13 @@
   }
 
   .command-palette-shortcut {
-    @apply ml-auto text-xs;
+    @apply ml-auto text-xs px-1.5 py-0.5 rounded;
+    background-color: var(--color-muted);
     color: var(--color-text-tertiary);
   }
 
   /* ─────────────────────────────────────────────────────────────
-     METRIC CARDS
+     METRIC CARDS - Data-focused
      ───────────────────────────────────────────────────────────── */
   .metric-card {
     @apply rounded-lg p-6;
@@ -787,17 +974,17 @@
   }
 
   .metric-value {
-    @apply text-3xl font-semibold tabular-nums;
+    @apply text-3xl font-bold tabular-nums;
     color: var(--color-text-primary);
   }
 
   .metric-label {
-    @apply text-sm mt-1;
-    color: var(--color-text-secondary);
+    @apply text-xs uppercase tracking-wider mt-2;
+    color: var(--color-text-tertiary);
   }
 
   .metric-delta {
-    @apply text-xs font-medium mt-2;
+    @apply text-sm font-medium mt-2 inline-flex items-center gap-1;
   }
 
   .metric-delta-positive {
@@ -809,79 +996,80 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     PROGRESS BARS - Thin, minimal
+     PROGRESS BARS - Thin with gradient
      ───────────────────────────────────────────────────────────── */
   .progress-bar {
-    @apply h-1.5 rounded-full overflow-hidden;
-    background-color: var(--color-bg-surface-hover);
+    @apply h-1 rounded-full overflow-hidden;
+    background-color: var(--color-muted);
   }
 
   .progress-bar-fill {
-    @apply h-full rounded-full transition-all duration-300;
-    background-color: var(--color-brand-primary);
+    @apply h-full rounded-full;
+    background: linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-primary-hover));
+    transition: width var(--duration-slow) var(--ease-out);
   }
 
   .progress-bar-success .progress-bar-fill {
-    background-color: var(--color-semantic-success);
+    background: linear-gradient(90deg, var(--color-semantic-success), #34D399);
   }
 
   .progress-bar-warning .progress-bar-fill {
-    background-color: var(--color-semantic-warning);
+    background: linear-gradient(90deg, var(--color-semantic-warning), #FCD34D);
   }
 
   .progress-bar-error .progress-bar-fill {
-    background-color: var(--color-semantic-error);
+    background: linear-gradient(90deg, var(--color-semantic-error), #F87171);
   }
 
   /* ─────────────────────────────────────────────────────────────
      MATRIX CELLS (Document Hub)
      ───────────────────────────────────────────────────────────── */
   .matrix-cell {
-    @apply p-3 text-center cursor-pointer transition-colors min-w-[100px];
+    @apply p-3 text-center cursor-pointer min-w-[100px];
     border: 1px solid var(--color-border-subtle);
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .matrix-cell:hover {
     background-color: var(--color-bg-surface-hover);
+    border-color: var(--color-border-default);
   }
 
   .matrix-header {
-    @apply font-medium text-xs uppercase tracking-wider;
+    @apply font-semibold text-xs uppercase tracking-wider;
     background-color: var(--color-bg-surface);
-    color: var(--color-text-secondary);
+    color: var(--color-text-tertiary);
   }
 
   /* ─────────────────────────────────────────────────────────────
      GANTT CHART
      ───────────────────────────────────────────────────────────── */
   .gantt-bar {
-    @apply h-5 rounded-sm relative transition-all;
+    @apply h-6 rounded relative;
+    transition: all var(--duration-fast) var(--ease-out);
   }
 
   .gantt-bar-normal {
-    background-color: var(--color-brand-primary);
-    opacity: 0.8;
+    background: linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-primary-hover));
   }
 
   .gantt-bar-overdue {
-    background-color: var(--color-semantic-error);
-    opacity: 0.8;
+    background: linear-gradient(90deg, var(--color-semantic-error), #F87171);
   }
 
   .gantt-bar-complete {
-    background-color: var(--color-semantic-success);
-    opacity: 0.8;
+    background: linear-gradient(90deg, var(--color-semantic-success), #34D399);
   }
 
   /* ─────────────────────────────────────────────────────────────
      CONFIDENCE INDICATORS
      ───────────────────────────────────────────────────────────── */
   .confidence-dots {
-    @apply flex gap-0.5;
+    @apply flex gap-1;
   }
 
   .confidence-dot {
-    @apply w-1.5 h-1.5 rounded-full;
+    @apply w-2 h-2 rounded-full;
   }
 
   .confidence-dot-filled {
@@ -894,26 +1082,33 @@
 
   /* AI extraction indicator */
   .ai-indicator {
-    @apply inline-flex items-center gap-1 text-xs;
+    @apply inline-flex items-center gap-1.5 text-xs;
     color: var(--color-text-tertiary);
   }
 
   .ai-indicator::before {
-    content: "●";
-    font-size: 8px;
-    color: var(--color-brand-primary);
+    content: "";
+    @apply w-1.5 h-1.5 rounded-full;
+    background-color: var(--color-brand-primary);
+    animation: aiPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes aiPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
   }
 
   /* ─────────────────────────────────────────────────────────────
      VIEW ALL LINK
      ───────────────────────────────────────────────────────────── */
   .view-all-link {
-    @apply text-sm font-medium transition-colors;
+    @apply text-sm font-medium inline-flex items-center gap-1;
     color: var(--color-text-secondary);
+    transition: color var(--duration-fast) var(--ease-out);
   }
 
   .view-all-link:hover {
-    color: var(--color-text-primary);
+    color: var(--color-brand-primary);
   }
 
   /* ─────────────────────────────────────────────────────────────
@@ -923,6 +1118,11 @@
     @apply rounded-lg p-4 flex items-start gap-3;
     background-color: var(--color-card);
     border: 1px solid var(--color-border-subtle);
+    transition: all var(--duration-fast) var(--ease-out);
+  }
+
+  .attention-item:hover {
+    border-color: var(--color-border-default);
   }
 
   .attention-item-dot {
@@ -942,32 +1142,90 @@
   }
 
   /* ─────────────────────────────────────────────────────────────
-     PROJECT CARD
+     PROJECT CARD - Railway-inspired with status
      ───────────────────────────────────────────────────────────── */
   .project-card {
-    @apply rounded-lg p-6 cursor-pointer;
+    @apply rounded-xl p-5 cursor-pointer;
     background-color: var(--color-card);
     border: 1px solid var(--color-border-subtle);
-    transition: border-color 0.15s ease;
+    transition: all var(--duration-normal) var(--ease-out);
   }
 
   .project-card:hover {
     border-color: var(--color-border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   }
 
   .project-card-title {
-    @apply text-base font-semibold mb-2;
+    @apply text-base font-semibold mb-1;
     color: var(--color-text-primary);
   }
 
   .project-card-meta {
-    @apply text-sm mb-4;
+    @apply text-sm mb-3;
     color: var(--color-text-secondary);
   }
 
   .project-card-stat {
-    @apply text-xs mt-3;
+    @apply text-xs;
     color: var(--color-text-tertiary);
+  }
+
+  /* Project card status indicator */
+  .project-card-status {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .project-card-status-active {
+    background-color: var(--color-semantic-success);
+    box-shadow: 0 0 8px var(--color-semantic-success);
+    animation: statusGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes statusGlow {
+    0%, 100% { box-shadow: 0 0 4px var(--color-semantic-success); }
+    50% { box-shadow: 0 0 12px var(--color-semantic-success); }
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     TOOLTIP
+     ───────────────────────────────────────────────────────────── */
+  .kiisha-tooltip {
+    @apply px-3 py-2 text-xs rounded-lg;
+    background-color: var(--color-bg-surface-elevated);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-default);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     AVATAR
+     ───────────────────────────────────────────────────────────── */
+  .avatar {
+    @apply rounded-full overflow-hidden flex items-center justify-center;
+    background-color: var(--color-bg-surface-hover);
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .avatar-sm { @apply w-8 h-8 text-xs; }
+  .avatar-md { @apply w-10 h-10 text-sm; }
+  .avatar-lg { @apply w-12 h-12 text-base; }
+
+  /* ─────────────────────────────────────────────────────────────
+     DIVIDER
+     ───────────────────────────────────────────────────────────── */
+  .divider {
+    @apply w-full;
+    height: 1px;
+    background-color: var(--color-border-subtle);
+  }
+
+  .divider-vertical {
+    @apply h-full;
+    width: 1px;
+    background-color: var(--color-border-subtle);
   }
 }
 
@@ -1000,6 +1258,16 @@
     background: var(--color-border-strong);
   }
 
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Tabular numbers for data display */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
@@ -1009,6 +1277,13 @@
   .truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -1024,6 +1299,10 @@
 
   .text-tertiary-color {
     color: var(--color-text-tertiary);
+  }
+
+  .text-muted-color {
+    color: var(--color-text-muted);
   }
 
   /* Background utilities */
@@ -1054,5 +1333,69 @@
 
   .border-strong {
     border-color: var(--color-border-strong);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-primary-hover));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass effect */
+  .glass {
+    background: rgba(26, 26, 46, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px var(--color-brand-primary-muted);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px var(--color-semantic-success-muted);
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn var(--duration-normal) var(--ease-out);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .animate-slide-up {
+    animation: slideUp var(--duration-normal) var(--ease-out);
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-scale-in {
+    animation: scaleIn var(--duration-fast) var(--ease-spring);
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }
