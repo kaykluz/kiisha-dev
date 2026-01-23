@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -103,8 +104,18 @@ const recentAlerts = [
 ];
 
 export function OperationsDashboard() {
+  const { theme } = useTheme();
   const [timeRange, setTimeRange] = useState("24h");
   const [selectedSite, setSelectedSite] = useState("all");
+  
+  // Theme-aware chart colors
+  const chartColors = {
+    grid: theme === 'light' ? '#e5e5e5' : '#333',
+    axis: theme === 'light' ? '#666' : '#666',
+    tooltipBg: theme === 'light' ? '#ffffff' : '#1A1F36',
+    tooltipBorder: theme === 'light' ? '#e5e5e5' : '#333',
+    tooltipText: theme === 'light' ? '#000' : '#fff',
+  };
 
   // Calculate summary metrics
   const totalPower = powerData[powerData.length - 1]?.value || 0;
@@ -290,16 +301,16 @@ export function OperationsDashboard() {
                       <stop offset="95%" stopColor="#E87722" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" stroke="#666" fontSize={10} />
-                  <YAxis stroke="#666" fontSize={10} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis dataKey="time" stroke={chartColors.axis} fontSize={10} />
+                  <YAxis stroke={chartColors.axis} fontSize={10} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1A1F36",
-                      border: "1px solid #333",
+                      backgroundColor: chartColors.tooltipBg,
+                      border: `1px solid ${chartColors.tooltipBorder}`,
                       borderRadius: "8px",
                     }}
-                    labelStyle={{ color: "#fff" }}
+                    labelStyle={{ color: chartColors.tooltipText }}
                   />
                   <Area
                     type="monotone"
@@ -340,8 +351,8 @@ export function OperationsDashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1A1F36",
-                      border: "1px solid #333",
+                      backgroundColor: chartColors.tooltipBg,
+                      border: `1px solid ${chartColors.tooltipBorder}`,
                       borderRadius: "8px",
                     }}
                   />
@@ -377,13 +388,13 @@ export function OperationsDashboard() {
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={energyByDay}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="day" stroke="#666" fontSize={10} />
-                  <YAxis stroke="#666" fontSize={10} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis dataKey="day" stroke={chartColors.axis} fontSize={10} />
+                  <YAxis stroke={chartColors.axis} fontSize={10} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1A1F36",
-                      border: "1px solid #333",
+                      backgroundColor: chartColors.tooltipBg,
+                      border: `1px solid ${chartColors.tooltipBorder}`,
                       borderRadius: "8px",
                     }}
                   />
@@ -407,13 +418,13 @@ export function OperationsDashboard() {
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={batteryData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" stroke="#666" fontSize={10} />
-                  <YAxis stroke="#666" fontSize={10} domain={[0, 100]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                  <XAxis dataKey="time" stroke={chartColors.axis} fontSize={10} />
+                  <YAxis stroke={chartColors.axis} fontSize={10} domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1A1F36",
-                      border: "1px solid #333",
+                      backgroundColor: chartColors.tooltipBg,
+                      border: `1px solid ${chartColors.tooltipBorder}`,
                       borderRadius: "8px",
                     }}
                   />

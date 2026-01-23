@@ -147,6 +147,12 @@
   --color-chart-3: oklch(0.65 0.18 25);   /* Coral */
   --color-chart-4: oklch(0.65 0.15 240);  /* Blue */
   --color-chart-5: oklch(0.70 0.12 320);  /* Purple */
+  
+  /* Chart grid/axis/tooltip for dark mode */
+  --color-chart-grid: oklch(0.25 0 0);
+  --color-chart-axis: oklch(0.50 0 0);
+  --color-chart-tooltip-bg: oklch(0.14 0.005 0);
+  --color-chart-tooltip-border: oklch(0.25 0 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -156,81 +162,87 @@
 
 html.light {
   /* Background Colors - Clean white/gray like O11 light mode */
-  --color-bg-base: oklch(0.97 0 0);                 /* Light gray base */
-  --color-bg-surface: oklch(1.0 0 0);               /* Pure white cards */
-  --color-bg-surface-elevated: oklch(1.0 0 0);      /* White modals */
-  --color-bg-surface-hover: oklch(0.96 0 0);        /* Subtle hover */
-  --color-bg-surface-active: oklch(0.94 0 0);       /* Active state */
+  --color-bg-base: oklch(0.97 0 0) !important;                 /* Light gray base */
+  --color-bg-surface: oklch(1.0 0 0) !important;               /* Pure white cards */
+  --color-bg-surface-elevated: oklch(1.0 0 0) !important;      /* White modals */
+  --color-bg-surface-hover: oklch(0.96 0 0) !important;        /* Subtle hover */
+  --color-bg-surface-active: oklch(0.94 0 0) !important;       /* Active state */
 
   /* Map to Tailwind semantic colors */
-  --color-background: oklch(0.97 0 0);
-  --color-foreground: oklch(0.12 0 0);
-  --color-card: oklch(1.0 0 0);
-  --color-card-foreground: oklch(0.12 0 0);
-  --color-popover: oklch(1.0 0 0);
-  --color-popover-foreground: oklch(0.12 0 0);
+  --color-background: oklch(0.97 0 0) !important;
+  --color-foreground: oklch(0.12 0 0) !important;
+  --color-card: oklch(1.0 0 0) !important;
+  --color-card-foreground: oklch(0.12 0 0) !important;
+  --color-popover: oklch(1.0 0 0) !important;
+  --color-popover-foreground: oklch(0.12 0 0) !important;
+
+  /* Chart Colors for light mode */
+  --color-chart-grid: oklch(0.85 0 0);
+  --color-chart-axis: oklch(0.50 0 0);
+  --color-chart-tooltip-bg: oklch(1.0 0 0);
+  --color-chart-tooltip-border: oklch(0.85 0 0);
 
   /* Text Colors - High contrast for readability */
-  --color-text-primary: oklch(0.12 0 0);            /* Near black */
-  --color-text-secondary: oklch(0.40 0 0);          /* Medium gray */
-  --color-text-tertiary: oklch(0.55 0 0);           /* Light gray */
-  --color-text-inverse: oklch(0.98 0 0);            /* White text */
+  --color-text-primary: oklch(0.12 0 0) !important;            /* Near black */
+  --color-text-secondary: oklch(0.40 0 0) !important;          /* Medium gray */
+  --color-text-tertiary: oklch(0.55 0 0) !important;           /* Light gray */
+  --color-text-inverse: oklch(0.98 0 0) !important;            /* White text */
 
   /* Border Colors - Visible but subtle */
-  --color-border-default: oklch(0.85 0 0);
-  --color-border-subtle: oklch(0.90 0 0);
-  --color-border-strong: oklch(0.75 0 0);
-  --color-border: oklch(0.85 0 0);
-  --color-input: oklch(0.97 0 0);
-  --color-input-foreground: oklch(0.12 0 0);  /* Dark text for inputs */
+  --color-border-default: oklch(0.85 0 0) !important;
+  --color-border-subtle: oklch(0.90 0 0) !important;
+  --color-border-strong: oklch(0.75 0 0) !important;
+  --color-border: oklch(0.85 0 0) !important;
+  --color-input: oklch(0.97 0 0) !important;
+  --color-input-foreground: oklch(0.12 0 0) !important;  /* Dark text for inputs */
 
   /* Secondary & Muted */
-  --color-secondary: oklch(0.94 0 0);
-  --color-secondary-foreground: oklch(0.15 0 0);
-  --color-muted: oklch(0.94 0 0);
-  --color-muted-foreground: oklch(0.45 0 0);
+  --color-secondary: oklch(0.94 0 0) !important;
+  --color-secondary-foreground: oklch(0.15 0 0) !important;
+  --color-muted: oklch(0.94 0 0) !important;
+  --color-muted-foreground: oklch(0.45 0 0) !important;
 
   /* Brand Colors - Deeper amber for light mode contrast */
-  --color-brand-primary: oklch(0.55 0.20 55);       /* Deeper amber/orange */
-  --color-brand-primary-hover: oklch(0.50 0.22 55); /* Darker on hover */
-  --color-brand-primary-muted: oklch(0.55 0.20 55 / 0.10);
+  --color-brand-primary: oklch(0.55 0.20 55) !important;       /* Deeper amber/orange */
+  --color-brand-primary-hover: oklch(0.50 0.22 55) !important; /* Darker on hover */
+  --color-brand-primary-muted: oklch(0.55 0.20 55 / 0.10) !important;
 
-  --color-primary: oklch(0.55 0.20 55);
-  --color-primary-foreground: oklch(1.0 0 0);       /* White text on primary */
-  --color-accent: oklch(0.94 0 0);
-  --color-accent-foreground: oklch(0.12 0 0);
-  --color-ring: oklch(0.55 0.20 55);
+  --color-primary: oklch(0.55 0.20 55) !important;
+  --color-primary-foreground: oklch(1.0 0 0) !important;       /* White text on primary */
+  --color-accent: oklch(0.94 0 0) !important;
+  --color-accent-foreground: oklch(0.12 0 0) !important;
+  --color-ring: oklch(0.55 0.20 55) !important;
 
   /* Semantic Colors - Adjusted for light mode visibility */
-  --color-semantic-success: oklch(0.50 0.18 155);
-  --color-semantic-success-muted: oklch(0.50 0.18 155 / 0.12);
-  --color-success: oklch(0.50 0.18 155);
-  --color-success-foreground: oklch(1.0 0 0);
+  --color-semantic-success: oklch(0.50 0.18 155) !important;
+  --color-semantic-success-muted: oklch(0.50 0.18 155 / 0.12) !important;
+  --color-success: oklch(0.50 0.18 155) !important;
+  --color-success-foreground: oklch(1.0 0 0) !important;
 
-  --color-semantic-warning: oklch(0.62 0.18 70);
-  --color-semantic-warning-muted: oklch(0.62 0.18 70 / 0.12);
-  --color-warning: oklch(0.62 0.18 70);
-  --color-warning-foreground: oklch(0.12 0 0);
+  --color-semantic-warning: oklch(0.62 0.18 70) !important;
+  --color-semantic-warning-muted: oklch(0.62 0.18 70 / 0.12) !important;
+  --color-warning: oklch(0.62 0.18 70) !important;
+  --color-warning-foreground: oklch(0.12 0 0) !important;
 
-  --color-semantic-error: oklch(0.50 0.22 25);
-  --color-semantic-error-muted: oklch(0.50 0.22 25 / 0.12);
-  --color-destructive: oklch(0.50 0.22 25);
-  --color-destructive-foreground: oklch(1.0 0 0);
+  --color-semantic-error: oklch(0.50 0.22 25) !important;
+  --color-semantic-error-muted: oklch(0.50 0.22 25 / 0.12) !important;
+  --color-destructive: oklch(0.50 0.22 25) !important;
+  --color-destructive-foreground: oklch(1.0 0 0) !important;
 
-  --color-semantic-info: oklch(0.50 0.15 240);
-  --color-semantic-info-muted: oklch(0.50 0.15 240 / 0.12);
-  --color-info: oklch(0.50 0.15 240);
-  --color-info-foreground: oklch(1.0 0 0);
+  --color-semantic-info: oklch(0.50 0.15 240) !important;
+  --color-semantic-info-muted: oklch(0.50 0.15 240 / 0.12) !important;
+  --color-info: oklch(0.50 0.15 240) !important;
+  --color-info-foreground: oklch(1.0 0 0) !important;
 
   /* Sidebar Colors - Light sidebar like O11 */
-  --color-sidebar: oklch(0.98 0 0);
-  --color-sidebar-foreground: oklch(0.20 0 0);
-  --color-sidebar-primary: oklch(0.55 0.20 55);
-  --color-sidebar-primary-foreground: oklch(1.0 0 0);
-  --color-sidebar-accent: oklch(0.94 0 0);
-  --color-sidebar-accent-foreground: oklch(0.12 0 0);
-  --color-sidebar-border: oklch(0.90 0 0);
-  --color-sidebar-ring: oklch(0.55 0.20 55);
+  --color-sidebar: oklch(0.98 0 0) !important;
+  --color-sidebar-foreground: oklch(0.20 0 0) !important;
+  --color-sidebar-primary: oklch(0.55 0.20 55) !important;
+  --color-sidebar-primary-foreground: oklch(1.0 0 0) !important;
+  --color-sidebar-accent: oklch(0.94 0 0) !important;
+  --color-sidebar-accent-foreground: oklch(0.12 0 0) !important;
+  --color-sidebar-border: oklch(0.90 0 0) !important;
+  --color-sidebar-ring: oklch(0.55 0.20 55) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════
