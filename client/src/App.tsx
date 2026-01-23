@@ -98,6 +98,7 @@ import { JobNotifications } from "./components/JobNotifications";
 import { GlobalAIChat } from "./components/GlobalAIChat";
 import { AdminGuard } from "./components/AdminGuard";
 import { AuthProvider } from "./contexts/AuthProvider";
+import SelectWorkspace, { PendingAccess } from "./pages/SelectWorkspace";
 
 // Wrapper component for admin-only routes
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -121,6 +122,8 @@ function Router() {
       <Route path="/auth/callback/:provider" component={OAuthCallback} />
       <Route path="/auth/verify-email" component={VerifyEmail} />
       <Route path="/invite/:token" component={InviteAccept} />
+      <Route path="/select-workspace" component={SelectWorkspace} />
+      <Route path="/pending-access" component={PendingAccess} />
       <Route path="/dashboard" component={Dashboard} />
       
       {/* User routes (authenticated) */}
