@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
+import * as sessionManager from "../services/sessionManager";
 import { sdk } from "../_core/sdk";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
@@ -373,17 +374,25 @@ export const multiAuthRouter = router({
         }
       }
       
-      // Create JWT session token using SDK (this is what the auth system expects)
-      const sessionToken = await sdk.createSessionToken(userOpenId, {
-        name: userName,
-        expiresInMs: ONE_YEAR_MS
+      // Create database session (required for authSession.getSession to work)
+      const ipAddress = ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || null;
+      const userAgent = ctx.req?.headers?.["user-agent"] || null;
+
+      const { sessionId } = await sessionManager.createSession({
+        userId,
+        ip: ipAddress,
+        userAgent,
+        activeOrganizationId: null,
+        mfaSatisfied: false
       });
 
       // Set the session cookie server-side with proper httpOnly flag
-      // This is how the Manus OAuth flow works and is required for security
       if (ctx.res) {
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        ctx.res.cookie(COOKIE_NAME, sessionId, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days to match SESSION_MAX_LIFETIME
+        });
       }
 
       // Log login activity
@@ -391,8 +400,8 @@ export const multiAuthRouter = router({
         await db.createLoginActivity({
           userId,
           provider: input.provider,
-          ipAddress: ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || null,
-          userAgent: ctx.req?.headers?.["user-agent"] || null,
+          ipAddress,
+          userAgent,
           success: true
         });
       } catch (e) {
@@ -546,25 +555,30 @@ export const multiAuthRouter = router({
         });
       }
       
-      // Create JWT session token using SDK (this is what the auth system expects)
+      // Create database session (required for authSession.getSession to work)
+      const ipAddress = ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || null;
+      const userAgent = ctx.req?.headers?.["user-agent"] || null;
+
+      const { sessionId } = await sessionManager.createSession({
+        userId: user.id,
+        ip: ipAddress,
+        userAgent,
+        activeOrganizationId: null,
+        mfaSatisfied: false
+      });
+
+      // Set session duration based on remember me
       const sessionDuration = input.rememberMe
         ? 30 * 24 * 60 * 60 * 1000  // 30 days
         : 24 * 60 * 60 * 1000;       // 1 day
-      const sessionToken = await sdk.createSessionToken(user.openId, {
-        name: user.name || "",
-        expiresInMs: sessionDuration
-      });
 
       // Set the session cookie server-side with proper httpOnly flag
       if (ctx.res) {
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: sessionDuration });
+        ctx.res.cookie(COOKIE_NAME, sessionId, { ...cookieOptions, maxAge: sessionDuration });
       }
 
       // Log successful login
-      const ipAddress = ctx.req?.ip || ctx.req?.headers?.["x-forwarded-for"]?.toString() || null;
-      const userAgent = ctx.req?.headers?.["user-agent"] || null;
-      
       try {
         await db.createLoginActivity({
           userId: user.id,

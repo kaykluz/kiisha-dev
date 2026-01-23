@@ -46,8 +46,8 @@ export default function Login() {
   const loginMutation = trpc.multiAuth.loginWithEmail.useMutation({
     onSuccess: async (data) => {
       if (data.success) {
-        // Wait briefly for cookie to be set
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for session to be created in database
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Verify session before redirect
         try {

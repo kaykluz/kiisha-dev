@@ -17,8 +17,8 @@ export default function OAuthCallback() {
       if (data.success) {
         setStatus("success");
 
-        // Wait and verify session is established
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait for session to be established on server
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
           const utils = trpc.useUtils();
