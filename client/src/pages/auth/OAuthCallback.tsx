@@ -12,30 +12,33 @@ export default function OAuthCallback() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // IMPORTANT: useUtils must be called at the top level, not inside callbacks
+  const utils = trpc.useUtils();
+
   const handleCallbackMutation = trpc.multiAuth.handleCallback.useMutation({
     onSuccess: async (data) => {
       if (data.success) {
         setStatus("success");
 
-        // Wait for session to be established on server
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait for session cookie to be set by the browser
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         try {
-          const utils = trpc.useUtils();
           await utils.authSession.getSession.invalidate();
           const session = await utils.authSession.getSession.fetch();
 
           if (session.authenticated) {
             setLocation("/dashboard");
           } else {
-            // Retry with longer delay
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Retry with longer delay and re-invalidate
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            await utils.authSession.getSession.invalidate();
             const retrySession = await utils.authSession.getSession.fetch();
             if (retrySession.authenticated) {
               setLocation("/dashboard");
             } else {
               setStatus("error");
-              setErrorMessage("Failed to establish session after authentication");
+              setErrorMessage("Failed to establish session after authentication.");
             }
           }
         } catch (err) {
