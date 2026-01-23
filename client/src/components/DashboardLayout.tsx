@@ -298,7 +298,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
 
             {/* Admin Section */}
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser) && (
               <>
                 {!isCollapsed && (
                   <div className="px-3 mt-5 mb-1.5">

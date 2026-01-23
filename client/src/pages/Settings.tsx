@@ -35,7 +35,9 @@ function SettingsCard({ title, description, icon, path, badge, badgeVariant = "s
   const { user } = useAuth();
   
   // Hide admin-only cards from non-admin users
-  if (adminOnly && user?.role !== 'admin') {
+  // Allow admin, superuser_admin roles, or users with isSuperuser flag
+  const isUserAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
+  if (adminOnly && !isUserAdmin) {
     return null;
   }
   
@@ -73,7 +75,8 @@ function SettingsCard({ title, description, icon, path, badge, badgeVariant = "s
 
 export default function Settings() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  // Allow admin, superuser_admin roles, or users with isSuperuser flag
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
   
   return (
     <AppLayout>

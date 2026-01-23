@@ -458,8 +458,8 @@ export function CommentsSection({ resourceType, resourceId, className = '' }: Co
   const totalThreads = rootComments.length;
 
   const currentUserId = user?.id || 0;
-  const isAdmin = user?.role === 'admin';
-  const canSeeInternal = user?.role === 'admin' || user?.role === 'user';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
+  const canSeeInternal = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser || user?.role === 'user';
 
   // Loading skeleton
   if (isLoading) {

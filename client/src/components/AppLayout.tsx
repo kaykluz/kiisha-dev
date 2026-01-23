@@ -613,7 +613,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </div>
 
                 {/* Admin-only navigation */}
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser) && (
                   <div className="space-y-1 mt-2">
                     {adminNav.map((item) => (
                       <ExpandableNavItem

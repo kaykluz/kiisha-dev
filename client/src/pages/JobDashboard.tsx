@@ -25,7 +25,7 @@ type JobType = "document_ingestion" | "ai_extraction" | "email_send" | "notifica
 
 export default function JobDashboard() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
   const [selectedJobs, setSelectedJobs] = useState<Set<number>>(new Set());
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<JobType | "all">("all");
