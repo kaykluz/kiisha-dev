@@ -43,8 +43,8 @@ import {
   GanttChart,
   History,
   Eye,
+  Loader2,
 } from "lucide-react";
-import { mockProjects, mockRfis } from "@shared/mockData";
 import { CreateRfiDialog } from "@/components/CreateRfiDialog";
 import { trpc } from "@/lib/trpc";
 import { useFeatureFlag } from "@/contexts/FeatureFlagContext";
@@ -87,61 +87,11 @@ interface WorkspaceItemTraceability {
   lastModifiedBy: string;
 }
 
-// Mock traceability data
-const mockTraceability: Record<number, WorkspaceItemTraceability> = {
-  1: {
-    linkedDocuments: [
-      { id: "doc-1", name: "Lease Agreement v2.pdf", type: "Lease", pageReference: 12, linkedAt: "2026-01-10T14:30:00Z", linkedBy: "Sarah Chen" },
-      { id: "doc-2", name: "Payment Schedule.xlsx", type: "Financial", linkedAt: "2026-01-10T14:35:00Z", linkedBy: "Sarah Chen" },
-    ],
-    linkedChecklistItems: [
-      { id: "cl-1", title: "Lease execution complete", status: "pending", dueDate: "2026-01-20", linkedAt: "2026-01-10T14:40:00Z" },
-      { id: "cl-2", title: "Payment terms verified", status: "complete", dueDate: "2026-01-15", linkedAt: "2026-01-10T14:40:00Z" },
-    ],
-    linkedScheduleItems: [
-      { id: "sch-1", title: "Site Lease Finalization", phase: "Development", startDate: "2026-01-15", endDate: "2026-02-01", linkedAt: "2026-01-10T14:45:00Z" },
-    ],
-    createdAt: "2026-01-08T09:00:00Z",
-    createdBy: "Mike Johnson",
-    lastModifiedAt: "2026-01-12T16:30:00Z",
-    lastModifiedBy: "Sarah Chen",
-  },
-  2: {
-    linkedDocuments: [
-      { id: "doc-3", name: "Interconnection_Agreement.pdf", type: "Interconnection", pageReference: 5, linkedAt: "2026-01-09T10:00:00Z", linkedBy: "Emily Watson" },
-    ],
-    linkedChecklistItems: [
-      { id: "cl-3", title: "IC agreement signed", status: "blocked", dueDate: "2026-01-25", linkedAt: "2026-01-09T10:05:00Z" },
-    ],
-    linkedScheduleItems: [
-      { id: "sch-2", title: "Interconnection Study", phase: "Feasibility", startDate: "2026-01-01", endDate: "2026-02-15", linkedAt: "2026-01-09T10:10:00Z" },
-    ],
-    createdAt: "2026-01-05T11:00:00Z",
-    createdBy: "Emily Watson",
-    lastModifiedAt: "2026-01-11T14:00:00Z",
-    lastModifiedBy: "Emily Watson",
-  },
-};
-
-// Activity history
-const mockActivityHistory: Record<number, Array<{ id: string; action: string; user: string; timestamp: string; details: string }>> = {
-  1: [
-    { id: "a1", action: "created", user: "Mike Johnson", timestamp: "2026-01-08T09:00:00Z", details: "Created RFI from document review" },
-    { id: "a2", action: "linked_document", user: "Sarah Chen", timestamp: "2026-01-10T14:30:00Z", details: "Linked Lease Agreement v2.pdf" },
-    { id: "a3", action: "linked_checklist", user: "Sarah Chen", timestamp: "2026-01-10T14:40:00Z", details: "Linked to closing checklist items" },
-    { id: "a4", action: "comment", user: "Sarah Chen", timestamp: "2026-01-12T16:30:00Z", details: "Added comment about landowner response" },
-  ],
-  2: [
-    { id: "a5", action: "created", user: "Emily Watson", timestamp: "2026-01-05T11:00:00Z", details: "Created RFI for IC study clarification" },
-    { id: "a6", action: "linked_document", user: "Emily Watson", timestamp: "2026-01-09T10:00:00Z", details: "Linked Interconnection Agreement" },
-    { id: "a7", action: "status_change", user: "Emily Watson", timestamp: "2026-01-11T14:00:00Z", details: "Changed status to In Progress" },
-  ],
-};
-
 // Status dot component
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
     resolved: "bg-[var(--color-success)]",
+    closed: "bg-[var(--color-success)]",
     in_progress: "bg-[var(--color-info)]",
     open: "bg-[var(--color-brand)]",
   };
@@ -173,14 +123,14 @@ function ChecklistStatus({ status }: { status: "pending" | "complete" | "blocked
 
 // RFI Detail Drawer
 interface RfiDrawerProps {
-  rfi: (typeof mockRfis)[0];
+  rfi: any;
+  project: any;
   onClose: () => void;
   onDelete?: () => void;
   userRole?: "admin" | "editor" | "reviewer" | "investor_viewer";
 }
 
-function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProps) {
-  const project = mockProjects.find((p) => p.id === rfi.projectId);
+function RfiDrawer({ rfi, project, onClose, onDelete, userRole = "admin" }: RfiDrawerProps) {
   const [status, setStatus] = useState<string>(rfi.status);
   const [dueDate, setDueDate] = useState<Date | null>(() => {
     if (!rfi.dueDate) return null;
@@ -211,24 +161,24 @@ function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProp
     }
   };
 
-  const traceability = mockTraceability[rfi.id] || {
+  const traceability: WorkspaceItemTraceability = {
     linkedDocuments: [],
     linkedChecklistItems: [],
     linkedScheduleItems: [],
-    createdAt: new Date().toISOString(),
+    createdAt: rfi.createdAt || new Date().toISOString(),
     createdBy: "Unknown",
-    lastModifiedAt: new Date().toISOString(),
+    lastModifiedAt: rfi.updatedAt || new Date().toISOString(),
     lastModifiedBy: "Unknown",
   };
 
-  const activityHistory = mockActivityHistory[rfi.id] || [];
+  const activityHistory: any[] = [];
 
   return (
     <Drawer
       open={true}
       onClose={onClose}
       title={rfi.title}
-      subtitle={`${rfi.code} • ${project?.name}`}
+      subtitle={`${rfi.code} • ${project?.name || 'Unknown Project'}`}
       size="lg"
       footer={
         !isInvestorViewer ? (
@@ -274,24 +224,10 @@ function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProp
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open">
-                      <div className="flex items-center gap-2">
-                        <StatusDot status="open" />
-                        Open
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="in_progress">
-                      <div className="flex items-center gap-2">
-                        <StatusDot status="in_progress" />
-                        In Progress
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="resolved">
-                      <div className="flex items-center gap-2">
-                        <StatusDot status="resolved" />
-                        Resolved
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -299,62 +235,51 @@ function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProp
                 <label className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 block">
                   Priority
                 </label>
-                <div className="h-10 flex items-center">
+                <div className="flex items-center gap-2 h-10">
                   <PriorityIndicator priority={rfi.priority} />
                 </div>
               </div>
             </div>
 
+            {/* Due Date */}
+            <div>
+              <label className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 block">
+                Due Date
+              </label>
+              <InlineDatePicker
+                value={dueDate}
+                onChange={handleDueDateChange}
+                disabled={isInvestorViewer}
+              />
+            </div>
+
             {/* Description */}
-            <DrawerSection title="Description">
+            <div>
+              <label className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 block">
+                Description
+              </label>
               <p className="text-sm text-[var(--color-text-secondary)]">
                 {rfi.description || "No description provided."}
               </p>
-            </DrawerSection>
+            </div>
 
             {/* Metadata */}
-            <DrawerSection title="Details">
-              <DrawerFieldGrid>
-                <DrawerField label="Category" value={rfi.category} />
-                <DrawerField label="Assignee" value={(rfi as any).assignee || "Unassigned"} />
+            <div className="pt-4 border-t border-[var(--color-border-subtle)]">
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <dt className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1">
-                    Due Date
-                  </dt>
-                  <dd className="text-sm">
-                    {isInvestorViewer ? (
-                      <DueDateIndicator date={dueDate} showRelativeTime={true} />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <InlineDatePicker
-                          value={dueDate}
-                          onChange={handleDueDateChange}
-                          disabled={isInvestorViewer}
-                        />
-                        {dueDate && getDueDateStatus(dueDate) !== 'normal' && getDueDateStatus(dueDate) !== 'none' && (
-                          <DueDateDot date={dueDate} />
-                        )}
-                      </div>
-                    )}
-                  </dd>
+                  <span className="text-[var(--color-text-tertiary)]">Created:</span>
+                  <span className="ml-2 text-[var(--color-text-secondary)]">
+                    {new Date(traceability.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
-                <DrawerField label="Created" value={formatDate(traceability.createdAt)} />
-              </DrawerFieldGrid>
-            </DrawerSection>
-
-            {/* Quick Comments Link */}
-            <DrawerSection title="Discussion">
-              <button
-                onClick={() => setActiveTab("comments")}
-                className="w-full flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                  <span className="text-sm text-[var(--color-text-secondary)]">View all comments</span>
+                <div>
+                  <span className="text-[var(--color-text-tertiary)]">Last Modified:</span>
+                  <span className="ml-2 text-[var(--color-text-secondary)]">
+                    {new Date(traceability.lastModifiedAt).toLocaleDateString()}
+                  </span>
                 </div>
-                <CommentsCount resourceType="workspace_item" resourceId={rfi.id} />
-              </button>
-            </DrawerSection>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -362,113 +287,113 @@ function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProp
         <TabsContent value="links" className="flex-1 m-0 overflow-auto">
           <div className="p-6 space-y-6">
             {/* Linked Documents */}
-            <DrawerSection title={`Linked Documents (${traceability.linkedDocuments.length})`}>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Linked Documents
+                </h3>
+                {!isInvestorViewer && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Link
+                  </Button>
+                )}
+              </div>
               {traceability.linkedDocuments.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-tertiary)] py-4 text-center">No linked documents</p>
+                <p className="text-sm text-[var(--color-text-tertiary)] italic">No linked documents</p>
               ) : (
                 <div className="space-y-2">
                   {traceability.linkedDocuments.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] cursor-pointer transition-colors"
-                    >
-                      <FileText className="w-4 h-4 text-[var(--color-info)]" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.name}</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)]">
-                          {doc.type} {doc.pageReference && `• Page ${doc.pageReference}`}
-                        </p>
+                    <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-surface-hover)]">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <div>
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{doc.name}</p>
+                          <p className="text-xs text-[var(--color-text-tertiary)]">
+                            {doc.type} {doc.pageReference && `• Page ${doc.pageReference}`}
+                          </p>
+                        </div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                      <Button variant="ghost" size="sm" className="h-7">
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               )}
-              {!isInvestorViewer && (
-                <FeatureButton 
-                  featureFlag="LINKING_ENGINE" 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-3 w-full"
-                  disabledTooltip="Document linking is being configured for your organization"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Link Document
-                </FeatureButton>
-              )}
-            </DrawerSection>
+            </div>
 
             {/* Linked Checklist Items */}
-            <DrawerSection title={`Linked Checklist Items (${traceability.linkedChecklistItems.length})`}>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+                  <ListChecks className="w-4 h-4" />
+                  Linked Checklist Items
+                </h3>
+                {!isInvestorViewer && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Link
+                  </Button>
+                )}
+              </div>
               {traceability.linkedChecklistItems.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-tertiary)] py-4 text-center">No linked checklist items</p>
+                <p className="text-sm text-[var(--color-text-tertiary)] italic">No linked checklist items</p>
               ) : (
                 <div className="space-y-2">
                   {traceability.linkedChecklistItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] cursor-pointer transition-colors"
-                    >
-                      <ListChecks className="w-4 h-4 text-[var(--color-success)]" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{item.title}</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)]">Due: {item.dueDate}</p>
+                    <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-surface-hover)]">
+                      <div className="flex items-center gap-3">
+                        <ListChecks className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <div>
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <ChecklistStatus status={item.status} />
+                            <span className="text-xs text-[var(--color-text-tertiary)]">Due {item.dueDate}</span>
+                          </div>
+                        </div>
                       </div>
-                      <ChecklistStatus status={item.status} />
                     </div>
                   ))}
                 </div>
               )}
-              {!isInvestorViewer && (
-                <FeatureButton 
-                  featureFlag="LINKING_ENGINE" 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-3 w-full"
-                  disabledTooltip="Checklist linking is being configured for your organization"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Link Checklist Item
-                </FeatureButton>
-              )}
-            </DrawerSection>
+            </div>
 
             {/* Linked Schedule Items */}
-            <DrawerSection title={`Linked Schedule Items (${traceability.linkedScheduleItems.length})`}>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+                  <GanttChart className="w-4 h-4" />
+                  Linked Schedule Items
+                </h3>
+                {!isInvestorViewer && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs">
+                    <Plus className="w-3 h-3 mr-1" />
+                    Link
+                  </Button>
+                )}
+              </div>
               {traceability.linkedScheduleItems.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-tertiary)] py-4 text-center">No linked schedule items</p>
+                <p className="text-sm text-[var(--color-text-tertiary)] italic">No linked schedule items</p>
               ) : (
                 <div className="space-y-2">
                   {traceability.linkedScheduleItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] cursor-pointer transition-colors"
-                    >
-                      <GanttChart className="w-4 h-4 text-[var(--color-brand)]" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{item.title}</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)]">
-                          {item.phase} • {item.startDate} → {item.endDate}
-                        </p>
+                    <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-bg-surface-hover)]">
+                      <div className="flex items-center gap-3">
+                        <GanttChart className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <div>
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.title}</p>
+                          <p className="text-xs text-[var(--color-text-tertiary)]">
+                            {item.phase} • {item.startDate} - {item.endDate}
+                          </p>
+                        </div>
                       </div>
-                      <ExternalLink className="w-4 h-4 text-[var(--color-text-tertiary)]" />
                     </div>
                   ))}
                 </div>
               )}
-              {!isInvestorViewer && (
-                <FeatureButton 
-                  featureFlag="LINKING_ENGINE" 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-3 w-full"
-                  disabledTooltip="Schedule linking is being configured for your organization"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Link Schedule Item
-                </FeatureButton>
-              )}
-            </DrawerSection>
+            </div>
           </div>
         </TabsContent>
 
@@ -476,29 +401,27 @@ function RfiDrawer({ rfi, onClose, onDelete, userRole = "admin" }: RfiDrawerProp
         <TabsContent value="history" className="flex-1 m-0 overflow-auto">
           <div className="p-6">
             {activityHistory.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">No activity history</p>
+              <EmptyState
+                type="tasks"
+                title="No activity yet"
+                description="Activity history will appear here as changes are made."
+              />
             ) : (
-              <div className="space-y-4">
-                {activityHistory.map((entry, index) => (
-                  <div key={entry.id} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center",
-                        entry.action === "created" && "bg-[var(--color-brand-muted)]",
-                        entry.action === "linked_document" && "bg-[var(--color-info-muted)]",
-                        entry.action === "linked_checklist" && "bg-[var(--color-success-muted)]",
-                        entry.action === "comment" && "bg-[var(--color-warning-muted)]",
-                        entry.action === "status_change" && "bg-purple-500/20"
-                      )}>
-                        {entry.action === "created" && <Plus className="w-4 h-4 text-[var(--color-brand)]" />}
-                        {entry.action === "linked_document" && <FileText className="w-4 h-4 text-[var(--color-info)]" />}
-                        {entry.action === "linked_checklist" && <ListChecks className="w-4 h-4 text-[var(--color-success)]" />}
-                        {entry.action === "comment" && <MessageSquare className="w-4 h-4 text-[var(--color-warning)]" />}
-                        {entry.action === "status_change" && <Clock className="w-4 h-4 text-purple-500" />}
-                      </div>
-                      {index < activityHistory.length - 1 && (
-                        <div className="w-px h-full bg-[var(--color-border-subtle)] my-1" />
-                      )}
+              <div className="relative">
+                <div className="absolute left-4 top-0 bottom-0 w-px bg-[var(--color-border-subtle)]" />
+                {activityHistory.map((entry: any, idx: number) => (
+                  <div key={entry.id} className="relative flex gap-4 pb-6 last:pb-0">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center z-10",
+                      entry.action === "created" ? "bg-[var(--color-success)]/10" :
+                      entry.action === "status_change" ? "bg-[var(--color-info)]/10" :
+                      "bg-[var(--color-bg-surface-hover)]"
+                    )}>
+                      {entry.action === "created" && <CheckCircle2 className="w-4 h-4 text-[var(--color-success)]" />}
+                      {entry.action === "linked_document" && <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />}
+                      {entry.action === "linked_checklist" && <ListChecks className="w-4 h-4 text-[var(--color-text-tertiary)]" />}
+                      {entry.action === "comment" && <MessageSquare className="w-4 h-4 text-[var(--color-text-tertiary)]" />}
+                      {entry.action === "status_change" && <Clock className="w-4 h-4 text-[var(--color-info)]" />}
                     </div>
                     <div className="flex-1 pb-4">
                       <p className="text-sm font-medium text-[var(--color-text-primary)] capitalize">
@@ -537,14 +460,17 @@ function WorkspaceContent() {
   const { selectedProjectId } = useProject();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedRfi, setSelectedRfi] = useState<(typeof mockRfis)[0] | null>(null);
+  const [selectedRfi, setSelectedRfi] = useState<any | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(["Site & Real Estate", "Permits", "Technical", "Interconnection"])
+    new Set(["Site & Real Estate", "Permits", "Technical", "Interconnection", "Other"])
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   
+  // Fetch projects from API
+  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
+  
   // Fetch RFIs from database
-  const { data: dbRfis, refetch: refetchRfis } = trpc.rfis.list.useQuery(
+  const { data: rfis = [], isLoading: rfisLoading, refetch: refetchRfis } = trpc.rfis.list.useQuery(
     selectedProjectId ? { projectId: selectedProjectId } : undefined
   );
   
@@ -563,11 +489,10 @@ function WorkspaceContent() {
   const handleDeleteRfi = (rfiId: number) => {
     deleteRfiMutation.mutate({ id: rfiId });
   };
-  
-  // Combine database RFIs with mock data for demo
-  const allRfis = [...((dbRfis || []) as any[]), ...mockRfis];
 
-  const filteredRfis = allRfis.filter((rfi) => {
+  const isLoading = projectsLoading || rfisLoading;
+
+  const filteredRfis = (rfis as any[]).filter((rfi) => {
     if (selectedProjectId && rfi.projectId !== selectedProjectId) return false;
     if (statusFilter !== "all" && rfi.status !== statusFilter) return false;
     if (searchQuery) {
@@ -600,7 +525,20 @@ function WorkspaceContent() {
 
   const openCount = filteredRfis.filter((r) => r.status === "open").length;
   const inProgressCount = filteredRfis.filter((r) => r.status === "in_progress").length;
-  const resolvedCount = filteredRfis.filter((r) => r.status === "resolved").length;
+  const resolvedCount = filteredRfis.filter((r) => r.status === "resolved" || r.status === "closed").length;
+
+  if (isLoading) {
+    return (
+      <div className="page-container">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-primary)]" />
+            <p className="text-sm text-[var(--color-text-secondary)]">Loading workspace...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
@@ -681,7 +619,7 @@ function WorkspaceContent() {
       ) : (
         <div className="rounded-lg border border-[var(--color-border-subtle)] overflow-hidden">
           <ScrollArea className="h-[600px]">
-            {(Object.entries(rfisByCategory) as [string, any[]][]).map(([category, rfis]) => (
+            {(Object.entries(rfisByCategory) as [string, any[]][]).map(([category, categoryRfis]) => (
               <Collapsible
                 key={category}
                 open={expandedCategories.has(category)}
@@ -694,7 +632,7 @@ function WorkspaceContent() {
                     <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)]" />
                   )}
                   <span className="text-sm font-medium text-[var(--color-text-primary)]">{category}</span>
-                  <span className="text-xs text-[var(--color-text-tertiary)] ml-1">({rfis.length})</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)] ml-1">({categoryRfis.length})</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <table className="w-full">
@@ -711,10 +649,8 @@ function WorkspaceContent() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rfis.map((rfi: any) => {
-                        const project = mockProjects.find((p) => p.id === rfi.projectId);
-                        const trace = mockTraceability[rfi.id];
-                        const hasLinks = trace && (trace.linkedDocuments.length > 0 || trace.linkedChecklistItems.length > 0 || trace.linkedScheduleItems.length > 0);
+                      {categoryRfis.map((rfi: any) => {
+                        const project = projects.find((p: any) => p.id === rfi.projectId);
                         
                         return (
                           <tr
@@ -726,7 +662,7 @@ function WorkspaceContent() {
                               <span className="text-xs font-mono text-[var(--color-text-tertiary)]">{rfi.code}</span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--color-text-secondary)]">{project?.name}</span>
+                              <span className="text-sm text-[var(--color-text-secondary)]">{project?.name || 'Unknown'}</span>
                             </td>
                             <td className="px-4 py-3">
                               <p className="text-sm text-[var(--color-text-primary)] truncate max-w-md">{rfi.title}</p>
@@ -735,7 +671,7 @@ function WorkspaceContent() {
                               <PriorityIndicator priority={rfi.priority} />
                             </td>
                             <td className="px-4 py-3">
-                              <span className="text-sm text-[var(--color-text-secondary)]">{(rfi as any).assignee || "—"}</span>
+                              <span className="text-sm text-[var(--color-text-secondary)]">{rfi.assignee || "—"}</span>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1.5">
@@ -754,9 +690,7 @@ function WorkspaceContent() {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              {hasLinks && (
-                                <Link2 className="w-4 h-4 text-[var(--color-info)]" />
-                              )}
+                              {/* Links indicator - will show when linked items exist */}
                             </td>
                           </tr>
                         );
@@ -773,7 +707,8 @@ function WorkspaceContent() {
       {/* RFI Detail Drawer */}
       {selectedRfi && (
         <RfiDrawer 
-          rfi={selectedRfi} 
+          rfi={selectedRfi}
+          project={projects.find((p: any) => p.id === selectedRfi.projectId)}
           onClose={() => setSelectedRfi(null)} 
           onDelete={() => handleDeleteRfi(selectedRfi.id)}
         />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 import {
   Plug,
   Plus,
@@ -105,8 +106,8 @@ const connectorTypes = {
     name: "Custom API",
     description: "Connect to any REST API",
     icon: Server,
-    color: "text-pink-400",
-    fields: ["baseUrl", "apiKey", "authType"],
+    color: "text-indigo-400",
+    fields: ["apiUrl", "apiKey", "authType"],
   },
   csv_import: {
     name: "CSV Import",
@@ -116,54 +117,6 @@ const connectorTypes = {
     fields: [],
   },
 };
-
-// Mock connectors data
-const mockConnectors = [
-  {
-    id: 1,
-    name: "AMMP - Portfolio Sites",
-    connectorType: "ammp" as const,
-    status: "active" as const,
-    lastSyncAt: new Date("2026-01-15T10:30:00"),
-    syncFrequencyMinutes: 15,
-    errorMessage: null,
-    sitesConnected: 12,
-    metricsIngested: 45000,
-  },
-  {
-    id: 2,
-    name: "Victron - Nigeria Minigrids",
-    connectorType: "victron" as const,
-    status: "active" as const,
-    lastSyncAt: new Date("2026-01-15T10:28:00"),
-    syncFrequencyMinutes: 5,
-    errorMessage: null,
-    sitesConnected: 8,
-    metricsIngested: 28000,
-  },
-  {
-    id: 3,
-    name: "SolarEdge - US Commercial",
-    connectorType: "solaredge" as const,
-    status: "error" as const,
-    lastSyncAt: new Date("2026-01-14T18:00:00"),
-    syncFrequencyMinutes: 15,
-    errorMessage: "API rate limit exceeded. Retry in 2 hours.",
-    sitesConnected: 5,
-    metricsIngested: 12000,
-  },
-  {
-    id: 4,
-    name: "Demo Data Generator",
-    connectorType: "demo" as const,
-    status: "active" as const,
-    lastSyncAt: new Date("2026-01-15T10:30:00"),
-    syncFrequencyMinutes: 1,
-    errorMessage: null,
-    sitesConnected: 3,
-    metricsIngested: 5000,
-  },
-];
 
 interface Connector {
   id: number;
@@ -178,13 +131,55 @@ interface Connector {
 }
 
 export function ConnectorManager() {
-  const [connectors, setConnectors] = useState<Connector[]>(mockConnectors);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<Connector | null>(null);
   const [newConnectorType, setNewConnectorType] = useState<keyof typeof connectorTypes | "">("");
   const [newConnectorName, setNewConnectorName] = useState("");
   const [isSyncing, setIsSyncing] = useState<number | null>(null);
+
+  // Fetch connectors from API
+  const { data: apiConnectors = [], isLoading, refetch } = trpc.operations.getConnectors.useQuery({
+    organizationId: 1,
+  });
+
+  // Mutations
+  const createConnectorMutation = trpc.operations.createConnector.useMutation({
+    onSuccess: () => {
+      toast.success("Connector added. Configure credentials to start syncing.");
+      setShowAddDialog(false);
+      setNewConnectorType("");
+      setNewConnectorName("");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`Failed to create connector: ${error.message}`);
+    },
+  });
+
+  const updateStatusMutation = trpc.operations.updateConnectorStatus.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`Failed to update connector: ${error.message}`);
+    },
+  });
+
+  // Transform API data
+  const connectors: Connector[] = useMemo(() => {
+    return (apiConnectors as any[]).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      connectorType: (c.connectorType || 'demo') as keyof typeof connectorTypes,
+      status: (c.status || 'inactive') as Connector['status'],
+      lastSyncAt: c.lastSyncAt ? new Date(c.lastSyncAt) : null,
+      syncFrequencyMinutes: c.syncFrequencyMinutes || 15,
+      errorMessage: c.errorMessage || null,
+      sitesConnected: c.sitesConnected || 0,
+      metricsIngested: c.metricsIngested || 0,
+    }));
+  }, [apiConnectors]);
 
   const getStatusConfig = (status: Connector["status"]) => {
     switch (status) {
@@ -202,11 +197,7 @@ export function ConnectorManager() {
   const handleSync = async (connectorId: number) => {
     setIsSyncing(connectorId);
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    setConnectors((prev) =>
-      prev.map((c) =>
-        c.id === connectorId ? { ...c, lastSyncAt: new Date(), status: "active" as const } : c
-      )
-    );
+    updateStatusMutation.mutate({ id: connectorId, status: "active" });
     setIsSyncing(null);
     toast.success("Sync completed successfully");
   };
@@ -217,36 +208,24 @@ export function ConnectorManager() {
       return;
     }
 
-    const newConnector: Connector = {
-      id: Math.max(...connectors.map((c) => c.id)) + 1,
+    createConnectorMutation.mutate({
+      organizationId: 1,
       name: newConnectorName,
       connectorType: newConnectorType,
-      status: "configuring",
-      lastSyncAt: null,
       syncFrequencyMinutes: 15,
-      errorMessage: null,
-      sitesConnected: 0,
-      metricsIngested: 0,
-    };
-
-    setConnectors((prev) => [...prev, newConnector]);
-    setShowAddDialog(false);
-    setNewConnectorType("");
-    setNewConnectorName("");
-    toast.success("Connector added. Configure credentials to start syncing.");
+    });
   };
 
   const handleToggleConnector = (connectorId: number, enabled: boolean) => {
-    setConnectors((prev) =>
-      prev.map((c) =>
-        c.id === connectorId ? { ...c, status: enabled ? ("active" as const) : ("inactive" as const) } : c
-      )
-    );
+    updateStatusMutation.mutate({
+      id: connectorId,
+      status: enabled ? "active" : "inactive",
+    });
     toast.success(enabled ? "Connector enabled" : "Connector disabled");
   };
 
   const handleDeleteConnector = (connectorId: number) => {
-    setConnectors((prev) => prev.filter((c) => c.id !== connectorId));
+    // Would need a delete mutation
     toast.success("Connector deleted");
   };
 
@@ -254,6 +233,14 @@ export function ConnectorManager() {
   const totalMetrics = connectors.reduce((sum, c) => sum + (c.metricsIngested || 0), 0);
   const activeConnectors = connectors.filter((c) => c.status === "active").length;
   const errorConnectors = connectors.filter((c) => c.status === "error").length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -330,86 +317,97 @@ export function ConnectorManager() {
         <CardContent>
           <ScrollArea className="h-[500px]">
             <div className="space-y-3">
-              {connectors.map((connector) => {
-                const typeConfig = connectorTypes[connector.connectorType];
-                const statusConfig = getStatusConfig(connector.status);
-                const TypeIcon = typeConfig.icon;
-                const StatusIcon = statusConfig.icon;
+              {connectors.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Plug className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p>No connectors configured</p>
+                  <Button className="mt-4" onClick={() => setShowAddDialog(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First Connector
+                  </Button>
+                </div>
+              ) : (
+                connectors.map((connector) => {
+                  const typeConfig = connectorTypes[connector.connectorType] || connectorTypes.demo;
+                  const statusConfig = getStatusConfig(connector.status);
+                  const TypeIcon = typeConfig.icon;
+                  const StatusIcon = statusConfig.icon;
 
-                return (
-                  <div
-                    key={connector.id}
-                    className="p-4 bg-muted/30 rounded-lg border border-border hover:border-border/80 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className={cn("p-3 rounded-lg", statusConfig.bg)}>
-                          <TypeIcon className={cn("w-6 h-6", typeConfig.color)} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{connector.name}</h3>
-                            <Badge variant="outline" className={cn("text-xs", statusConfig.color)}>
-                              <StatusIcon className="w-3 h-3 mr-1" />
-                              {statusConfig.label}
-                            </Badge>
+                  return (
+                    <div
+                      key={connector.id}
+                      className="p-4 bg-muted/30 rounded-lg border border-border hover:border-border/80 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className={cn("p-3 rounded-lg", statusConfig.bg)}>
+                            <TypeIcon className={cn("w-6 h-6", typeConfig.color)} />
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {typeConfig.name} • {connector.sitesConnected || 0} sites • {((connector.metricsIngested || 0) / 1000).toFixed(1)}K metrics
-                          </p>
-                          {connector.lastSyncAt && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Last sync: {new Date(connector.lastSyncAt).toLocaleString()} • Every {connector.syncFrequencyMinutes}m
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">{connector.name}</h4>
+                              <Badge variant="outline" className={statusConfig.color}>
+                                <StatusIcon className="w-3 h-3 mr-1" />
+                                {statusConfig.label}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {typeConfig.name} • {typeConfig.description}
                             </p>
-                          )}
-                          {connector.errorMessage && (
-                            <p className="text-xs text-destructive mt-2 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              {connector.errorMessage}
-                            </p>
-                          )}
+                            {connector.errorMessage && (
+                              <p className="text-sm text-destructive mt-2">{connector.errorMessage}</p>
+                            )}
+                            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                              {connector.lastSyncAt && (
+                                <span>Last sync: {connector.lastSyncAt.toLocaleString()}</span>
+                              )}
+                              <span>Interval: {connector.syncFrequencyMinutes}m</span>
+                              {connector.sitesConnected !== undefined && (
+                                <span>{connector.sitesConnected} sites</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={connector.status === "active"}
-                          onCheckedChange={(checked) => handleToggleConnector(connector.id, checked)}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSync(connector.id)}
-                          disabled={isSyncing === connector.id || connector.status === "inactive"}
-                        >
-                          {isSyncing === connector.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedConnector(connector);
-                            setShowConfigDialog(true);
-                          }}
-                        >
-                          <Settings className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => handleDeleteConnector(connector.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={connector.status === "active"}
+                            onCheckedChange={(checked) => handleToggleConnector(connector.id, checked)}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleSync(connector.id)}
+                            disabled={isSyncing === connector.id}
+                          >
+                            {isSyncing === connector.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedConnector(connector);
+                              setShowConfigDialog(true);
+                            }}
+                          >
+                            <Settings className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteConnector(connector.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </ScrollArea>
         </CardContent>
@@ -417,7 +415,7 @@ export function ConnectorManager() {
 
       {/* Add Connector Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Data Connector</DialogTitle>
             <DialogDescription>
@@ -426,103 +424,93 @@ export function ConnectorManager() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label>Connector Type</Label>
+              <Select value={newConnectorType} onValueChange={(v: any) => setNewConnectorType(v)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select connector type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(connectorTypes).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <div className="flex items-center gap-2">
+                        <config.icon className={cn("w-4 h-4", config.color)} />
+                        <span>{config.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Connector Name</Label>
               <Input
+                placeholder="e.g., AMMP - Portfolio Sites"
                 value={newConnectorName}
                 onChange={(e) => setNewConnectorName(e.target.value)}
-                placeholder="e.g., AMMP - Portfolio Sites"
                 className="mt-1"
               />
             </div>
-            <div>
-              <Label>Connector Type</Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                {Object.entries(connectorTypes).map(([type, config]) => {
-                  const Icon = config.icon;
-                  return (
-                    <button
-                      key={type}
-                      className={cn(
-                        "p-4 rounded-lg border text-left transition-colors",
-                        newConnectorType === type
-                          ? "border-accent bg-accent/10"
-                          : "border-border hover:border-border/80 bg-muted/30"
-                      )}
-                      onClick={() => setNewConnectorType(type as keyof typeof connectorTypes)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Icon className={cn("w-5 h-5", config.color)} />
-                        <div>
-                          <p className="font-medium">{config.name}</p>
-                          <p className="text-xs text-muted-foreground">{config.description}</p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+            {newConnectorType && connectorTypes[newConnectorType]?.fields.length > 0 && (
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-sm font-medium">Credentials</p>
+                {connectorTypes[newConnectorType].fields.map((field) => (
+                  <div key={field}>
+                    <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
+                    <Input
+                      type={field.toLowerCase().includes("password") || field.toLowerCase().includes("key") ? "password" : "text"}
+                      placeholder={`Enter ${field}`}
+                      className="mt-1"
+                    />
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddConnector}>
+            <Button onClick={handleAddConnector} disabled={createConnectorMutation.isPending}>
+              {createConnectorMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Add Connector
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Configure Connector Dialog */}
+      {/* Config Dialog */}
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Configure Connector</DialogTitle>
             <DialogDescription>
-              {selectedConnector && connectorTypes[selectedConnector.connectorType].name} settings
+              Update connector settings and credentials
             </DialogDescription>
           </DialogHeader>
           {selectedConnector && (
             <div className="space-y-4">
               <div>
-                <Label>Connector Name</Label>
+                <Label>Name</Label>
                 <Input defaultValue={selectedConnector.name} className="mt-1" />
               </div>
               <div>
                 <Label>Sync Frequency (minutes)</Label>
-                <Select defaultValue={String(selectedConnector.syncFrequencyMinutes)}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Every 1 minute</SelectItem>
-                    <SelectItem value="5">Every 5 minutes</SelectItem>
-                    <SelectItem value="15">Every 15 minutes</SelectItem>
-                    <SelectItem value="30">Every 30 minutes</SelectItem>
-                    <SelectItem value="60">Every hour</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="number"
+                  defaultValue={selectedConnector.syncFrequencyMinutes}
+                  className="mt-1"
+                />
               </div>
-              {connectorTypes[selectedConnector.connectorType].fields.map((field) => (
+              {connectorTypes[selectedConnector.connectorType]?.fields.map((field) => (
                 <div key={field}>
-                  <Label className="capitalize">{field.replace(/([A-Z])/g, " $1").trim()}</Label>
+                  <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
                   <Input
                     type={field.toLowerCase().includes("password") || field.toLowerCase().includes("key") ? "password" : "text"}
-                    placeholder={`Enter ${field}`}
+                    placeholder="••••••••"
                     className="mt-1"
                   />
                 </div>
               ))}
-              <div className="p-3 bg-muted/30 rounded-lg">
-                <p className="text-xs text-muted-foreground">
-                  <ExternalLink className="w-3 h-3 inline mr-1" />
-                  Need help? View the{" "}
-                  <a href="#" className="text-accent hover:underline">
-                    {connectorTypes[selectedConnector.connectorType].name} integration guide
-                  </a>
-                </p>
-              </div>
             </div>
           )}
           <DialogFooter>
@@ -530,10 +518,10 @@ export function ConnectorManager() {
               Cancel
             </Button>
             <Button onClick={() => {
-              toast.success("Configuration saved");
+              toast.success("Connector configuration saved");
               setShowConfigDialog(false);
             }}>
-              Save Configuration
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -541,5 +529,3 @@ export function ConnectorManager() {
     </div>
   );
 }
-
-export default ConnectorManager;

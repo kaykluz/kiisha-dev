@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -261,7 +262,50 @@ const entityTypeConfig: Record<string, { icon: typeof Building2; color: string; 
 
 // Bulk Entity Resolution Component
 export function BulkEntityResolution() {
-  const [mentions, setMentions] = useState<EntityMention[]>(mockMentions);
+  // Fetch unresolved mentions from API
+  const { data: apiMentions = [], refetch: refetchMentions } = trpc.entities.getUnresolvedMentions.useQuery({
+    organizationId: 1,
+  });
+
+  // Fetch entities from API
+  const { data: apiEntities = [] } = trpc.entities.list.useQuery({
+    organizationId: 1,
+  });
+
+  // Transform API data to component format
+  const mentions: EntityMention[] = useMemo(() => {
+    return (apiMentions as any[]).map((m: any) => ({
+      id: String(m.id),
+      mentionText: m.mentionText || '',
+      documentName: m.documentName || 'Unknown Document',
+      documentId: String(m.documentId || ''),
+      pageNumber: m.pageNumber || 1,
+      context: m.context || '',
+      entityType: (m.entityType || 'company') as EntityMention['entityType'],
+      status: (m.status || 'unlinked') as EntityMention['status'],
+      linkedEntityId: m.linkedEntityId ? String(m.linkedEntityId) : null,
+      linkedEntityName: m.linkedEntityName || null,
+      aiSuggestion: m.aiSuggestion || null,
+      createdAt: m.createdAt || new Date().toISOString(),
+    }));
+  }, [apiMentions]);
+
+  const entities: CanonicalEntity[] = useMemo(() => {
+    return (apiEntities as any[]).map((e: any) => ({
+      id: String(e.id),
+      name: e.name || '',
+      type: (e.entityType || 'company') as CanonicalEntity['type'],
+      aliases: e.aliases || [],
+      mentionCount: e.mentionCount || 0,
+    }));
+  }, [apiEntities]);
+
+  // Mutations
+  const resolveMentionMutation = trpc.entities.resolveMention.useMutation({
+    onSuccess: () => {
+      refetchMentions();
+    },
+  });
   const [selectedMentions, setSelectedMentions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -604,7 +648,7 @@ export function BulkEntityResolution() {
                           onToggleSelect={() => toggleSelection(mention.id)}
                           onAccept={() => acceptSuggestion(mention.id)}
                           onIgnore={() => ignoreMention(mention.id)}
-                          entities={mockEntities.filter((e) => e.type === mention.entityType)}
+                          entities={entities.filter((e) => e.type === mention.entityType)}
                         />
                       ))}
                     </div>
@@ -626,7 +670,8 @@ export function BulkEntityResolution() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-[400px] overflow-auto">
-            {mockRules.map((rule) => (
+            {/* Rules would come from API - showing placeholder */}
+            {([] as ResolutionRule[]).map((rule) => (
               <div
                 key={rule.id}
                 className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border"

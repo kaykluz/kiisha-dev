@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Check,
   ExternalLink,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -32,62 +33,28 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils';
+import { trpc } from '@/lib/trpc';
 
-// Mock data for portfolio comparison
-const mockModels = [
-  {
-    id: 1,
-    projectName: 'MA - Gillette BTM',
-    modelName: 'Base Case Model',
-    currentVersion: 'v3',
-    versions: [
-      { version: 'v3', date: '2026-01-15', npv: 4300000, irr: 0.142, dscr: 1.35, payback: 6.8, ebitda: 1900000, status: 'Approved' },
-      { version: 'v2', date: '2026-01-05', npv: 4100000, irr: 0.138, dscr: 1.32, payback: 7.1, ebitda: 1850000, status: 'Superseded' },
-      { version: 'v1', date: '2025-12-20', npv: 3900000, irr: 0.135, dscr: 1.28, payback: 7.4, ebitda: 1780000, status: 'Superseded' },
-    ],
-    actuals: { revenue: 520000, production: 5200, opex: 85000 },
-    projected: { revenue: 550000, production: 5500, opex: 80000 },
-  },
-  {
-    id: 2,
-    projectName: 'NY - Saratoga CDG 1',
-    modelName: 'NTP Model',
-    currentVersion: 'v2',
-    versions: [
-      { version: 'v2', date: '2026-01-10', npv: 3200000, irr: 0.156, dscr: 1.42, payback: 6.2, ebitda: 1650000, status: 'Approved' },
-      { version: 'v1', date: '2025-12-15', npv: 3000000, irr: 0.148, dscr: 1.38, payback: 6.5, ebitda: 1580000, status: 'Superseded' },
-    ],
-    actuals: { revenue: 480000, production: 4800, opex: 72000 },
-    projected: { revenue: 500000, production: 5000, opex: 70000 },
-  },
-  {
-    id: 3,
-    projectName: 'PA - Lancaster CDG',
-    modelName: 'Operations Model',
-    currentVersion: 'v5',
-    versions: [
-      { version: 'v5', date: '2026-01-08', npv: 5600000, irr: 0.168, dscr: 1.55, payback: 5.8, ebitda: 2200000, status: 'Approved' },
-      { version: 'v4', date: '2025-12-28', npv: 5400000, irr: 0.162, dscr: 1.52, payback: 6.0, ebitda: 2150000, status: 'Superseded' },
-      { version: 'v3', date: '2025-12-10', npv: 5200000, irr: 0.158, dscr: 1.48, payback: 6.2, ebitda: 2080000, status: 'Superseded' },
-      { version: 'v2', date: '2025-11-25', npv: 4900000, irr: 0.152, dscr: 1.44, payback: 6.5, ebitda: 1950000, status: 'Superseded' },
-      { version: 'v1', date: '2025-11-10', npv: 4600000, irr: 0.145, dscr: 1.40, payback: 6.8, ebitda: 1850000, status: 'Superseded' },
-    ],
-    actuals: { revenue: 680000, production: 6800, opex: 95000 },
-    projected: { revenue: 700000, production: 7000, opex: 90000 },
-  },
-  {
-    id: 4,
-    projectName: 'CT - Hartford Solar',
-    modelName: 'Development Model',
-    currentVersion: 'v2',
-    versions: [
-      { version: 'v2', date: '2026-01-12', npv: 2800000, irr: 0.132, dscr: 1.28, payback: 7.2, ebitda: 1400000, status: 'In Review' },
-      { version: 'v1', date: '2025-12-22', npv: 2600000, irr: 0.125, dscr: 1.22, payback: 7.6, ebitda: 1320000, status: 'Superseded' },
-    ],
-    actuals: null,
-    projected: { revenue: 420000, production: 4200, opex: 65000 },
-  },
-];
+interface ModelVersion {
+  version: string;
+  date: string;
+  npv: number;
+  irr: number;
+  dscr: number;
+  payback: number;
+  ebitda: number;
+  status: string;
+}
+
+interface ModelData {
+  id: number;
+  projectName: string;
+  modelName: string;
+  currentVersion: string;
+  versions: ModelVersion[];
+  actuals: { revenue: number; production: number; opex: number } | null;
+  projected: { revenue: number; production: number; opex: number };
+}
 
 // Calculate variance
 function calculateVariance(actual: number, projected: number): { value: number; percent: number; trend: 'up' | 'down' | 'neutral' } {
@@ -102,7 +69,7 @@ function calculateVariance(actual: number, projected: number): { value: number; 
 
 // Version comparison card
 function VersionCard({ model, expanded, onToggle, selected, onSelect, onNavigate }: { 
-  model: typeof mockModels[0]; 
+  model: ModelData; 
   expanded: boolean;
   onToggle: () => void;
   selected: boolean;
@@ -111,6 +78,8 @@ function VersionCard({ model, expanded, onToggle, selected, onSelect, onNavigate
 }) {
   const currentVersion = model.versions[0];
   const previousVersion = model.versions[1];
+  
+  if (!currentVersion) return null;
   
   const npvChange = previousVersion 
     ? ((currentVersion.npv - previousVersion.npv) / previousVersion.npv) * 100 
@@ -140,7 +109,7 @@ function VersionCard({ model, expanded, onToggle, selected, onSelect, onNavigate
               <p className="text-sm text-muted-foreground">{model.modelName}</p>
             </div>
           </div>
-          <Badge variant={currentVersion.status === 'Approved' ? 'default' : 'secondary'}>
+          <Badge variant={currentVersion.status === 'approved' ? 'default' : 'secondary'}>
             {currentVersion.status}
           </Badge>
         </div>
@@ -247,7 +216,6 @@ function VersionCard({ model, expanded, onToggle, selected, onSelect, onNavigate
                 </div>
                 <div className="flex items-center gap-4 text-xs">
                   <span>NPV: {formatCurrency(version.npv)}</span>
-                  <span>IRR: {formatPercent(version.irr)}</span>
                   <Badge variant={idx === 0 ? 'default' : 'outline'} className="text-xs">
                     {version.status}
                   </Badge>
@@ -262,8 +230,8 @@ function VersionCard({ model, expanded, onToggle, selected, onSelect, onNavigate
 }
 
 // Comparison Table
-function ComparisonTable({ models, metric }: { models: typeof mockModels; metric: string }) {
-  const getMetricValue = (version: typeof mockModels[0]['versions'][0], metric: string) => {
+function ComparisonTable({ models, metric }: { models: ModelData[]; metric: string }) {
+  const getMetricValue = (version: ModelVersion, metric: string) => {
     switch (metric) {
       case 'npv': return formatCurrency(version.npv);
       case 'irr': return formatPercent(version.irr);
@@ -274,7 +242,7 @@ function ComparisonTable({ models, metric }: { models: typeof mockModels; metric
     }
   };
 
-  const getMetricRawValue = (version: typeof mockModels[0]['versions'][0], metric: string) => {
+  const getMetricRawValue = (version: ModelVersion, metric: string) => {
     switch (metric) {
       case 'npv': return version.npv;
       case 'irr': return version.irr;
@@ -286,7 +254,7 @@ function ComparisonTable({ models, metric }: { models: typeof mockModels; metric
   };
 
   // Find best value for highlighting
-  const currentVersions = models.map(m => m.versions[0]);
+  const currentVersions = models.map(m => m.versions[0]).filter(Boolean);
   const values = currentVersions.map(v => getMetricRawValue(v, metric));
   const maxValue = Math.max(...values);
 
@@ -306,6 +274,8 @@ function ComparisonTable({ models, metric }: { models: typeof mockModels; metric
           {models.map((model) => {
             const current = model.versions[0];
             const previous = model.versions[1];
+            if (!current) return null;
+            
             const currentValue = getMetricRawValue(current, metric);
             const isBest = currentValue === maxValue;
             
@@ -356,8 +326,16 @@ function ComparisonTable({ models, metric }: { models: typeof mockModels; metric
 }
 
 // Variance Trend Chart (simplified visual)
-function VarianceTrendChart({ models }: { models: typeof mockModels }) {
+function VarianceTrendChart({ models }: { models: ModelData[] }) {
   const modelsWithActuals = models.filter(m => m.actuals);
+  
+  if (modelsWithActuals.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No actual data available for variance comparison</p>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-4">
@@ -435,6 +413,36 @@ export default function PortfolioComparison() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [compareMode, setCompareMode] = useState(false);
 
+  // Fetch financial models from API
+  const { data: apiModels = [], isLoading } = trpc.financialModels.list.useQuery({});
+  const { data: portfolioSummaryData } = trpc.financialModels.getPortfolioSummary.useQuery({});
+
+  // Transform API data to component format
+  const models: ModelData[] = useMemo(() => {
+    return (apiModels as any[]).map((model: any) => ({
+      id: model.id,
+      projectName: model.projectName || `Project ${model.projectId}`,
+      modelName: model.name,
+      currentVersion: `v${model.version || 1}`,
+      versions: [{
+        version: `v${model.version || 1}`,
+        date: model.createdAt ? new Date(model.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        npv: model.metrics?.npv || 0,
+        irr: model.metrics?.irr || 0,
+        dscr: model.metrics?.avgDscr || 0,
+        payback: model.metrics?.paybackYears || 0,
+        ebitda: model.metrics?.ebitda || 0,
+        status: model.status || 'draft',
+      }],
+      actuals: null, // Would come from comparison data
+      projected: {
+        revenue: model.metrics?.projectedRevenue || 0,
+        production: model.metrics?.projectedProduction || 0,
+        opex: model.metrics?.projectedOpex || 0,
+      },
+    }));
+  }, [apiModels]);
+
   const toggleModelSelection = (id: number, checked: boolean) => {
     setSelectedModels(prev => {
       const next = new Set(prev);
@@ -462,9 +470,9 @@ export default function PortfolioComparison() {
   };
 
   const filteredModels = useMemo(() => {
-    if (filterStatus === 'all') return mockModels;
-    return mockModels.filter(m => m.versions[0].status.toLowerCase() === filterStatus.toLowerCase());
-  }, [filterStatus]);
+    if (filterStatus === 'all') return models;
+    return models.filter(m => m.versions[0]?.status?.toLowerCase() === filterStatus.toLowerCase());
+  }, [models, filterStatus]);
 
   // Get models to display based on compare mode
   const displayModels = useMemo(() => {
@@ -486,17 +494,37 @@ export default function PortfolioComparison() {
     });
   };
 
-  // Portfolio summary
+  // Portfolio summary from API or calculated
   const portfolioSummary = useMemo(() => {
-    const currentVersions = mockModels.map(m => m.versions[0]);
+    if (portfolioSummaryData) {
+      return {
+        totalNpv: (portfolioSummaryData as any).totalNpv || 0,
+        avgIrr: (portfolioSummaryData as any).avgIrr || 0,
+        avgDscr: (portfolioSummaryData as any).avgDscr || 0,
+        totalModels: (portfolioSummaryData as any).modelCount || models.length,
+        totalVersions: models.length,
+      };
+    }
+    
+    const currentVersions = models.map(m => m.versions[0]).filter(Boolean);
     return {
-      totalNpv: currentVersions.reduce((sum, v) => sum + v.npv, 0),
-      avgIrr: currentVersions.reduce((sum, v) => sum + v.irr, 0) / currentVersions.length,
-      avgDscr: currentVersions.reduce((sum, v) => sum + v.dscr, 0) / currentVersions.length,
-      totalModels: mockModels.length,
-      totalVersions: mockModels.reduce((sum, m) => sum + m.versions.length, 0),
+      totalNpv: currentVersions.reduce((sum, v) => sum + (v?.npv || 0), 0),
+      avgIrr: currentVersions.length > 0 ? currentVersions.reduce((sum, v) => sum + (v?.irr || 0), 0) / currentVersions.length : 0,
+      avgDscr: currentVersions.length > 0 ? currentVersions.reduce((sum, v) => sum + (v?.dscr || 0), 0) / currentVersions.length : 0,
+      totalModels: models.length,
+      totalVersions: models.length,
     };
-  }, []);
+  }, [portfolioSummaryData, models]);
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="p-6 flex items-center justify-center h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -571,7 +599,8 @@ export default function PortfolioComparison() {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="in review">In Review</SelectItem>
+                <SelectItem value="review">In Review</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -634,14 +663,23 @@ export default function PortfolioComparison() {
             </div>
           </div>
 
-          {viewMode === 'cards' ? (
+          {displayModels.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <p>No financial models found. Upload models to see portfolio comparison.</p>
+              </CardContent>
+            </Card>
+          ) : viewMode === 'cards' ? (
             <div className="grid grid-cols-2 gap-4">
               {displayModels.map((model) => (
                 <VersionCard
                   key={model.id}
                   model={model}
                   expanded={expandedModels.has(model.id)}
-                  onToggle={() => toggleExpanded(model.id)} selected={selectedModels.has(model.id)} onSelect={(checked) => toggleModelSelection(model.id, checked as boolean)} onNavigate={() => navigateToModel(model.projectName)}
+                  onToggle={() => toggleExpanded(model.id)} 
+                  selected={selectedModels.has(model.id)} 
+                  onSelect={(checked) => toggleModelSelection(model.id, checked as boolean)} 
+                  onNavigate={() => navigateToModel(model.projectName)}
                 />
               ))}
             </div>
@@ -679,52 +717,58 @@ export default function PortfolioComparison() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {displayModels.map((model) => (
-                  <div key={model.id} className="border-b pb-4 last:border-0">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold">{model.projectName}</h3>
-                        <p className="text-sm text-muted-foreground">{model.modelName}</p>
+              {displayModels.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No models to display</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {displayModels.map((model) => (
+                    <div key={model.id} className="border-b pb-4 last:border-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold">{model.projectName}</h3>
+                          <p className="text-sm text-muted-foreground">{model.modelName}</p>
+                        </div>
+                        <Badge>{model.versions.length} versions</Badge>
                       </div>
-                      <Badge>{model.versions.length} versions</Badge>
-                    </div>
-                    <div className="relative pl-4 border-l-2 border-muted space-y-3">
-                      {model.versions.map((version, idx) => (
-                        <div 
-                          key={version.version}
-                          className={cn(
-                            "relative pl-4",
-                            idx === 0 && "font-medium"
-                          )}
-                        >
-                          <div className={cn(
-                            "absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2",
-                            idx === 0 ? "bg-primary border-primary" : "bg-background border-muted-foreground"
-                          )} />
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className={idx === 0 ? "text-primary" : ""}>{version.version}</span>
-                              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {version.date}
-                              </span>
-                              <Badge variant={idx === 0 ? 'default' : 'outline'} className="text-xs">
-                                {version.status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span>NPV: {formatCurrency(version.npv)}</span>
-                              <span>IRR: {formatPercent(version.irr)}</span>
-                              <span>DSCR: {version.dscr.toFixed(2)}x</span>
+                      <div className="relative pl-4 border-l-2 border-muted space-y-3">
+                        {model.versions.map((version, idx) => (
+                          <div 
+                            key={version.version}
+                            className={cn(
+                              "relative pl-4",
+                              idx === 0 && "font-medium"
+                            )}
+                          >
+                            <div className={cn(
+                              "absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2",
+                              idx === 0 ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                            )} />
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className={idx === 0 ? "text-primary" : ""}>{version.version}</span>
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {version.date}
+                                </span>
+                                <Badge variant={idx === 0 ? 'default' : 'outline'} className="text-xs">
+                                  {version.status}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <span>NPV: {formatCurrency(version.npv)}</span>
+                                <span>IRR: {formatPercent(version.irr)}</span>
+                                <span>DSCR: {version.dscr.toFixed(2)}x</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

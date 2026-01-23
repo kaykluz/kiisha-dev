@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -57,13 +57,20 @@ interface CommentsSectionProps {
   className?: string;
 }
 
-// Mock user data - in production, this would come from the API
-const mockUsers: Record<number, { name: string; email: string }> = {
-  1: { name: 'Solomon Ojoawo', email: 'solomon@cloudbreak.com' },
-  2: { name: 'Sarah Chen', email: 'sarah@cloudbreak.com' },
-  3: { name: 'Michael Torres', email: 'michael@cloudbreak.com' },
-  4: { name: 'Emily Johnson', email: 'emily@cloudbreak.com' },
-};
+// User data lookup helper - uses API data when available
+function useUsers() {
+  const { data: apiUsers = [] } = trpc.users.list.useQuery();
+  
+  const usersMap = useMemo(() => {
+    const map: Record<number, { name: string; email: string }> = {};
+    (apiUsers as any[]).forEach((user: any) => {
+      map[user.id] = { name: user.name || 'Unknown User', email: user.email || '' };
+    });
+    return map;
+  }, [apiUsers]);
+  
+  return { users: usersMap, usersList: apiUsers };
+}
 
 function getInitials(name: string): string {
   return name
@@ -84,6 +91,7 @@ function CommentThread({
   onResolve,
   onUnresolve,
   replies = [],
+  users,
 }: { 
   comment: Comment;
   currentUserId: number;
@@ -94,10 +102,11 @@ function CommentThread({
   onResolve: (commentId: number) => void;
   onUnresolve: (commentId: number) => void;
   replies?: Comment[];
+  users: Record<number, { name: string; email: string }>;
 }) {
   const [isExpanded, setIsExpanded] = useState(!comment.isResolved);
-  const user = mockUsers[comment.userId] || { name: 'Unknown User', email: '' };
-  const resolvedByUser = comment.resolvedById ? mockUsers[comment.resolvedById] : null;
+  const user = users[comment.userId] || { name: 'Unknown User', email: '' };
+  const resolvedByUser = comment.resolvedById ? users[comment.resolvedById] : null;
   const canModify = comment.userId === currentUserId || isAdmin;
   const isTopLevel = comment.parentId === null;
 
@@ -138,6 +147,7 @@ function CommentThread({
             depth={0}
             replies={replies}
             isTopLevel={isTopLevel}
+            users={users}
           />
         </div>
       )}
@@ -157,6 +167,7 @@ function CommentItem({
   depth = 0,
   replies = [],
   isTopLevel = false,
+  users,
 }: { 
   comment: Comment;
   currentUserId: number;
@@ -169,8 +180,9 @@ function CommentItem({
   depth?: number;
   replies?: Comment[];
   isTopLevel?: boolean;
+  users: Record<number, { name: string; email: string }>;
 }) {
-  const user = mockUsers[comment.userId] || { name: 'Unknown User', email: '' };
+  const user = users[comment.userId] || { name: 'Unknown User', email: '' };
   const canModify = comment.userId === currentUserId || isAdmin;
   const maxDepth = 3;
 
@@ -281,6 +293,7 @@ function CommentItem({
               onUnresolve={onUnresolve}
               depth={depth + 1}
               replies={[]}
+              users={users}
             />
           ))}
         </div>
@@ -299,6 +312,7 @@ export function CommentsSection({ resourceType, resourceId, className = '' }: Co
   const [showResolved, setShowResolved] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
+  const { users, usersList } = useUsers();
   const utils = trpc.useUtils();
   
   const { data: comments = [], isLoading } = trpc.comments.list.useQuery({
@@ -566,15 +580,15 @@ export function CommentsSection({ resourceType, resourceId, className = '' }: Co
                 <span className="text-xs font-medium text-tertiary">Mention a team member</span>
               </div>
               <div className="max-h-48 overflow-y-auto">
-                {Object.entries(mockUsers).map(([id, u]) => (
+                {(usersList as any[]).map((u: any) => (
                   <button
-                    key={id}
-                    onClick={() => insertMention(parseInt(id), u.name)}
+                    key={u.id}
+                    onClick={() => insertMention(u.id, u.name)}
                     className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-elevated transition-colors text-left"
                   >
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className="text-xs">
-                        {getInitials(u.name)}
+                        {getInitials(u.name || 'U')}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -653,6 +667,7 @@ export function CommentsSection({ resourceType, resourceId, className = '' }: Co
                 onResolve={handleResolve}
                 onUnresolve={handleUnresolve}
                 replies={getReplies(comment.id)}
+                users={users}
               />
             ))}
           </div>

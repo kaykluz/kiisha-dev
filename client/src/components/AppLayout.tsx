@@ -55,7 +55,6 @@ import {
   Briefcase,
   Send,
 } from "lucide-react";
-import { mockProjects, mockPortfolio, mockAlerts } from "@shared/mockData";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { SkeletonDashboard } from "./Skeleton";
 import ThemeToggle from "./ThemeToggle";
@@ -64,16 +63,19 @@ import { RealtimeNotifications } from "./RealtimeNotifications";
 import { toast } from "sonner";
 import { useFeatureFlag } from "@/contexts/FeatureFlagContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { trpc } from "@/lib/trpc";
 
 // Project context for filtering
 interface ProjectContextType {
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
+  selectedProject: any | null;
 }
 
 const ProjectContext = createContext<ProjectContextType>({
   selectedProjectId: null,
   setSelectedProjectId: () => {},
+  selectedProject: null,
 });
 
 export const useProject = () => useContext(ProjectContext);
@@ -373,7 +375,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
   });
   const commandPalette = useCommandPalette();
 
-  const unreadAlerts = mockAlerts.filter((a) => !a.isRead).length;
+  // Fetch projects from API
+  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
+  
+  // Fetch alerts from API
+  const { data: unreadAlertCount = 0 } = trpc.alerts.getUnreadCount.useQuery();
 
   // Save expanded state to localStorage
   useEffect(() => {
@@ -404,10 +410,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Get current page title
   const currentTab = navTabs.find((t) => t.path === location);
   const selectedProject = selectedProjectId
-    ? mockProjects.find((p) => p.id === selectedProjectId)
+    ? (projects as any[]).find((p: any) => p.id === selectedProjectId)
     : null;
 
-  if (loading) {
+  // Portfolio name - use organization name or default
+  const portfolioName = "Portfolio";
+
+  if (loading || projectsLoading) {
     return (
       <div className="min-h-screen bg-background">
         <SkeletonDashboard />
@@ -421,7 +430,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <ProjectContext.Provider value={{ selectedProjectId, setSelectedProjectId }}>
+    <ProjectContext.Provider value={{ selectedProjectId, setSelectedProjectId, selectedProject }}>
       <div className="h-screen bg-[var(--color-bg-base)] flex overflow-hidden">
         {/* Left Sidebar - O11-inspired design */}
         <aside
@@ -523,14 +532,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     <>
                       <span className="flex-1 text-left">All Projects</span>
                       <span className="text-xs text-[var(--color-text-tertiary)]">
-                        {mockProjects.length}
+                        {(projects as any[]).length}
                       </span>
                     </>
                   )}
                 </button>
 
                 {/* Individual Projects */}
-                {mockProjects.slice(0, sidebarCollapsed ? 5 : 10).map((project) => {
+                {(projects as any[]).slice(0, sidebarCollapsed ? 5 : 10).map((project: any) => {
                   const TechIcon = techIcons[project.technology] || Sun;
                   const isSelected = selectedProjectId === project.id;
 
@@ -717,7 +726,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               ) : (
                 <>
                   <h1 className="text-base font-medium text-[var(--color-text-primary)]">
-                    {mockPortfolio.name}
+                    {portfolioName}
                   </h1>
                   {currentTab && (
                     <>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { ArtifactUploader } from "@/components/ArtifactUploader";
 import { ExtractionReviewQueue } from "@/components/ExtractionReviewQueue";
@@ -51,8 +51,8 @@ const verificationStatusConfig: Record<string, { label: string; variant: "defaul
   rejected: { label: "Rejected", variant: "destructive" },
 };
 
-// Mock data for demonstration
-const mockArtifacts = [
+// Sample data for demonstration when API returns empty
+const sampleArtifacts = [
   {
     id: 1,
     artifactCode: "ART-2026-00001",
@@ -125,37 +125,10 @@ const mockArtifacts = [
   },
 ];
 
-// Mock stats
-const mockStats = {
-  total: 156,
-  byType: {
-    document: 78,
-    image: 34,
-    contract: 18,
-    meeting: 12,
-    audio: 8,
-    video: 4,
-    message: 2,
-  },
-  byProcessingStatus: {
-    pending: 12,
-    preprocessing: 3,
-    processed: 45,
-    ai_analyzing: 8,
-    ai_complete: 85,
-    failed: 3,
-  },
-  byVerificationStatus: {
-    unverified: 28,
-    ai_verified: 67,
-    human_verified: 58,
-    rejected: 3,
-  },
-  pendingReview: 28,
-};
+// Note: Stats are now calculated dynamically from API data
 
-// Mock lifecycle stages
-const mockLifecycleStages = [
+// Lifecycle stages configuration
+const lifecycleStages = [
   { stageKey: "origination", stageName: "Origination", stageOrder: 1, color: "bg-blue-500" },
   { stageKey: "development", stageName: "Development", stageOrder: 2, color: "bg-purple-500" },
   { stageKey: "due_diligence", stageName: "Due Diligence", stageOrder: 3, color: "bg-amber-500" },
@@ -164,8 +137,8 @@ const mockLifecycleStages = [
   { stageKey: "operations", stageName: "Operations", stageOrder: 6, color: "bg-green-500" },
 ];
 
-// Mock lifecycle tracking
-const mockLifecycleTracking = [
+// Sample lifecycle tracking data (used when API returns empty)
+const sampleLifecycleTracking = [
   {
     id: 1,
     entityType: "project",
@@ -213,12 +186,60 @@ export default function ArtifactHub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedArtifact, setSelectedArtifact] = useState<typeof mockArtifacts[0] | null>(null);
+  const [selectedArtifact, setSelectedArtifact] = useState<typeof sampleArtifacts[0] | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
+  // Fetch artifacts from API
+  const { data: apiArtifacts = [], isLoading } = trpc.artifacts.list.useQuery({
+    organizationId: 1,
+  });
+
+  // Transform API data or use sample data if empty
+  const artifacts = useMemo(() => {
+    if ((apiArtifacts as any[]).length === 0) return sampleArtifacts;
+    return (apiArtifacts as any[]).map((a: any) => ({
+      id: a.id,
+      artifactCode: a.artifactCode || `ART-${a.id}`,
+      artifactType: a.artifactType || 'document',
+      name: a.name,
+      description: a.description || '',
+      processingStatus: a.processingStatus || 'pending',
+      verificationStatus: a.verificationStatus || 'unverified',
+      aiSuggestedCategory: a.aiSuggestedCategory || null,
+      confirmedCategory: a.confirmedCategory || null,
+      confirmedSubcategory: a.confirmedSubcategory || null,
+      projectId: a.projectId,
+      projectName: a.projectName || 'Unknown Project',
+      createdAt: new Date(a.createdAt || Date.now()),
+      tags: a.tags || [],
+    }));
+  }, [apiArtifacts]);
+
+  // Calculate stats from artifacts
+  const stats = useMemo(() => {
+    const total = artifacts.length;
+    const byType: Record<string, number> = {};
+    const byProcessingStatus: Record<string, number> = { pending: 0, preprocessing: 0, processed: 0, ai_analyzing: 0, ai_complete: 0, failed: 0 };
+    const byVerificationStatus: Record<string, number> = { unverified: 0, ai_verified: 0, human_verified: 0, rejected: 0 };
+    
+    artifacts.forEach(a => {
+      byType[a.artifactType] = (byType[a.artifactType] || 0) + 1;
+      if (byProcessingStatus[a.processingStatus] !== undefined) byProcessingStatus[a.processingStatus]++;
+      if (byVerificationStatus[a.verificationStatus] !== undefined) byVerificationStatus[a.verificationStatus]++;
+    });
+    
+    return {
+      total,
+      byType,
+      byProcessingStatus,
+      byVerificationStatus,
+      pendingReview: byVerificationStatus.unverified + byVerificationStatus.ai_verified,
+    };
+  }, [artifacts]);
+
   // Filter artifacts
-  const filteredArtifacts = mockArtifacts.filter(artifact => {
+  const filteredArtifacts = artifacts.filter(artifact => {
     const matchesSearch = searchQuery === "" || 
       artifact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       artifact.artifactCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,7 +251,7 @@ export default function ArtifactHub() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const openArtifactDrawer = (artifact: typeof mockArtifacts[0]) => {
+  const openArtifactDrawer = (artifact: typeof sampleArtifacts[0]) => {
     setSelectedArtifact(artifact);
     setDrawerOpen(true);
   };
@@ -257,11 +278,11 @@ export default function ArtifactHub() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Artifacts</CardDescription>
-              <CardTitle className="text-3xl">{mockStats.total}</CardTitle>
+              <CardTitle className="text-3xl">{stats.total}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex gap-1 flex-wrap">
-                {Object.entries(mockStats.byType).slice(0, 4).map(([type, count]) => (
+                {Object.entries(stats.byType).slice(0, 4).map(([type, count]) => (
                   <Badge key={type} variant="secondary" className="text-xs gap-1">
                     {artifactTypeIcons[type]}
                     {count}
@@ -276,12 +297,12 @@ export default function ArtifactHub() {
               <CardDescription>AI Processing</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-amber-500" />
-                {mockStats.byProcessingStatus.ai_complete}
+                {stats.byProcessingStatus.ai_complete}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">
-                {mockStats.byProcessingStatus.ai_analyzing} analyzing • {mockStats.byProcessingStatus.pending} pending
+                {stats.byProcessingStatus.ai_analyzing} analyzing • {stats.byProcessingStatus.pending} pending
               </div>
             </CardContent>
           </Card>
@@ -291,7 +312,7 @@ export default function ArtifactHub() {
               <CardDescription>Pending Review</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
                 <Eye className="h-6 w-6 text-blue-500" />
-                {mockStats.pendingReview}
+                {stats.pendingReview}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -306,12 +327,12 @@ export default function ArtifactHub() {
               <CardDescription>Verified</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
                 <FileCheck className="h-6 w-6 text-green-500" />
-                {mockStats.byVerificationStatus.human_verified}
+                {stats.byVerificationStatus.human_verified}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <Progress 
-                value={(mockStats.byVerificationStatus.human_verified / mockStats.total) * 100} 
+                value={stats.total > 0 ? (stats.byVerificationStatus.human_verified / stats.total) * 100 : 0} 
                 className="h-2"
               />
             </CardContent>
