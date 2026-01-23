@@ -276,6 +276,51 @@ html.light {
     min-height: 100vh;
   }
 
+  /* Light mode overrides for Tailwind utility classes */
+  /* These override the @theme inline compiled values */
+  html.light .bg-card {
+    background-color: oklch(1.0 0 0) !important;
+  }
+  html.light .text-card-foreground {
+    color: oklch(0.12 0 0) !important;
+  }
+  html.light .bg-background {
+    background-color: oklch(0.97 0 0) !important;
+  }
+  html.light .text-foreground {
+    color: oklch(0.12 0 0) !important;
+  }
+  html.light .bg-muted {
+    background-color: oklch(0.94 0 0) !important;
+  }
+  html.light .text-muted-foreground {
+    color: oklch(0.45 0 0) !important;
+  }
+  html.light .bg-popover {
+    background-color: oklch(1.0 0 0) !important;
+  }
+  html.light .text-popover-foreground {
+    color: oklch(0.12 0 0) !important;
+  }
+  html.light .bg-secondary {
+    background-color: oklch(0.94 0 0) !important;
+  }
+  html.light .text-secondary-foreground {
+    color: oklch(0.15 0 0) !important;
+  }
+  html.light .bg-accent {
+    background-color: oklch(0.94 0 0) !important;
+  }
+  html.light .text-accent-foreground {
+    color: oklch(0.12 0 0) !important;
+  }
+  html.light .border-border {
+    border-color: oklch(0.85 0 0) !important;
+  }
+  html.light .bg-input {
+    background-color: oklch(0.97 0 0) !important;
+  }
+
   /* Interactive elements cursor */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
