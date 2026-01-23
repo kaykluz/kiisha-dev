@@ -10,7 +10,7 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      className={cn("flex flex-col gap-3", className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     />
   );
@@ -24,7 +24,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted/50 text-muted-foreground inline-flex h-10 w-fit items-center justify-center rounded-xl p-1 gap-0.5",
+        "text-muted-foreground inline-flex h-9 w-fit items-center border-b border-border gap-0",
         className
       )}
       {...props}
@@ -40,7 +40,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:border-primary focus-visible:ring-primary/20 focus-visible:outline-none text-muted-foreground inline-flex h-full flex-1 items-center justify-center gap-2 rounded-lg border border-transparent px-4 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-150 focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary focus-visible:outline-none text-muted-foreground inline-flex h-full items-center justify-center gap-2 px-3 pb-2 text-sm font-medium whitespace-nowrap transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className
       )}
       {...props}
@@ -55,7 +55,7 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 outline-none mt-2", className)}
+      className={cn("flex-1 outline-none mt-3", className)}
       {...props}
     />
   );

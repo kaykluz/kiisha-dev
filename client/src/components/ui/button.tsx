@@ -5,32 +5,32 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-200 ease-out disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded text-sm font-medium transition-all duration-150 ease-out disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]",
+          "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.99]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30 active:scale-[0.98]",
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30 active:scale-[0.99]",
         outline:
-          "border border-border bg-transparent hover:bg-muted/50 hover:border-border",
+          "border border-border bg-transparent hover:bg-muted/50 hover:border-border/80",
         secondary:
           "bg-muted text-foreground hover:bg-muted/80",
         ghost:
           "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         success:
-          "bg-success text-success-foreground hover:bg-success/90 active:scale-[0.98]",
+          "bg-success text-success-foreground hover:bg-success/90 active:scale-[0.99]",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-lg gap-1.5 px-3 text-xs",
-        lg: "h-10 rounded-xl px-5",
-        xl: "h-11 rounded-xl px-6",
-        icon: "size-9 rounded-lg",
-        "icon-sm": "size-8 rounded-lg",
-        "icon-lg": "size-10 rounded-lg",
+        default: "h-8 px-3 py-1.5",
+        sm: "h-7 gap-1.5 px-2.5 text-xs",
+        lg: "h-9 px-4",
+        xl: "h-10 px-5",
+        icon: "size-8",
+        "icon-sm": "size-7",
+        "icon-lg": "size-9",
       },
     },
     defaultVariants: {
