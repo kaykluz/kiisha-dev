@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
+import AppLayout from '@/components/AppLayout';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -498,6 +499,7 @@ export default function PortfolioComparison() {
   }, []);
 
   return (
+    <AppLayout>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -728,5 +730,6 @@ export default function PortfolioComparison() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppLayout>
   );
 }
