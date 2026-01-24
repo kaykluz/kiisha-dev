@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Github, Building2, Zap } from "lucide-react";
-import { getLoginUrl } from "@/const";
+import { Loader2, Github, Zap } from "lucide-react";
+
 
 // Microsoft icon component
 function MicrosoftIcon({ className }: { className?: string }) {
@@ -128,10 +128,6 @@ export default function Login() {
     });
   };
 
-  const handleManusLogin = () => {
-    window.location.href = getLoginUrl();
-  };
-
   const isLoading = loginMutation.isPending || registerMutation.isPending || getAuthUrlMutation.isPending;
 
   return (
@@ -214,17 +210,6 @@ export default function Login() {
 
           {/* OAuth Providers */}
           <div className="space-y-3">
-            {/* Manus OAuth - Primary */}
-            <Button
-              variant="default"
-              className="w-full h-12 bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] text-[var(--color-bg-base)] font-medium rounded-xl"
-              onClick={handleManusLogin}
-              disabled={isLoading}
-            >
-              <Building2 className="mr-3 h-5 w-5" />
-              Continue with Manus
-            </Button>
-
             <div className="grid grid-cols-3 gap-3">
               {/* Google OAuth */}
               <Button
