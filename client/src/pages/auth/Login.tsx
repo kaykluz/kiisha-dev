@@ -56,13 +56,14 @@ export default function Login() {
           const session = await utils.authSession.getSession.fetch();
 
           if (session.authenticated) {
-            setLocation("/dashboard");
+            // Always redirect to workspace selection after fresh login
+            setLocation("/select-workspace");
           } else {
             // Retry once more after delay
             await new Promise(resolve => setTimeout(resolve, 500));
             const retrySession = await utils.authSession.getSession.fetch();
             if (retrySession.authenticated) {
-              setLocation("/dashboard");
+              setLocation("/select-workspace");
             } else {
               setError("Session could not be established. Please try again.");
             }
