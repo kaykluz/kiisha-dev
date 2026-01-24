@@ -36,7 +36,6 @@ import { SendGridEmailAdapter } from './adapters/email/sendgrid';
 import { MailgunEmailAdapter } from './adapters/email/mailgun';
 import { PostmarkEmailAdapter } from './adapters/email/postmark';
 import { MetaWhatsAppAdapter } from './adapters/whatsapp/meta';
-import { ManusNotifyAdapter } from './adapters/notify/manus';
 import { SendGridNotifyAdapter } from './adapters/notify/sendgrid';
 import { ResendNotifyAdapter } from './adapters/notify/resend';
 import { SentryObservabilityAdapter } from './adapters/observability/sentry';
@@ -288,16 +287,13 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
   
   let adapter: NotifyProviderAdapter;
   
-  if (!integration || integration.provider === 'manus') {
-    // Check if Resend API key is configured in environment - use it as default
-    const { env } = await import('../_core/env');
-    if (env.resendApiKey) {
-      adapter = new ResendNotifyAdapter();
-      await adapter.initialize({}, { apiKey: env.resendApiKey });
-    } else {
-      adapter = new ManusNotifyAdapter();
-      await adapter.initialize({});
-    }
+  // Always use Resend as the default email provider
+  const { env } = await import('../_core/env');
+  
+  if (!integration) {
+    // No integration configured - use Resend from environment
+    adapter = new ResendNotifyAdapter();
+    await adapter.initialize({}, { apiKey: env.resendApiKey });
   } else {
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
@@ -307,13 +303,15 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
         adapter = new SendGridNotifyAdapter();
         break;
       case 'resend':
+      default:
+        // Default to Resend for all cases
         adapter = new ResendNotifyAdapter();
         break;
-      default:
-        adapter = new ManusNotifyAdapter();
     }
     
-    await adapter.initialize(config, secrets);
+    // Use secrets from integration if available, otherwise fall back to env
+    const apiKey = secrets?.apiKey || env.resendApiKey;
+    await adapter.initialize(config, { ...secrets, apiKey });
   }
   
   adapterCache.set(cacheKey, adapter);
