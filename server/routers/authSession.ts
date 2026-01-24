@@ -19,6 +19,7 @@ export interface SessionState {
   mfaRequired: boolean;
   mfaSatisfied: boolean;
   workspaceRequired: boolean;
+  workspaceSelectionRequired: boolean; // True on fresh login until user explicitly selects workspace
   user: {
     id: number;
     openId: string;
@@ -67,6 +68,7 @@ export const authSessionRouter = router({
       mfaRequired: false,
       mfaSatisfied: false,
       workspaceRequired: false,
+      workspaceSelectionRequired: false,
       user: null,
       activeOrganizationId: null,
       activeOrganization: null,
@@ -127,11 +129,16 @@ export const authSessionRouter = router({
       }
     }
 
+    // Check if workspace selection is required (fresh login flag)
+    // This is set to true on login and cleared when user explicitly selects a workspace
+    const workspaceSelectionRequired = session.workspaceSelectionRequired ?? true;
+
     return {
       authenticated: true,
       mfaRequired,
       mfaSatisfied: mfaRequired ? mfaSatisfied : true,
       workspaceRequired,
+      workspaceSelectionRequired: workspaceSelectionRequired && workspaceCount > 0,
       user: {
         id: user.id,
         openId: user.openId,

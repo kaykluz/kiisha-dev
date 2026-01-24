@@ -11106,6 +11106,22 @@ export async function updateSessionActiveOrg(sessionId: string, organizationId: 
 }
 
 /**
+ * Clear workspace selection required flag after user explicitly selects a workspace
+ */
+export async function clearWorkspaceSelectionRequired(sessionId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(serverSessions)
+    .set({ 
+      workspaceSelectionRequired: false,
+      lastSeenAt: new Date()
+    })
+    .where(eq(serverSessions.id, sessionId));
+}
+
+/**
  * Mark MFA as satisfied for session
  */
 export async function markSessionMfaSatisfied(sessionId: string): Promise<void> {

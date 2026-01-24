@@ -18,6 +18,7 @@ export interface AuthState {
   mfaRequired: boolean;
   mfaSatisfied: boolean;
   workspaceRequired: boolean;
+  workspaceSelectionRequired: boolean; // True on fresh login until user explicitly selects workspace
   user: {
     id: number;
     openId: string;
@@ -143,9 +144,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // WORKSPACE SELECTION WALL: No active organization selected
-    // User MUST select a company before accessing any dashboard routes
-    if (!session.activeOrganizationId) {
+    // WORKSPACE SELECTION WALL: Fresh login requires workspace selection
+    // workspaceSelectionRequired is true on fresh login, cleared after explicit selection
+    if (session.workspaceSelectionRequired || !session.activeOrganizationId) {
       if (location !== "/select-workspace" && location !== "/pending-access" && !isPublicRoute) {
         setLocation("/select-workspace");
         setHasRedirected(true);
@@ -153,7 +154,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Fully authenticated with active organization - redirect away from auth pages
+    // Fully authenticated with active organization AND workspace selection completed
+    // Redirect away from auth pages to dashboard
     if (isPublicRoute || isAuthOnlyRoute) {
       if (location === "/login" || location === "/signup") {
         setLocation("/dashboard");
@@ -162,7 +164,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setLocation("/dashboard");
         setHasRedirected(true);
       } else if (location === "/select-workspace") {
-        // Workspace already selected, go to dashboard
+        // Workspace selection completed, go to dashboard
         setLocation("/dashboard");
         setHasRedirected(true);
       }

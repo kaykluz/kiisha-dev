@@ -5250,6 +5250,9 @@ export const userSessions = mysqlTable("userSessions", {
   // Active organization context
   activeOrganizationId: int("activeOrganizationId"),
   
+  // Workspace selection required - set to true on fresh login, false after explicit selection
+  workspaceSelectionRequired: boolean("workspaceSelectionRequired").default(true).notNull(),
+  
   // Device/client info
   deviceFingerprint: varchar("deviceFingerprint", { length: 64 }),
   userAgent: text("userAgent"),
@@ -5691,6 +5694,9 @@ export const serverSessions = mysqlTable("serverSessions", {
   
   // Active workspace context
   activeOrganizationId: int("activeOrganizationId"),
+  
+  // Workspace selection required - set to true on fresh login, false after explicit selection
+  workspaceSelectionRequired: boolean("workspaceSelectionRequired").default(true).notNull(),
   
   // Device info (for session management UI)
   deviceType: varchar("deviceType", { length: 50 }), // desktop, mobile, tablet
