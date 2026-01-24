@@ -64,19 +64,21 @@ export function usePortalAuth(): PortalAuthState {
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [tokenData, setTokenData] = useState<TokenPayload | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | 'all' | null>(null);
+  const [selectedCustomerId, setSelectedCustomerIdState] = useState<number | 'all' | null>(null);
   const [availableCustomers, setAvailableCustomers] = useState<CustomerOption[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem('customer_token');
     if (!token) {
       setIsLoading(false);
+      setLocation('/portal/login');
       return;
     }
 
     const payload = parseToken(token);
     if (!payload) {
       setIsLoading(false);
+      setLocation('/portal/login');
       return;
     }
 
@@ -86,20 +88,36 @@ export function usePortalAuth(): PortalAuthState {
     if (payload.isCompanyUser) {
       const customers = getStoredCustomers();
       setAvailableCustomers(customers);
-      // Default to "all" for company users
-      setSelectedCustomerId('all');
+      // Check for stored selection
+      const storedSelection = localStorage.getItem('portal_selected_customer');
+      if (storedSelection && storedSelection !== 'all') {
+        setSelectedCustomerIdState(parseInt(storedSelection, 10));
+      } else {
+        setSelectedCustomerIdState('all');
+      }
     } else if (payload.customerId) {
       // For customer users, set their customer ID
-      setSelectedCustomerId(payload.customerId);
+      setSelectedCustomerIdState(payload.customerId);
+    } else {
+      // No valid customer ID and not a company user
+      setIsLoading(false);
+      setLocation('/portal/login');
+      return;
     }
 
     setIsLoading(false);
-  }, []);
+  }, [setLocation]);
 
   const logout = () => {
     localStorage.removeItem('customer_token');
     localStorage.removeItem('portal_customers');
+    localStorage.removeItem('portal_selected_customer');
     setLocation('/portal/login');
+  };
+  
+  const setSelectedCustomerId = (id: number | 'all') => {
+    setSelectedCustomerIdState(id);
+    localStorage.setItem('portal_selected_customer', id === 'all' ? 'all' : id.toString());
   };
 
   const isAuthenticated = !!tokenData;
@@ -108,11 +126,11 @@ export function usePortalAuth(): PortalAuthState {
   // Company users have read-only access
   const isReadOnly = isCompanyUser;
 
-  // Get effective customer ID (null for "all" view)
+  // Get effective customer ID (0 for "all" view to indicate consolidated)
   const customerId = useMemo(() => {
-    if (selectedCustomerId === 'all') return null;
-    return selectedCustomerId;
-  }, [selectedCustomerId]);
+    if (selectedCustomerIdState === 'all') return 0;
+    return selectedCustomerIdState;
+  }, [selectedCustomerIdState]);
 
   return {
     isAuthenticated,
@@ -121,7 +139,7 @@ export function usePortalAuth(): PortalAuthState {
     isReadOnly,
     tokenData,
     customerId,
-    selectedCustomerId,
+    selectedCustomerId: selectedCustomerIdState,
     availableCustomers,
     userEmail: tokenData?.email || null,
     userName: tokenData?.name || null,

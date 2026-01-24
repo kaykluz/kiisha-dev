@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { usePortalReadOnly } from './PortalLayout';
+import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { useLocation, useParams } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,30 +56,9 @@ function getStatusBadge(status: string) {
 
 export default function PortalInvoices() {
   const [, setLocation] = useLocation();
-  const { isReadOnly } = usePortalReadOnly();
+  const { isAuthenticated, isLoading: authLoading, isReadOnly, customerId, isCompanyUser } = usePortalAuth();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [customerId, setCustomerId] = useState<number | null>(null);
-  
-  // Get customer ID from token
-  useEffect(() => {
-    const token = localStorage.getItem('customer_token');
-    if (!token) {
-      setLocation('/portal/login');
-      return;
-    }
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.customerId) {
-        setCustomerId(payload.customerId);
-      } else {
-        setLocation('/portal/login');
-      }
-    } catch {
-      setLocation('/portal/login');
-    }
-  }, [setLocation]);
   
   // Debounced search query for server-side filtering
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -95,18 +74,18 @@ export default function PortalInvoices() {
   // Fetch real invoices from API with server-side search
   const { data: invoicesData, isLoading, error } = trpc.customerPortal.getMyInvoices.useQuery(
     { 
-      customerId: customerId!,
+      customerId: customerId || 0,
       status: statusFilter !== 'all' ? statusFilter as any : undefined,
       search: debouncedSearch || undefined,
       limit: 50,
     },
-    { enabled: !!customerId }
+    { enabled: !authLoading && customerId !== null }
   );
   
   const filteredInvoices = invoicesData || [];
   
   // Loading state
-  if (isLoading || !customerId) {
+  if (authLoading || isLoading) {
     return (
       <PortalLayout activeTab="invoices">
         <div className="space-y-6">
@@ -118,26 +97,13 @@ export default function PortalInvoices() {
           </div>
           <div className="flex gap-4">
             <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 w-[180px]" />
+            <Skeleton className="h-10 w-32" />
           </div>
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-0">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="p-4 border-b border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="w-12 h-12 rounded-lg" />
-                      <div>
-                        <Skeleton className="h-5 w-32 mb-2" />
-                        <Skeleton className="h-4 w-48" />
-                      </div>
-                    </div>
-                    <Skeleton className="h-8 w-24" />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
         </div>
       </PortalLayout>
     );
@@ -147,14 +113,11 @@ export default function PortalInvoices() {
   if (error) {
     return (
       <PortalLayout activeTab="invoices">
-        <div className="flex items-center justify-center py-12">
-          <Card className="bg-slate-800 border-slate-700 max-w-md">
-            <CardContent className="pt-6 text-center">
-              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-white mb-2">Error Loading Invoices</h2>
-              <p className="text-slate-400">{error.message}</p>
-            </CardContent>
-          </Card>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Invoices</h2>
+          <p className="text-slate-400 mb-4">There was an error loading your invoices. Please try again.</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </PortalLayout>
     );
@@ -167,14 +130,16 @@ export default function PortalInvoices() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Invoices</h1>
-            <p className="text-slate-400">View and pay your invoices</p>
+            <p className="text-slate-400">
+              {isCompanyUser ? 'View all customer invoices' : 'View and pay your invoices'}
+            </p>
           </div>
         </div>
         
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               placeholder="Search invoices..."
               value={searchQuery}
@@ -183,197 +148,140 @@ export default function PortalInvoices() {
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white">
+            <SelectTrigger className="w-full sm:w-[180px] bg-slate-800 border-slate-700 text-white">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
-              <SelectItem value="viewed">Viewed</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="partial">Partial</SelectItem>
-              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="all" className="text-white">All Status</SelectItem>
+              <SelectItem value="pending" className="text-white">Pending</SelectItem>
+              <SelectItem value="sent" className="text-white">Sent</SelectItem>
+              <SelectItem value="viewed" className="text-white">Viewed</SelectItem>
+              <SelectItem value="partial" className="text-white">Partial</SelectItem>
+              <SelectItem value="paid" className="text-white">Paid</SelectItem>
+              <SelectItem value="overdue" className="text-white">Overdue</SelectItem>
             </SelectContent>
           </Select>
         </div>
         
         {/* Invoice List */}
-        <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-700">
-              {filteredInvoices.map((invoice) => (
-                <div 
-                  key={invoice.id}
-                  className="p-4 hover:bg-slate-700/50 transition-colors cursor-pointer"
-                  onClick={() => setLocation(`/portal/invoices/${invoice.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-700 rounded-lg flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-slate-400" />
+        {filteredInvoices.length === 0 ? (
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FileText className="w-12 h-12 text-slate-500 mb-4" />
+              <h3 className="text-lg font-medium text-white mb-2">No Invoices Found</h3>
+              <p className="text-slate-400 text-center">
+                {searchQuery || statusFilter !== 'all' 
+                  ? 'Try adjusting your filters to see more results.'
+                  : 'You don\'t have any invoices yet.'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredInvoices.map((invoice: any) => (
+              <Card 
+                key={invoice.id} 
+                className="bg-slate-800/50 border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer"
+                onClick={() => setLocation(`/portal/invoices/${invoice.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-slate-400" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-white">{invoice.invoiceNumber}</p>
+                          <h3 className="font-medium text-white">{invoice.invoiceNumber}</h3>
                           {getStatusBadge(invoice.status)}
                         </div>
-                        <p className="text-xs text-slate-500">
-                          Issued {formatDate(invoice.issueDate)} • Due {formatDate(invoice.dueDate)}
+                        <p className="text-sm text-slate-400">
+                          Due: {formatDate(invoice.dueDate)}
                         </p>
                       </div>
                     </div>
-                    
-                    <div className="text-right">
-                      <p className="text-lg font-semibold text-white">
-                        {formatCurrency(Number(invoice.totalAmount) / 100, invoice.currency || 'USD')}
-                      </p>
-                      {invoice.status === 'partial' && (
-                        <p className="text-sm text-slate-400">
-                          Paid: {formatCurrency(Number(invoice.paidAmount) / 100, invoice.currency || 'USD')}
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="font-semibold text-white">
+                          {formatCurrency(invoice.totalAmount, invoice.currency)}
                         </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <InvoicePdfDownload 
-                            invoiceId={invoice.id} 
-                            invoiceNumber={invoice.invoiceNumber}
-                            variant="icon"
-                          />
-                        </div>
-                        {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'overdue' || invoice.status === 'partial') && !isReadOnly && (
-                          <Button 
-                            size="sm" 
-                            className="bg-orange-500 hover:bg-orange-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toast.info('Redirecting to payment...');
-                              // In production: create checkout session and redirect
-                            }}
-                          >
-                            <CreditCard className="w-4 h-4 mr-1" />
-                            Pay Now
-                          </Button>
+                        {invoice.paidAmount > 0 && invoice.status !== 'paid' && (
+                          <p className="text-sm text-green-400">
+                            Paid: {formatCurrency(invoice.paidAmount, invoice.currency)}
+                          </p>
                         )}
                       </div>
+                      {!isReadOnly && invoice.status !== 'paid' && (
+                        <Button 
+                          size="sm" 
+                          className="bg-orange-500 hover:bg-orange-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLocation(`/portal/invoices/${invoice.id}`);
+                          }}
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay Now
+                        </Button>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
-              
-              {filteredInvoices.length === 0 && (
-                <div className="p-8 text-center">
-                  <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">No invoices found</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </PortalLayout>
   );
 }
 
-// Invoice Detail Page Component
+// Invoice Detail Component (for /portal/invoices/:id route)
 export function PortalInvoiceDetail() {
-  const [, setLocation] = useLocation();
-  const { isReadOnly } = usePortalReadOnly();
   const params = useParams<{ id: string }>();
-  const [isPaying, setIsPaying] = useState(false);
-  const invoiceId = parseInt(params.id || '0');
+  const [, setLocation] = useLocation();
+  const { isAuthenticated, isLoading: authLoading, isReadOnly, customerId } = usePortalAuth();
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   
-  // Fetch real invoice details from API
-  const { data: invoice, isLoading, error } = trpc.customerPortal.getInvoiceDetails.useQuery(
-    { invoiceId },
-    { enabled: !!invoiceId }
+  const invoiceId = params.id ? parseInt(params.id, 10) : null;
+  
+  // Fetch invoice details
+  const { data: invoice, isLoading, error } = trpc.customerPortal.getInvoiceDetail.useQuery(
+    { invoiceId: invoiceId! },
+    { enabled: !authLoading && !!invoiceId && customerId !== null }
   );
   
-  const handlePayNow = async () => {
-    setIsPaying(true);
-    toast.info('Redirecting to secure payment page...');
-    
-    // In production: create Stripe checkout session
-    setTimeout(() => {
-      if (invoice?.stripeHostedInvoiceUrl) {
-        window.open(invoice.stripeHostedInvoiceUrl, '_blank');
-      } else {
-        toast.error('Payment link not available');
-      }
-      setIsPaying(false);
-    }, 1000);
-  };
-  
   // Loading state
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <PortalLayout activeTab="invoices">
         <div className="space-y-6">
-          <Skeleton className="h-10 w-32" />
-          <div className="flex items-start justify-between">
-            <div>
-              <Skeleton className="h-8 w-48 mb-2" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-10 w-32" />
-              <Skeleton className="h-10 w-24" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Card className="bg-slate-800 border-slate-700">
-                <CardContent className="pt-6">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex justify-between py-3 border-b border-slate-700">
-                      <Skeleton className="h-4 w-48" />
-                      <Skeleton className="h-4 w-24" />
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-            <div>
-              <Card className="bg-slate-800 border-slate-700">
-                <CardContent className="pt-6">
-                  <Skeleton className="h-6 w-32 mb-4" />
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4" />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-64 w-full" />
         </div>
       </PortalLayout>
     );
   }
   
-  // Error state
+  // Error or not found
   if (error || !invoice) {
     return (
       <PortalLayout activeTab="invoices">
-        <div className="space-y-6">
-          <Button 
-            variant="ghost" 
-            className="text-slate-400 hover:text-white"
-            onClick={() => setLocation('/portal/invoices')}
-          >
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Invoice Not Found</h2>
+          <p className="text-slate-400 mb-4">The invoice you're looking for doesn't exist or you don't have access to it.</p>
+          <Button onClick={() => setLocation('/portal/invoices')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Invoices
           </Button>
-          <Card className="bg-slate-800 border-slate-700 max-w-md mx-auto">
-            <CardContent className="pt-6 text-center">
-              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-white mb-2">Invoice Not Found</h2>
-              <p className="text-slate-400">{error?.message || 'The requested invoice could not be found.'}</p>
-            </CardContent>
-          </Card>
         </div>
       </PortalLayout>
     );
   }
+  
+  const outstandingAmount = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || '0');
   
   return (
     <PortalLayout activeTab="invoices">
@@ -389,35 +297,24 @@ export function PortalInvoiceDetail() {
         </Button>
         
         {/* Invoice Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">{invoice.invoiceNumber}</h1>
               {getStatusBadge(invoice.status)}
             </div>
-            <p className="text-slate-400 mt-1">
-              Issued {formatDate(invoice.issueDate)} • Due {formatDate(invoice.dueDate)}
+            <p className="text-slate-400">
+              Issued: {formatDate(invoice.issueDate)} • Due: {formatDate(invoice.dueDate)}
             </p>
           </div>
-          
           <div className="flex gap-2">
-            {invoice.stripePdfUrl && (
-              <Button 
-                variant="outline" 
-                className="border-slate-600 text-slate-300"
-                onClick={() => window.open(invoice.stripePdfUrl!, '_blank')}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download PDF
-              </Button>
-            )}
-            {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && !isReadOnly && (
+            <InvoicePdfDownload invoiceId={invoice.id} invoiceNumber={invoice.invoiceNumber} />
+            {!isReadOnly && invoice.status !== 'paid' && (
               <Button 
                 className="bg-orange-500 hover:bg-orange-600"
-                onClick={handlePayNow}
-                disabled={isPaying}
+                disabled={isPaymentProcessing}
               >
-                {isPaying ? (
+                {isPaymentProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Processing...
@@ -425,7 +322,7 @@ export function PortalInvoiceDetail() {
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4 mr-2" />
-                    Pay {formatCurrency(Number(invoice.balanceDue) / 100, invoice.currency || 'USD')}
+                    Pay {formatCurrency(outstandingAmount, invoice.currency)}
                   </>
                 )}
               </Button>
@@ -433,134 +330,76 @@ export function PortalInvoiceDetail() {
           </div>
         </div>
         
-        {/* Invoice Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Line Items */}
-          <div className="lg:col-span-2">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white">Line Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {invoice.lineItems && invoice.lineItems.length > 0 ? (
-                    <>
-                      {invoice.lineItems.map((item: any) => (
-                        <div 
-                          key={item.id}
-                          className="flex items-start justify-between p-3 bg-slate-900/50 rounded-lg"
-                        >
-                          <div className="flex-1">
-                            <p className="font-medium text-white">{item.description}</p>
-                            <p className="text-sm text-slate-400">
-                              {item.quantity} × {formatCurrency(Number(item.unitPrice) / 100, invoice.currency || 'USD')}
-                            </p>
-                          </div>
-                          <p className="font-medium text-white">
-                            {formatCurrency(Number(item.totalAmount) / 100, invoice.currency || 'USD')}
-                          </p>
-                        </div>
+        {/* Invoice Details Card */}
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white">Invoice Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Amount Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-sm text-slate-400">Total Amount</p>
+                <p className="text-2xl font-bold text-white">
+                  {formatCurrency(invoice.totalAmount, invoice.currency)}
+                </p>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-sm text-slate-400">Amount Paid</p>
+                <p className="text-2xl font-bold text-green-400">
+                  {formatCurrency(invoice.paidAmount || 0, invoice.currency)}
+                </p>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-sm text-slate-400">Outstanding</p>
+                <p className="text-2xl font-bold text-orange-400">
+                  {formatCurrency(outstandingAmount, invoice.currency)}
+                </p>
+              </div>
+            </div>
+            
+            {/* Line Items */}
+            {invoice.lineItems && invoice.lineItems.length > 0 && (
+              <div>
+                <h3 className="text-lg font-medium text-white mb-4">Line Items</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-700">
+                        <th className="text-left py-2 text-slate-400 font-medium">Description</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Qty</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Unit Price</th>
+                        <th className="text-right py-2 text-slate-400 font-medium">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.lineItems.map((item: any, index: number) => (
+                        <tr key={index} className="border-b border-slate-700/50">
+                          <td className="py-3 text-white">{item.description}</td>
+                          <td className="py-3 text-right text-slate-300">{item.quantity}</td>
+                          <td className="py-3 text-right text-slate-300">
+                            {formatCurrency(item.unitPrice, invoice.currency)}
+                          </td>
+                          <td className="py-3 text-right text-white font-medium">
+                            {formatCurrency(item.amount, invoice.currency)}
+                          </td>
+                        </tr>
                       ))}
-                      
-                      {/* Totals */}
-                      <div className="border-t border-slate-700 pt-4 space-y-2">
-                        <div className="flex justify-between text-slate-400">
-                          <span>Subtotal</span>
-                          <span>{formatCurrency(Number(invoice.subtotal) / 100, invoice.currency || 'USD')}</span>
-                        </div>
-                        {invoice.taxAmount && Number(invoice.taxAmount) > 0 && (
-                          <div className="flex justify-between text-slate-400">
-                            <span>Tax</span>
-                            <span>{formatCurrency(Number(invoice.taxAmount) / 100, invoice.currency || 'USD')}</span>
-                          </div>
-                        )}
-                        {invoice.discountAmount && Number(invoice.discountAmount) > 0 && (
-                          <div className="flex justify-between text-green-400">
-                            <span>Discount</span>
-                            <span>-{formatCurrency(Number(invoice.discountAmount) / 100, invoice.currency || 'USD')}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-lg font-semibold text-white pt-2 border-t border-slate-700">
-                          <span>Total</span>
-                          <span>{formatCurrency(Number(invoice.totalAmount) / 100, invoice.currency || 'USD')}</span>
-                        </div>
-                        {Number(invoice.paidAmount) > 0 && (
-                          <>
-                            <div className="flex justify-between text-green-400">
-                              <span>Paid</span>
-                              <span>-{formatCurrency(Number(invoice.paidAmount) / 100, invoice.currency || 'USD')}</span>
-                            </div>
-                            <div className="flex justify-between text-lg font-semibold text-orange-400">
-                              <span>Balance Due</span>
-                              <span>{formatCurrency(Number(invoice.balanceDue) / 100, invoice.currency || 'USD')}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8">
-                      <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                      <p className="text-slate-400">No line items</p>
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Payment History & Notes */}
-          <div className="space-y-6">
-            {/* Payment History */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white">Payment History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {invoice.payments && invoice.payments.length > 0 ? (
-                  <div className="space-y-3">
-                    {invoice.payments.map((payment: any) => (
-                      <div 
-                        key={payment.id}
-                        className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-white">
-                            {formatCurrency(Number(payment.amount) / 100, payment.currency || 'USD')}
-                          </p>
-                          <p className="text-sm text-slate-400">{formatDate(payment.paymentDate)}</p>
-                        </div>
-                        <Badge 
-                          variant="outline" 
-                          className={payment.status === 'succeeded' ? 'bg-green-500/10 text-green-400 border-green-500/20' : ''}
-                        >
-                          {payment.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <CreditCard className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">No payments recorded</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
             
             {/* Notes */}
             {invoice.notes && (
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-slate-400 whitespace-pre-wrap">{invoice.notes}</p>
-                </CardContent>
-              </Card>
+              <div>
+                <h3 className="text-lg font-medium text-white mb-2">Notes</h3>
+                <p className="text-slate-400">{invoice.notes}</p>
+              </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </PortalLayout>
   );
