@@ -331,9 +331,9 @@ export default function SuperuserBilling() {
                                   </Button>
                                   <Button 
                                     onClick={handleUpdatePlan}
-                                    disabled={updateSubscription.isLoading}
+                                    disabled={updateSubscription.isPending}
                                   >
-                                    {updateSubscription.isLoading ? "Updating..." : "Update Plan"}
+                                    {updateSubscription.isPending ? "Updating..." : "Update Plan"}
                                   </Button>
                                 </DialogFooter>
                               </DialogContent>

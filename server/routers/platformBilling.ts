@@ -666,4 +666,146 @@ export const platformBillingRouter = router({
       
       return { success: true };
     }),
+
+  // ============================================================================
+  // PAYMENT METHODS - Additional endpoints
+  // ============================================================================
+
+  /**
+   * Add a new payment method
+   */
+  addPaymentMethod: protectedProcedure
+    .input(z.object({
+      type: z.enum(["card", "bank_account"]),
+      cardNumber: z.string().optional(),
+      expiryMonth: z.number().optional(),
+      expiryYear: z.number().optional(),
+      cvc: z.string().optional(),
+      name: z.string().optional(),
+      // For bank accounts
+      accountNumber: z.string().optional(),
+      routingNumber: z.string().optional(),
+      bankName: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // In production, you would use Stripe or another payment processor
+      // This is a simplified implementation
+      
+      // Determine card brand from number
+      let brand = "card";
+      if (input.cardNumber) {
+        const firstDigit = input.cardNumber.charAt(0);
+        if (firstDigit === "4") brand = "visa";
+        else if (firstDigit === "5") brand = "mastercard";
+        else if (firstDigit === "3") brand = "amex";
+        else if (firstDigit === "6") brand = "discover";
+      }
+      
+      // Get last 4 digits
+      const last4 = input.cardNumber ? input.cardNumber.slice(-4) : input.accountNumber?.slice(-4) || "0000";
+      
+      // Check if this is the first payment method (make it default)
+      const existingMethods = await db
+        .select()
+        .from(paymentMethods)
+        .where(eq(paymentMethods.organizationId, ctx.user.activeOrganizationId || 0));
+      
+      const isDefault = existingMethods.length === 0;
+      
+      const [result] = await db
+        .insert(paymentMethods)
+        .values({
+          organizationId: ctx.user.activeOrganizationId || 0,
+          type: input.type,
+          last4,
+          brand,
+          expiryMonth: input.expiryMonth || null,
+          expiryYear: input.expiryYear || null,
+          cardholderName: input.name || null,
+          isDefault,
+          status: "active",
+        });
+      
+      await logBillingAction({
+        organizationId: ctx.user.activeOrganizationId || 0,
+        userId: ctx.user.id,
+        action: "payment_method_added",
+        entityType: "payment_method",
+        entityId: result.insertId,
+        newState: { type: input.type, last4, brand },
+      });
+      
+      return { success: true, id: result.insertId };
+    }),
+
+  // ============================================================================
+  // BILLING SETTINGS
+  // ============================================================================
+
+  /**
+   * Get billing settings for the organization
+   */
+  getBillingSettings: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    
+    const orgId = ctx.user.activeOrganizationId || 0;
+    
+    // Try to get existing settings from organization metadata or a settings table
+    // For now, return default settings
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, orgId));
+    
+    return {
+      companyName: org?.name || "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "US",
+      emailInvoices: true,
+      invoiceEmail: "",
+      autoPay: true,
+    };
+  }),
+
+  /**
+   * Update billing settings for the organization
+   */
+  updateBillingSettings: protectedProcedure
+    .input(z.object({
+      companyName: z.string().optional(),
+      addressLine1: z.string().optional(),
+      addressLine2: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      postalCode: z.string().optional(),
+      country: z.string().optional(),
+      emailInvoices: z.boolean().optional(),
+      invoiceEmail: z.string().optional(),
+      autoPay: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const orgId = ctx.user.activeOrganizationId || 0;
+      
+      // For now, just log the action - in production you'd store this in a settings table
+      await logBillingAction({
+        organizationId: orgId,
+        userId: ctx.user.id,
+        action: "billing_settings_updated",
+        entityType: "billing_settings",
+        newState: input,
+      });
+      
+      return { success: true };
+    }),
 });

@@ -298,9 +298,9 @@ export default function BillingSettings() {
                     </Button>
                     <Button 
                       onClick={handleAddCard}
-                      disabled={addPaymentMethod.isLoading || !newCard.cardNumber || !newCard.expiryMonth || !newCard.expiryYear || !newCard.cvc}
+                      disabled={addPaymentMethod.isPending || !newCard.cardNumber || !newCard.expiryMonth || !newCard.expiryYear || !newCard.cvc}
                     >
-                      {addPaymentMethod.isLoading ? "Adding..." : "Add Card"}
+                      {addPaymentMethod.isPending ? "Adding..." : "Add Card"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -337,7 +337,7 @@ export default function BillingSettings() {
                           variant="outline" 
                           size="sm"
                           onClick={() => setDefaultPaymentMethod.mutate({ paymentMethodId: method.id })}
-                          disabled={setDefaultPaymentMethod.isLoading}
+                          disabled={setDefaultPaymentMethod.isPending}
                         >
                           Set Default
                         </Button>
@@ -481,9 +481,9 @@ export default function BillingSettings() {
                 </div>
                 <Button 
                   onClick={handleSaveBillingAddress}
-                  disabled={updateBillingSettings.isLoading}
+                  disabled={updateBillingSettings.isPending}
                 >
-                  {updateBillingSettings.isLoading ? "Saving..." : "Save Address"}
+                  {updateBillingSettings.isPending ? "Saving..." : "Save Address"}
                 </Button>
               </div>
             )}
@@ -554,9 +554,9 @@ export default function BillingSettings() {
 
                 <Button 
                   onClick={handleSaveInvoicePrefs}
-                  disabled={updateBillingSettings.isLoading}
+                  disabled={updateBillingSettings.isPending}
                 >
-                  {updateBillingSettings.isLoading ? "Saving..." : "Save Preferences"}
+                  {updateBillingSettings.isPending ? "Saving..." : "Save Preferences"}
                 </Button>
               </div>
             )}

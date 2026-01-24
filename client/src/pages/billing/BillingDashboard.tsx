@@ -5,7 +5,6 @@
  * Location: /billing
  */
 
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { AppLayout } from "@/components/AppLayout";
@@ -21,13 +20,9 @@ import {
   TrendingUp, 
   Users, 
   HardDrive, 
-  Building2,
   Package,
-  Calendar,
-  AlertCircle,
   CheckCircle,
   Clock,
-  ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -35,15 +30,15 @@ function UsageCard({
   title, 
   current, 
   limit, 
-  percentage, 
   icon: Icon 
 }: { 
   title: string; 
   current: number; 
   limit: number; 
-  percentage: number;
   icon: React.ElementType;
 }) {
+  const percentage = limit > 0 ? Math.round((current / limit) * 100) : 0;
+  
   const getStatusColor = (pct: number) => {
     if (pct >= 90) return "text-red-500";
     if (pct >= 75) return "text-yellow-500";
@@ -64,7 +59,7 @@ function UsageCard({
         </div>
         <Progress value={percentage} className="h-2 mb-2" />
         <div className="text-sm text-muted-foreground">
-          {current.toLocaleString()} / {limit.toLocaleString()} used
+          {current.toLocaleString()} / {limit < 0 ? "Unlimited" : limit.toLocaleString()} used
         </div>
       </CardContent>
     </Card>
@@ -73,13 +68,14 @@ function UsageCard({
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
+  if (bytes < 0) return 'Unlimited';
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string | null | undefined) {
   switch (status) {
     case "active":
       return <Badge className="bg-green-500">Active</Badge>;
@@ -92,11 +88,11 @@ function getStatusBadge(status: string) {
     case "paused":
       return <Badge variant="outline">Paused</Badge>;
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary">{status || "Unknown"}</Badge>;
   }
 }
 
-function getInvoiceStatusBadge(status: string) {
+function getInvoiceStatusBadge(status: string | null | undefined) {
   switch (status) {
     case "paid":
       return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
@@ -109,7 +105,7 @@ function getInvoiceStatusBadge(status: string) {
     case "uncollectible":
       return <Badge className="bg-red-500">Uncollectible</Badge>;
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary">{status || "Unknown"}</Badge>;
   }
 }
 
@@ -118,8 +114,8 @@ export default function BillingDashboard() {
   
   const { data: subscription, isLoading: subLoading } = trpc.platformBilling.getSubscription.useQuery();
   const { data: usage, isLoading: usageLoading } = trpc.platformBilling.getUsageSummary.useQuery();
-  const { data: invoices, isLoading: invoicesLoading } = trpc.platformBilling.getPlatformInvoices.useQuery({ limit: 5 });
-  const { data: payments, isLoading: paymentsLoading } = trpc.platformBilling.getPlatformPayments.useQuery({ limit: 5 });
+  const { data: invoices, isLoading: invoicesLoading } = trpc.platformBilling.getInvoices.useQuery({ limit: 5 });
+  const { data: payments, isLoading: paymentsLoading } = trpc.platformBilling.getPayments.useQuery({ limit: 5 });
   const { data: paymentMethods } = trpc.platformBilling.getPaymentMethods.useQuery();
 
   const isLoading = subLoading || usageLoading;
@@ -160,28 +156,28 @@ export default function BillingDashboard() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-2xl font-bold">{subscription.plan?.name || "Free Plan"}</h3>
-                      <p className="text-muted-foreground">{subscription.plan?.description}</p>
+                      <h3 className="text-2xl font-bold">{subscription.planName || "Free Plan"}</h3>
+                      <p className="text-muted-foreground">{subscription.planCode}</p>
                     </div>
-                    {getStatusBadge(subscription.subscription?.status || "active")}
+                    {getStatusBadge(subscription.status)}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Billing Cycle</span>
-                      <p className="font-medium capitalize">{subscription.subscription?.billingCycle || "Monthly"}</p>
+                      <p className="font-medium capitalize">{subscription.billingCycle || "Monthly"}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Price</span>
                       <p className="font-medium">
-                        ${subscription.subscription?.pricePerPeriod || "0.00"}/{subscription.subscription?.billingCycle === "annual" ? "year" : "month"}
+                        ${subscription.pricePerPeriod || "0.00"}/{subscription.billingCycle === "annual" ? "year" : "month"}
                       </p>
                     </div>
-                    {subscription.subscription?.currentPeriodEnd && (
+                    {subscription.currentPeriodEnd && (
                       <div className="col-span-2">
                         <span className="text-muted-foreground">Next Billing Date</span>
                         <p className="font-medium">
-                          {format(new Date(subscription.subscription.currentPeriodEnd), "MMMM d, yyyy")}
+                          {format(new Date(subscription.currentPeriodEnd), "MMMM d, yyyy")}
                         </p>
                       </div>
                     )}
@@ -272,21 +268,18 @@ export default function BillingDashboard() {
                   title="Users"
                   current={usage.users.current}
                   limit={usage.users.limit}
-                  percentage={usage.users.percentage}
                   icon={Users}
                 />
                 <UsageCard
                   title="Assets"
                   current={usage.assets.current}
                   limit={usage.assets.limit}
-                  percentage={usage.assets.percentage}
-                  icon={Building2}
+                  icon={Package}
                 />
                 <UsageCard
                   title="Customers"
                   current={usage.customers.current}
                   limit={usage.customers.limit}
-                  percentage={usage.customers.percentage}
                   icon={Users}
                 />
                 <Card>
@@ -297,10 +290,10 @@ export default function BillingDashboard() {
                         <span className="font-medium">Storage</span>
                       </div>
                       <span className="text-sm font-medium text-green-500">
-                        {usage.storage.percentage}%
+                        {usage.storage.limit > 0 ? Math.round((usage.storage.current / usage.storage.limit) * 100) : 0}%
                       </span>
                     </div>
-                    <Progress value={usage.storage.percentage} className="h-2 mb-2" />
+                    <Progress value={usage.storage.limit > 0 ? (usage.storage.current / usage.storage.limit) * 100 : 0} className="h-2 mb-2" />
                     <div className="text-sm text-muted-foreground">
                       {formatBytes(usage.storage.current)} / {formatBytes(usage.storage.limit)}
                     </div>
