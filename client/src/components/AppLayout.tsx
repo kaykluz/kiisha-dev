@@ -186,6 +186,7 @@ const adminNav: NavItem[] = [
       { label: "Organization Settings", path: "/admin/organization-settings", icon: Building2 },
       { label: "View Sharing", path: "/admin/view-sharing", icon: Send },
       { label: "Custom Views", path: "/views", icon: LayoutGrid },
+      { label: "Observability", path: "/admin/observability", icon: Activity },
     ]
   },
   {

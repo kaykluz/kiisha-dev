@@ -52,6 +52,23 @@ import {
   Loader2,
 } from "lucide-react";
 
+// Helper to calculate start time based on time range
+const getStartTime = (range: string): string => {
+  const now = new Date();
+  switch (range) {
+    case "1h":
+      return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    case "24h":
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    case "7d":
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    case "30d":
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    default:
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  }
+};
+
 // Generate time-series data for charts (used when API doesn't provide real telemetry)
 const generateTimeSeriesData = (hours: number, baseValue: number, variance: number) => {
   const data = [];
@@ -87,6 +104,27 @@ export function OperationsDashboard() {
     organizationId: 1,
     limit: 10,
   });
+
+  // Fetch Grafana alerts for real-time monitoring
+  const { data: grafanaAlerts = [], isLoading: grafanaAlertsLoading, refetch: refetchGrafanaAlerts } = trpc.grafana.listRecentAlerts.useQuery({
+    timeRange: timeRange as "1h" | "24h" | "7d" | "30d",
+    limit: 20,
+  });
+
+  // Fetch Grafana dashboards for quick access
+  const { data: grafanaDashboards = [] } = trpc.grafana.listDashboards.useQuery({});
+
+  // Fetch normalized measurements for telemetry charts
+  const { data: telemetryData = [], isLoading: telemetryLoading } = trpc.operations.getNormalizedMeasurements.useQuery(
+    {
+      siteId: selectedSite !== "all" ? parseInt(selectedSite) : 1,
+      metricId: 1, // Power metric
+      periodType: timeRange === "1h" ? "minute" : timeRange === "24h" ? "hour" : "day",
+      startTime: getStartTime(timeRange),
+      endTime: new Date().toISOString(),
+    },
+    { enabled: selectedSite !== "all" || (apiSites as any[]).length > 0 }
+  );
 
   // Transform sites data for performance table
   const sitePerformance = useMemo(() => {
@@ -154,10 +192,35 @@ export function OperationsDashboard() {
     ];
   }, [apiDevices]);
 
-  // Generate chart data (would be replaced with real telemetry when available)
-  const powerData = useMemo(() => generateTimeSeriesData(24, 450, 150), []);
+  // Transform telemetry data for charts or use generated data as fallback
+  const powerData = useMemo(() => {
+    if ((telemetryData as any[]).length > 0) {
+      return (telemetryData as any[]).map((d: any) => ({
+        time: new Date(d.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        value: parseFloat(d.value) || 0,
+        timestamp: new Date(d.timestamp),
+      }));
+    }
+    return generateTimeSeriesData(24, 450, 150);
+  }, [telemetryData]);
+  
   const batteryData = useMemo(() => generateTimeSeriesData(24, 65, 20), []);
   const gridData = useMemo(() => generateTimeSeriesData(24, 100, 80), []);
+
+  // Combine Grafana alerts with operations alerts
+  const combinedAlerts = useMemo(() => {
+    const grafanaAlertItems = (grafanaAlerts as any[]).map((a: any) => ({
+      id: `grafana-${a.id}`,
+      site: a.title?.split(' - ')[0] || 'Unknown',
+      device: a.title?.split(' - ')[1] || 'System',
+      message: a.message || a.title || 'Alert',
+      severity: a.severity || 'medium',
+      time: a.startsAt ? formatTimeAgo(new Date(a.startsAt)) : 'Recently',
+      source: 'grafana' as const,
+    }));
+    return [...recentAlerts.map(a => ({ ...a, source: 'kiisha' as const })), ...grafanaAlertItems]
+      .slice(0, 10);
+  }, [recentAlerts, grafanaAlerts]);
 
   const energyByDay = [
     { day: "Mon", solar: 2400, battery: 800, grid: 200 },
@@ -186,7 +249,7 @@ export function OperationsDashboard() {
   const alertCount = recentAlerts.length;
   const highPriorityAlerts = recentAlerts.filter(a => a.severity === 'high' || a.severity === 'critical').length;
 
-  const isLoading = sitesLoading || alertsLoading;
+  const isLoading = sitesLoading || alertsLoading || grafanaAlertsLoading;
 
   if (isLoading) {
     return (
@@ -237,6 +300,7 @@ export function OperationsDashboard() {
             onClick={() => {
               refetchSites();
               refetchAlerts();
+              refetchGrafanaAlerts();
             }}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -579,13 +643,24 @@ export function OperationsDashboard() {
         {/* Recent Alerts */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent Alerts</CardTitle>
-            <CardDescription>Latest system alerts</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Recent Alerts</CardTitle>
+                <CardDescription>Latest system alerts from Kiisha & Grafana</CardDescription>
+              </div>
+              {(grafanaDashboards as any[]).length > 0 && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={(grafanaDashboards as any[])[0]?.grafanaUrl} target="_blank" rel="noopener noreferrer">
+                    Open Grafana
+                  </a>
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[250px]">
               <div className="space-y-3">
-                {recentAlerts.map((alert) => (
+                {combinedAlerts.map((alert) => (
                   <div
                     key={alert.id}
                     className={cn(
@@ -618,12 +693,25 @@ export function OperationsDashboard() {
                         {alert.severity}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {alert.time}
-                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {alert.time}
+                      </p>
+                      {alert.source === 'grafana' && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Grafana
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 ))}
+                {combinedAlerts.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                    <p className="text-sm">No active alerts</p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
