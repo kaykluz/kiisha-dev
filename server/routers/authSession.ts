@@ -25,6 +25,7 @@ export interface SessionState {
     name: string | null;
     email: string | null;
     role: string;
+    isSuperuser?: boolean;
   } | null;
   activeOrganizationId: number | null;
   activeOrganization: {
@@ -130,6 +131,7 @@ export const authSessionRouter = router({
         name: user.name,
         email: user.email,
         role: user.role,
+        isSuperuser: user.isSuperuser || false,
       },
       activeOrganizationId: session.activeOrganizationId,
       activeOrganization,

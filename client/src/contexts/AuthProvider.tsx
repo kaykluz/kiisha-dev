@@ -24,6 +24,7 @@ export interface AuthState {
     name: string | null;
     email: string | null;
     role: string;
+    isSuperuser?: boolean;
   } | null;
   activeOrganizationId: number | null;
   activeOrganization: {
