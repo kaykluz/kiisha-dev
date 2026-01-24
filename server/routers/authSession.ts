@@ -334,6 +334,88 @@ export const authSessionRouter = router({
         // Don't expose IP/UA hashes to user
       }));
     }),
+
+  /**
+   * Create a new organization (for users without any workspace)
+   * Creates the org and adds the user as admin/owner
+   */
+  createOrganization: protectedProcedure
+    .input(z.object({
+      name: z.string().min(2).max(100),
+      description: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Check if user already has workspaces - they should use the regular flow
+      const existingMemberships = await db.getOrganizationMemberships(ctx.user.id);
+      const activeMemberships = existingMemberships.filter(m => m.status === "active");
+      
+      // Allow creating org even if they have memberships (they might want multiple orgs)
+      // But limit to prevent abuse
+      if (activeMemberships.length >= 5) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You have reached the maximum number of organizations",
+        });
+      }
+
+      // Generate a unique code and slug from the name
+      const baseSlug = input.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .substring(0, 40);
+      
+      const baseCode = input.name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .substring(0, 6) || "ORG";
+      
+      // Add random suffix to ensure uniqueness
+      const suffix = Math.random().toString(36).substring(2, 6);
+      const slug = `${baseSlug}-${suffix}`;
+      const code = `${baseCode}${suffix.toUpperCase()}`.substring(0, 10);
+
+      // Create organization
+      const orgId = await db.createOrganization({
+        name: input.name,
+        code,
+        slug,
+        description: input.description,
+        signupMode: "invite_only",
+        status: "active",
+        createdBy: ctx.user.id,
+      });
+
+      if (!orgId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create organization",
+        });
+      }
+
+      // Add user as admin of the new organization
+      await db.createOrganizationMembership({
+        userId: ctx.user.id,
+        organizationId: orgId,
+        role: "admin",
+        status: "active",
+        invitedBy: ctx.user.id, // Self-invited
+      });
+
+      // Get session ID and update active org
+      const sessionId = ctx.req?.cookies?.[COOKIE_NAME];
+      if (sessionId) {
+        await sessionManager.setActiveOrganization(sessionId, ctx.user.id, orgId);
+      }
+
+      return {
+        success: true,
+        organizationId: orgId,
+        name: input.name,
+        slug,
+        message: `Organization "${input.name}" created successfully`,
+      };
+    }),
 });
 
 export type AuthSessionRouter = typeof authSessionRouter;

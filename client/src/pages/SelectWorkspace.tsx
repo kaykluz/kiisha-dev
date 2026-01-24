@@ -280,6 +280,10 @@ export function PendingAccess() {
   const [inviteToken, setInviteToken] = useState("");
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [tokenSuccess, setTokenSuccess] = useState(false);
+  const [showCreateOrg, setShowCreateOrg] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [orgDescription, setOrgDescription] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   
   const { data: session, isLoading, refetch } = trpc.authSession.getSession.useQuery();
   const logoutMutation = trpc.authSession.logout.useMutation({
@@ -299,6 +303,17 @@ export function PendingAccess() {
     onError: (err) => {
       setTokenError(err.message || "Invalid or expired invitation token");
       setTokenSuccess(false);
+    },
+  });
+
+  // Create organization mutation
+  const createOrgMutation = trpc.authSession.createOrganization.useMutation({
+    onSuccess: () => {
+      // Redirect to dashboard after creating org
+      setLocation("/dashboard");
+    },
+    onError: (err) => {
+      setCreateError(err.message || "Failed to create organization");
     },
   });
 
@@ -324,6 +339,19 @@ export function PendingAccess() {
     }
     setTokenError(null);
     acceptInviteMutation.mutate({ token: inviteToken.trim() });
+  };
+
+  const handleCreateOrg = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgName.trim()) {
+      setCreateError("Please enter an organization name");
+      return;
+    }
+    setCreateError(null);
+    createOrgMutation.mutate({ 
+      name: orgName.trim(),
+      description: orgDescription.trim() || undefined,
+    });
   };
 
   if (isLoading) {
@@ -389,6 +417,105 @@ export function PendingAccess() {
               </div>
             )}
           </form>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          {/* Create Organization Option */}
+          {!showCreateOrg ? (
+            <button
+              onClick={() => setShowCreateOrg(true)}
+              className="w-full p-4 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-4"
+            >
+              <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">Create your own organization</div>
+                <div className="text-sm text-muted-foreground">
+                  Start a new workspace for your team
+                </div>
+              </div>
+              <Plus className="h-5 w-5 text-muted-foreground" />
+            </button>
+          ) : (
+            <div className="p-4 rounded-lg border border-border bg-muted/30">
+              <form onSubmit={handleCreateOrg} className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Create new organization</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="org-name" className="text-sm font-medium">
+                    Organization name *
+                  </label>
+                  <input
+                    id="org-name"
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="e.g., Acme Corporation"
+                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    disabled={createOrgMutation.isPending}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="org-description" className="text-sm font-medium">
+                    Description (optional)
+                  </label>
+                  <input
+                    id="org-description"
+                    type="text"
+                    value={orgDescription}
+                    onChange={(e) => setOrgDescription(e.target.value)}
+                    placeholder="Brief description of your organization"
+                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    disabled={createOrgMutation.isPending}
+                  />
+                </div>
+                
+                {createError && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    {createError}
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowCreateOrg(false);
+                      setOrgName("");
+                      setOrgDescription("");
+                      setCreateError(null);
+                    }}
+                    disabled={createOrgMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={createOrgMutation.isPending || !orgName.trim()}
+                  >
+                    {createOrgMutation.isPending ? "Creating..." : "Create Organization"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
           
           <div className="pt-4 border-t text-center">
             <Button
