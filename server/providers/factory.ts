@@ -38,6 +38,7 @@ import { PostmarkEmailAdapter } from './adapters/email/postmark';
 import { MetaWhatsAppAdapter } from './adapters/whatsapp/meta';
 import { ManusNotifyAdapter } from './adapters/notify/manus';
 import { SendGridNotifyAdapter } from './adapters/notify/sendgrid';
+import { ResendNotifyAdapter } from './adapters/notify/resend';
 import { SentryObservabilityAdapter } from './adapters/observability/sentry';
 import { CustomObservabilityAdapter } from './adapters/observability/custom';
 
@@ -288,8 +289,15 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
   let adapter: NotifyProviderAdapter;
   
   if (!integration || integration.provider === 'manus') {
-    adapter = new ManusNotifyAdapter();
-    await adapter.initialize({});
+    // Check if Resend API key is configured in environment - use it as default
+    const { env } = await import('../_core/env');
+    if (env.resendApiKey) {
+      adapter = new ResendNotifyAdapter();
+      await adapter.initialize({}, { apiKey: env.resendApiKey });
+    } else {
+      adapter = new ManusNotifyAdapter();
+      await adapter.initialize({});
+    }
   } else {
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
@@ -297,6 +305,9 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
     switch (integration.provider) {
       case 'sendgrid':
         adapter = new SendGridNotifyAdapter();
+        break;
+      case 'resend':
+        adapter = new ResendNotifyAdapter();
         break;
       default:
         adapter = new ManusNotifyAdapter();
