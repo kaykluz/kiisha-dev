@@ -270,47 +270,129 @@ export const customerPortalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
-      const [user] = await db.select()
+      // First, try to find in customerUsers table (external customers)
+      const [customerUser] = await db.select()
         .from(customerUsers)
         .where(eq(customerUsers.email, input.email))
         .limit(1);
       
-      if (!user || !user.passwordHash) {
+      if (customerUser && customerUser.passwordHash) {
+        // Customer user found - authenticate as customer
+        const validPassword = await bcrypt.compare(input.password, customerUser.passwordHash);
+        if (!validPassword) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
+        }
+        
+        if (customerUser.status !== "active") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active" });
+        }
+        
+        // Resolve portal scope using the canonical model
+        const portalScope = await resolvePortalScopeFromLegacy(customerUser.id);
+        
+        // Update last login
+        await db.update(customerUsers)
+          .set({
+            lastLoginAt: new Date(),
+            lastLoginIp: ctx.req?.headers?.["x-forwarded-for"]?.toString() || ctx.req?.socket?.remoteAddress,
+          })
+          .where(eq(customerUsers.id, customerUser.id));
+        
+        // Generate JWT token with portal scope info
+        const token = jwt.sign(
+          { 
+            type: "customer",
+            userId: customerUser.id,
+            portalUserId: portalScope.portalUserId || customerUser.id,
+            customerId: customerUser.customerId,
+            email: customerUser.email,
+            role: customerUser.role,
+            isCompanyUser: false,
+            // Include scope info for quick access checks
+            allowedOrgIds: portalScope.allowedOrgIds,
+            allowedProjectIds: portalScope.allowedProjectIds,
+          },
+          ENV.JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+        
+        return {
+          token,
+          user: {
+            id: customerUser.id,
+            email: customerUser.email,
+            name: customerUser.name,
+            role: customerUser.role,
+            customerId: customerUser.customerId,
+            isCompanyUser: false,
+          },
+          // Include scope summary in response for client-side access control
+          scope: {
+            clientAccounts: portalScope.clientAccounts,
+            allowedProjectIds: portalScope.allowedProjectIds,
+            allowedSiteIds: portalScope.allowedSiteIds,
+          },
+        };
+      }
+      
+      // If not found in customerUsers, try main users table (company users)
+      const { users, organizationMembers, organizations } = await import('../../drizzle/schema');
+      const [companyUser] = await db.select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+      
+      if (!companyUser || !companyUser.passwordHash) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
       
-      const validPassword = await bcrypt.compare(input.password, user.passwordHash);
+      const validPassword = await bcrypt.compare(input.password, companyUser.passwordHash);
       if (!validPassword) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
       
-      if (user.status !== "active") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active" });
+      // Get all organizations this company user has access to
+      const memberships = await db.select({
+        orgId: organizationMembers.organizationId,
+        orgName: organizations.name,
+        role: organizationMembers.role,
+      })
+        .from(organizationMembers)
+        .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+        .where(
+          and(
+            eq(organizationMembers.userId, companyUser.id),
+            eq(organizationMembers.status, "active")
+          )
+        );
+      
+      // Get all customers across all orgs this user has access to
+      const orgIds = memberships.map(m => m.orgId);
+      let allCustomers: { id: number; name: string; companyName: string | null; organizationId: number }[] = [];
+      
+      if (orgIds.length > 0) {
+        allCustomers = await db.select({
+          id: customers.id,
+          name: customers.name,
+          companyName: customers.companyName,
+          organizationId: customers.organizationId,
+        })
+          .from(customers)
+          .where(sql`${customers.organizationId} IN (${sql.join(orgIds.map(id => sql`${id}`), sql`, `)})`);
       }
       
-      // Resolve portal scope using the canonical model
-      const portalScope = await resolvePortalScopeFromLegacy(user.id);
-      
-      // Update last login
-      await db.update(customerUsers)
-        .set({
-          lastLoginAt: new Date(),
-          lastLoginIp: ctx.req?.headers?.["x-forwarded-for"]?.toString() || ctx.req?.socket?.remoteAddress,
-        })
-        .where(eq(customerUsers.id, user.id));
-      
-      // Generate JWT token with portal scope info
+      // Generate JWT token for company user with full access
       const token = jwt.sign(
         { 
-          type: "customer",
-          userId: user.id,
-          portalUserId: portalScope.portalUserId || user.id,
-          customerId: user.customerId,
-          email: user.email,
-          role: user.role,
-          // Include scope info for quick access checks
-          allowedOrgIds: portalScope.allowedOrgIds,
-          allowedProjectIds: portalScope.allowedProjectIds,
+          type: "company",
+          userId: companyUser.id,
+          email: companyUser.email,
+          name: companyUser.name,
+          isCompanyUser: true,
+          isSuperuser: companyUser.isSuperuser || false,
+          // Company users can access all customers in their orgs
+          allowedOrgIds: orgIds,
+          allowedCustomerIds: allCustomers.map(c => c.id),
         },
         ENV.JWT_SECRET,
         { expiresIn: "7d" }
@@ -319,17 +401,18 @@ export const customerPortalRouter = router({
       return {
         token,
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          customerId: user.customerId,
+          id: companyUser.id,
+          email: companyUser.email,
+          name: companyUser.name,
+          role: "company_admin",
+          isCompanyUser: true,
+          isSuperuser: companyUser.isSuperuser || false,
         },
-        // Include scope summary in response for client-side access control
+        // Include all accessible customers for company users
         scope: {
-          clientAccounts: portalScope.clientAccounts,
-          allowedProjectIds: portalScope.allowedProjectIds,
-          allowedSiteIds: portalScope.allowedSiteIds,
+          organizations: memberships,
+          customers: allCustomers,
+          isCompanyUser: true,
         },
       };
     }),
@@ -2235,6 +2318,120 @@ export const customerPortalRouter = router({
       `);
       
       return { success: true };
+    }),
+  
+  // ============================================
+  // COMPANY USER - CONSOLIDATED VIEW
+  // ============================================
+  
+  // Get consolidated dashboard for company users viewing all customers
+  getConsolidatedDashboard: publicProcedure
+    .input(z.object({
+      customerIds: z.array(z.number()),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      if (input.customerIds.length === 0) {
+        return {
+          customer: { name: 'All Customers', companyName: '0 customers' },
+          summary: { totalInvoiced: 0, totalPaid: 0, totalOutstanding: 0, overdueCount: 0 },
+          recentInvoices: [],
+          recentPayments: [],
+          projects: [],
+        };
+      }
+      
+      // Get aggregated invoice stats across all customers
+      const invoiceStats = await db.select({
+        totalInvoiced: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`,
+        totalPaid: sql<number>`COALESCE(SUM(${invoices.paidAmount}), 0)`,
+        totalOutstanding: sql<number>`COALESCE(SUM(${invoices.balanceDue}), 0)`,
+        overdueCount: sql<number>`SUM(CASE WHEN ${invoices.status} = 'overdue' THEN 1 ELSE 0 END)`,
+      })
+        .from(invoices)
+        .where(sql`${invoices.customerId} IN (${sql.join(input.customerIds.map(id => sql`${id}`), sql`, `)})`);
+      
+      const stats = invoiceStats[0] || { totalInvoiced: 0, totalPaid: 0, totalOutstanding: 0, overdueCount: 0 };
+      
+      // Get recent invoices across all customers (last 10)
+      const recentInvoices = await db.select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        totalAmount: invoices.totalAmount,
+        paidAmount: invoices.paidAmount,
+        balanceDue: invoices.balanceDue,
+        status: invoices.status,
+        issueDate: invoices.issueDate,
+        dueDate: invoices.dueDate,
+        currency: invoices.currency,
+        customerId: invoices.customerId,
+        customerName: customers.name,
+        customerCompany: customers.companyName,
+      })
+        .from(invoices)
+        .innerJoin(customers, eq(invoices.customerId, customers.id))
+        .where(sql`${invoices.customerId} IN (${sql.join(input.customerIds.map(id => sql`${id}`), sql`, `)})`)
+        .orderBy(desc(invoices.issueDate))
+        .limit(10);
+      
+      // Get recent payments across all customers (last 10)
+      const recentPayments = await db.select({
+        id: payments.id,
+        amount: payments.amount,
+        currency: payments.currency,
+        paymentDate: payments.paymentDate,
+        status: payments.status,
+        paymentMethod: payments.paymentMethod,
+        referenceNumber: payments.referenceNumber,
+        customerId: payments.customerId,
+        customerName: customers.name,
+        customerCompany: customers.companyName,
+      })
+        .from(payments)
+        .innerJoin(customers, eq(payments.customerId, customers.id))
+        .where(sql`${payments.customerId} IN (${sql.join(input.customerIds.map(id => sql`${id}`), sql`, `)})`)
+        .orderBy(desc(payments.paymentDate))
+        .limit(10);
+      
+      // Get all linked projects across all customers
+      const projects = await db.select({
+        id: customerProjects.id,
+        projectId: customerProjects.projectId,
+        accessLevel: customerProjects.accessLevel,
+        status: customerProjects.status,
+        customerId: customerProjects.customerId,
+      })
+        .from(customerProjects)
+        .where(sql`${customerProjects.customerId} IN (${sql.join(input.customerIds.map(id => sql`${id}`), sql`, `)})`);
+      
+      return {
+        customer: { 
+          name: 'All Customers', 
+          companyName: `${input.customerIds.length} customer${input.customerIds.length !== 1 ? 's' : ''}` 
+        },
+        summary: {
+          // Convert from cents to dollars
+          totalInvoiced: Number(stats.totalInvoiced) / 100,
+          totalPaid: Number(stats.totalPaid) / 100,
+          totalOutstanding: Number(stats.totalOutstanding) / 100,
+          overdueCount: Number(stats.overdueCount) || 0,
+        },
+        recentInvoices: recentInvoices.map(inv => ({
+          ...inv,
+          // Convert from cents to dollars
+          totalAmount: Number(inv.totalAmount) / 100,
+          paidAmount: Number(inv.paidAmount) / 100,
+          balanceDue: Number(inv.balanceDue) / 100,
+        })),
+        recentPayments: recentPayments.map(pay => ({
+          ...pay,
+          // Convert from cents to dollars
+          amount: Number(pay.amount) / 100,
+        })),
+        projects,
+      };
     }),
 });
 

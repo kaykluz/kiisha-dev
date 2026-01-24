@@ -25,6 +25,14 @@ export default function PortalLogin() {
     onSuccess: (data) => {
       // Store token in localStorage for customer portal
       localStorage.setItem('customer_token', data.token);
+      
+      // For company users, also store the list of accessible customers
+      if (data.scope?.isCompanyUser && data.scope?.customers) {
+        localStorage.setItem('portal_customers', JSON.stringify(data.scope.customers));
+      } else {
+        localStorage.removeItem('portal_customers');
+      }
+      
       setLocation('/portal/dashboard');
     },
     onError: (err) => {
