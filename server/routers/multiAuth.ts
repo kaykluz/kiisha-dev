@@ -468,7 +468,8 @@ export const multiAuthRouter = router({
       
       // Send verification email using notification system
       try {
-        const verifyUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${verificationToken}`;
+        const { ENV } = await import('../_core/env');
+        const verifyUrl = `${ENV.appUrl}/auth/verify-email?token=${verificationToken}`;
         
         console.log(`[Registration] Sending verification email to ${input.email}`);
         console.log(`[Registration] RESEND_API_KEY configured: ${!!process.env.RESEND_API_KEY}`);
@@ -741,7 +742,8 @@ export const multiAuthRouter = router({
       
       // Send verification email
       try {
-        const verifyUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${verificationToken}`;
+        const { ENV } = await import('../_core/env');
+        const verifyUrl = `${ENV.appUrl}/auth/verify-email?token=${verificationToken}`;
         
         const { getNotifyAdapter } = await import('../providers/factory');
         const notifyProvider = await getNotifyAdapter(0);
