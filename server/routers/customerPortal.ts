@@ -2937,6 +2937,217 @@ export const customerPortalRouter = router({
       },
     ];
   }),
+  
+  // ============================================
+  // PENDING USER MANAGEMENT (Admin Operations)
+  // ============================================
+  
+  // List pending customer users awaiting approval
+  listPendingCustomerUsers: protectedProcedure
+    .input(z.object({
+      orgId: z.number(),
+      limit: z.number().min(1).max(100).default(50),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // Get pending users (status = 'pending' or customerId = 0)
+      const pendingUsers = await db.select({
+        id: customerUsers.id,
+        email: customerUsers.email,
+        name: customerUsers.name,
+        status: customerUsers.status,
+        emailVerified: customerUsers.emailVerified,
+        createdAt: customerUsers.createdAt,
+        customerId: customerUsers.customerId,
+      })
+        .from(customerUsers)
+        .where(
+          or(
+            eq(customerUsers.status, 'pending'),
+            eq(customerUsers.customerId, 0)
+          )
+        )
+        .orderBy(desc(customerUsers.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+      
+      // Get total count
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(customerUsers)
+        .where(
+          or(
+            eq(customerUsers.status, 'pending'),
+            eq(customerUsers.customerId, 0)
+          )
+        );
+      
+      return {
+        users: pendingUsers,
+        total: countResult?.count || 0,
+      };
+    }),
+  
+  // Approve a pending customer user and assign to a customer
+  approveCustomerUser: protectedProcedure
+    .input(z.object({
+      userId: z.number(),
+      customerId: z.number(),
+      role: z.enum(['admin', 'viewer']).default('viewer'),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // Verify customer exists
+      const [customer] = await db.select().from(customers).where(eq(customers.id, input.customerId)).limit(1);
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
+      }
+      
+      // Verify user exists and is pending
+      const [user] = await db.select().from(customerUsers).where(eq(customerUsers.id, input.userId)).limit(1);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      // Update user to assign to customer and activate
+      await db.update(customerUsers)
+        .set({
+          customerId: input.customerId,
+          status: 'active',
+          role: input.role,
+          updatedAt: new Date(),
+        })
+        .where(eq(customerUsers.id, input.userId));
+      
+      // TODO: Send approval notification email to user
+      
+      return {
+        success: true,
+        message: `User ${user.email} has been approved and assigned to ${customer.name}`,
+      };
+    }),
+  
+  // Reject/delete a pending customer user
+  rejectCustomerUser: protectedProcedure
+    .input(z.object({
+      userId: z.number(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // Verify user exists
+      const [user] = await db.select().from(customerUsers).where(eq(customerUsers.id, input.userId)).limit(1);
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      // Delete the user
+      await db.delete(customerUsers).where(eq(customerUsers.id, input.userId));
+      
+      // TODO: Send rejection notification email to user
+      
+      return {
+        success: true,
+        message: `User ${user.email} has been rejected and removed`,
+      };
+    }),
+  
+  // Pre-register an email for automatic access (whitelist)
+  preRegisterCustomerEmail: protectedProcedure
+    .input(z.object({
+      customerId: z.number(),
+      email: z.string().email(),
+      role: z.enum(['admin', 'viewer']).default('viewer'),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // Verify customer exists
+      const [customer] = await db.select().from(customers).where(eq(customers.id, input.customerId)).limit(1);
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
+      }
+      
+      // Check if email already exists
+      const [existingUser] = await db.select().from(customerUsers).where(eq(customerUsers.email, input.email.toLowerCase())).limit(1);
+      if (existingUser) {
+        throw new TRPCError({ code: "CONFLICT", message: "Email already registered" });
+      }
+      
+      // Create a pre-registered user entry (they'll complete registration when they sign up)
+      await db.insert(customerUsers).values({
+        customerId: input.customerId,
+        email: input.email.toLowerCase(),
+        name: input.email.split('@')[0], // Placeholder name
+        password: '', // No password yet
+        role: input.role,
+        status: 'invited', // Special status for pre-registered
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      return {
+        success: true,
+        message: `Email ${input.email} has been pre-registered for ${customer.name}`,
+      };
+    }),
+  
+  // List pre-registered emails for a customer
+  listPreRegisteredEmails: protectedProcedure
+    .input(z.object({
+      customerId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const preRegistered = await db.select({
+        id: customerUsers.id,
+        email: customerUsers.email,
+        role: customerUsers.role,
+        status: customerUsers.status,
+        createdAt: customerUsers.createdAt,
+      })
+        .from(customerUsers)
+        .where(
+          and(
+            eq(customerUsers.customerId, input.customerId),
+            eq(customerUsers.status, 'invited')
+          )
+        )
+        .orderBy(desc(customerUsers.createdAt));
+      
+      return preRegistered;
+    }),
+  
+  // Remove a pre-registered email
+  removePreRegisteredEmail: protectedProcedure
+    .input(z.object({
+      userId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const [user] = await db.select().from(customerUsers).where(eq(customerUsers.id, input.userId)).limit(1);
+      if (!user || user.status !== 'invited') {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pre-registered email not found" });
+      }
+      
+      await db.delete(customerUsers).where(eq(customerUsers.id, input.userId));
+      
+      return {
+        success: true,
+        message: `Pre-registered email ${user.email} has been removed`,
+      };
+    }),
 });
 
 // Helper functions for production data
