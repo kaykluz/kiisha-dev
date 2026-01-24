@@ -2433,6 +2433,510 @@ export const customerPortalRouter = router({
         projects,
       };
     }),
+  
+  // ============================================
+  // PORTAL OAUTH AUTHENTICATION
+  // ============================================
+  
+  // Get OAuth authorization URL for portal
+  getPortalOAuthUrl: publicProcedure
+    .input(z.object({
+      provider: z.enum(["google", "github", "microsoft"]),
+    }))
+    .mutation(async ({ input }) => {
+      const crypto = await import('crypto');
+      
+      const OAUTH_PROVIDERS: Record<string, { authorizationUrl: string; scopes: string[]; clientIdEnv: string }> = {
+        google: {
+          authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+          scopes: ["openid", "email", "profile"],
+          clientIdEnv: "GOOGLE_CLIENT_ID",
+        },
+        github: {
+          authorizationUrl: "https://github.com/login/oauth/authorize",
+          scopes: ["read:user", "user:email"],
+          clientIdEnv: "GITHUB_CLIENT_ID",
+        },
+        microsoft: {
+          authorizationUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          scopes: ["openid", "email", "profile", "User.Read"],
+          clientIdEnv: "MICROSOFT_CLIENT_ID",
+        },
+      };
+      
+      const config = OAUTH_PROVIDERS[input.provider];
+      const clientId = process.env[config.clientIdEnv];
+      
+      if (!clientId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `${input.provider} OAuth is not configured`,
+        });
+      }
+      
+      const state = crypto.randomBytes(16).toString("hex");
+      const redirectUri = `${ENV.appUrl}/portal/oauth/callback`;
+      
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        scope: config.scopes.join(" "),
+        state: `portal_${input.provider}_${state}`,
+      });
+      
+      if (input.provider === "google") {
+        params.set("access_type", "offline");
+        params.set("prompt", "consent");
+      }
+      
+      return {
+        url: `${config.authorizationUrl}?${params.toString()}`,
+        state: `portal_${input.provider}_${state}`,
+      };
+    }),
+  
+  // Handle OAuth callback for portal
+  handlePortalOAuthCallback: publicProcedure
+    .input(z.object({
+      provider: z.enum(["google", "github", "microsoft"]),
+      code: z.string(),
+      state: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const OAUTH_CONFIGS: Record<string, { tokenUrl: string; userInfoUrl: string; emailUrl?: string; clientIdEnv: string; clientSecretEnv: string }> = {
+        google: {
+          tokenUrl: "https://oauth2.googleapis.com/token",
+          userInfoUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
+          clientIdEnv: "GOOGLE_CLIENT_ID",
+          clientSecretEnv: "GOOGLE_CLIENT_SECRET",
+        },
+        github: {
+          tokenUrl: "https://github.com/login/oauth/access_token",
+          userInfoUrl: "https://api.github.com/user",
+          emailUrl: "https://api.github.com/user/emails",
+          clientIdEnv: "GITHUB_CLIENT_ID",
+          clientSecretEnv: "GITHUB_CLIENT_SECRET",
+        },
+        microsoft: {
+          tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+          userInfoUrl: "https://graph.microsoft.com/v1.0/me",
+          clientIdEnv: "MICROSOFT_CLIENT_ID",
+          clientSecretEnv: "MICROSOFT_CLIENT_SECRET",
+        },
+      };
+      
+      const config = OAUTH_CONFIGS[input.provider];
+      const clientId = process.env[config.clientIdEnv];
+      const clientSecret = process.env[config.clientSecretEnv];
+      
+      if (!clientId || !clientSecret) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `${input.provider} OAuth is not configured` });
+      }
+      
+      const redirectUri = `${ENV.appUrl}/portal/oauth/callback`;
+      
+      // Exchange code for tokens
+      const tokenParams = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: input.code,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      });
+      
+      const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+      if (input.provider === "github") headers["Accept"] = "application/json";
+      
+      const tokenResponse = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers,
+        body: tokenParams.toString(),
+      });
+      
+      if (!tokenResponse.ok) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to exchange code for tokens" });
+      }
+      
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+      
+      // Get user info
+      const userInfoResponse = await fetch(config.userInfoUrl, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      });
+      
+      if (!userInfoResponse.ok) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get user info" });
+      }
+      
+      const userData = await userInfoResponse.json();
+      
+      // Extract email based on provider
+      let email: string | null = null;
+      let name: string | null = null;
+      let providerId: string;
+      
+      switch (input.provider) {
+        case "google":
+          email = userData.email;
+          name = userData.name;
+          providerId = userData.id;
+          break;
+        case "github":
+          email = userData.email;
+          name = userData.name || userData.login;
+          providerId = String(userData.id);
+          // GitHub may not return email, need to fetch separately
+          if (!email && config.emailUrl) {
+            const emailResponse = await fetch(config.emailUrl, {
+              headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+            });
+            if (emailResponse.ok) {
+              const emails = await emailResponse.json();
+              const primaryEmail = emails.find((e: { primary: boolean }) => e.primary);
+              email = primaryEmail?.email || emails[0]?.email;
+            }
+          }
+          break;
+        case "microsoft":
+          email = userData.mail || userData.userPrincipalName;
+          name = userData.displayName;
+          providerId = userData.id;
+          break;
+      }
+      
+      if (!email) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Could not retrieve email from OAuth provider" });
+      }
+      
+      // Check if this email exists in customerUsers (customer)
+      const [existingCustomerUser] = await db.select()
+        .from(customerUsers)
+        .where(eq(customerUsers.email, email))
+        .limit(1);
+      
+      if (existingCustomerUser) {
+        // Customer user exists - authenticate them
+        if (existingCustomerUser.status !== "active") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active" });
+        }
+        
+        // Update OAuth provider info
+        await db.update(customerUsers)
+          .set({
+            oauthProvider: input.provider,
+            oauthProviderId: providerId,
+            lastLoginAt: new Date(),
+            lastLoginIp: ctx.req?.headers?.["x-forwarded-for"]?.toString() || ctx.req?.socket?.remoteAddress,
+          })
+          .where(eq(customerUsers.id, existingCustomerUser.id));
+        
+        const portalScope = await resolvePortalScopeFromLegacy(existingCustomerUser.id);
+        
+        const token = jwt.sign(
+          {
+            type: "customer",
+            userId: existingCustomerUser.id,
+            portalUserId: portalScope.portalUserId || existingCustomerUser.id,
+            customerId: existingCustomerUser.customerId,
+            email: existingCustomerUser.email,
+            role: existingCustomerUser.role,
+            isCompanyUser: false,
+            allowedOrgIds: portalScope.allowedOrgIds,
+            allowedProjectIds: portalScope.allowedProjectIds,
+          },
+          ENV.JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+        
+        return {
+          token,
+          user: {
+            id: existingCustomerUser.id,
+            email: existingCustomerUser.email,
+            name: existingCustomerUser.name,
+            role: existingCustomerUser.role,
+            customerId: existingCustomerUser.customerId,
+            isCompanyUser: false,
+          },
+          scope: {
+            clientAccounts: portalScope.clientAccounts,
+            allowedProjectIds: portalScope.allowedProjectIds,
+            allowedSiteIds: portalScope.allowedSiteIds,
+          },
+          isNewUser: false,
+        };
+      }
+      
+      // Check if this email exists in main users table (company user)
+      const { users, organizationMembers, organizations } = await import('../../drizzle/schema');
+      const [companyUser] = await db.select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      
+      if (companyUser) {
+        // Company user - authenticate with full access
+        const memberships = await db.select({
+          orgId: organizationMembers.organizationId,
+          orgName: organizations.name,
+          role: organizationMembers.role,
+        })
+          .from(organizationMembers)
+          .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+          .where(
+            and(
+              eq(organizationMembers.userId, companyUser.id),
+              eq(organizationMembers.status, "active")
+            )
+          );
+        
+        const orgIds = memberships.map(m => m.orgId);
+        let allCustomers: { id: number; name: string; companyName: string | null; organizationId: number }[] = [];
+        
+        if (orgIds.length > 0) {
+          allCustomers = await db.select({
+            id: customers.id,
+            name: customers.name,
+            companyName: customers.companyName,
+            organizationId: customers.organizationId,
+          })
+            .from(customers)
+            .where(sql`${customers.organizationId} IN (${sql.join(orgIds.map(id => sql`${id}`), sql`, `)})`);
+        }
+        
+        const token = jwt.sign(
+          {
+            type: "company",
+            userId: companyUser.id,
+            email: companyUser.email,
+            name: companyUser.name,
+            isCompanyUser: true,
+            isSuperuser: companyUser.isSuperuser || false,
+            allowedOrgIds: orgIds,
+            allowedCustomerIds: allCustomers.map(c => c.id),
+          },
+          ENV.JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+        
+        return {
+          token,
+          user: {
+            id: companyUser.id,
+            email: companyUser.email,
+            name: companyUser.name,
+            role: "company_admin",
+            isCompanyUser: true,
+            isSuperuser: companyUser.isSuperuser || false,
+          },
+          scope: {
+            organizations: memberships,
+            customers: allCustomers,
+            isCompanyUser: true,
+          },
+          isNewUser: false,
+        };
+      }
+      
+      // New user - create a pending customer user account
+      // They won't have access to any customer data until an admin approves them
+      const [newCustomerUser] = await db.insert(customerUsers)
+        .values({
+          email,
+          name,
+          customerId: 0, // No customer assigned yet - pending approval
+          role: "viewer",
+          status: "pending", // Pending until admin approves
+          oauthProvider: input.provider,
+          oauthProviderId: providerId,
+          emailVerified: true, // OAuth emails are verified
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      
+      // Generate token for new user (limited access)
+      const token = jwt.sign(
+        {
+          type: "customer",
+          userId: newCustomerUser.id,
+          portalUserId: newCustomerUser.id,
+          customerId: 0,
+          email: newCustomerUser.email,
+          role: "viewer",
+          isCompanyUser: false,
+          isPendingApproval: true,
+          allowedOrgIds: [],
+          allowedProjectIds: [],
+        },
+        ENV.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      
+      return {
+        token,
+        user: {
+          id: newCustomerUser.id,
+          email: newCustomerUser.email,
+          name: newCustomerUser.name,
+          role: "viewer",
+          customerId: 0,
+          isCompanyUser: false,
+          isPendingApproval: true,
+        },
+        scope: {
+          clientAccounts: [],
+          allowedProjectIds: [],
+          allowedSiteIds: [],
+        },
+        isNewUser: true,
+        pendingApproval: true,
+      };
+    }),
+  
+  // Customer self-registration with email/password
+  customerRegister: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string().min(8),
+      name: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      // Check if email already exists
+      const [existingUser] = await db.select()
+        .from(customerUsers)
+        .where(eq(customerUsers.email, input.email))
+        .limit(1);
+      
+      if (existingUser) {
+        throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists" });
+      }
+      
+      // Also check main users table
+      const { users } = await import('../../drizzle/schema');
+      const [existingCompanyUser] = await db.select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+      
+      if (existingCompanyUser) {
+        throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists. Please use the main login." });
+      }
+      
+      // Create verification token
+      const crypto = await import('crypto');
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      const passwordHash = await bcrypt.hash(input.password, 10);
+      
+      // Create pending customer user
+      const [newUser] = await db.insert(customerUsers)
+        .values({
+          email: input.email,
+          name: input.name,
+          passwordHash,
+          customerId: 0, // No customer assigned yet
+          role: "viewer",
+          status: "pending", // Pending until email verified and admin approves
+          emailVerified: false,
+          emailVerificationToken: verificationToken,
+          emailVerificationExpires: verificationExpires,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      
+      // Send verification email
+      const { getNotifyAdapter } = await import('../providers/factory');
+      const notifyProvider = await getNotifyAdapter(0);
+      
+      const verifyUrl = `${ENV.appUrl}/portal/verify-email?token=${verificationToken}`;
+      
+      await notifyProvider.sendEmail({
+        to: input.email,
+        subject: 'Verify your KIISHA Customer Portal account',
+        html: `
+          <h1>Welcome to KIISHA Customer Portal!</h1>
+          <p>Please verify your email address by clicking the link below:</p>
+          <p><a href="${verifyUrl}">Verify Email</a></p>
+          <p>Or copy and paste this link: ${verifyUrl}</p>
+          <p>This link expires in 24 hours.</p>
+          <p>After verification, you'll need to wait for your service provider to grant you access to your account.</p>
+        `,
+      });
+      
+      return {
+        success: true,
+        message: 'Account created. Please check your email to verify your account.',
+      };
+    }),
+  
+  // Verify customer email
+  verifyCustomerEmail: publicProcedure
+    .input(z.object({
+      token: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const [user] = await db.select()
+        .from(customerUsers)
+        .where(eq(customerUsers.emailVerificationToken, input.token))
+        .limit(1);
+      
+      if (!user) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid verification token" });
+      }
+      
+      if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Verification token has expired" });
+      }
+      
+      await db.update(customerUsers)
+        .set({
+          emailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(customerUsers.id, user.id));
+      
+      return {
+        success: true,
+        message: 'Email verified successfully. Please wait for your service provider to grant you access.',
+      };
+    }),
+  
+  // Get available OAuth providers for portal
+  getPortalOAuthProviders: publicProcedure.query(async () => {
+    return [
+      {
+        provider: "google",
+        name: "Google",
+        configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      },
+      {
+        provider: "github",
+        name: "GitHub",
+        configured: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+      },
+      {
+        provider: "microsoft",
+        name: "Microsoft",
+        configured: Boolean(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET),
+      },
+    ];
+  }),
 });
 
 // Helper functions for production data

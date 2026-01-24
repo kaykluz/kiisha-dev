@@ -84,6 +84,9 @@ import PortalDocuments from "./pages/portal/PortalDocuments";
 import PortalProjectDetail from "./pages/portal/PortalProjectDetail";
 import PortalDocumentUpload from "./pages/portal/PortalDocumentUpload";
 import PortalSettings from "./pages/portal/PortalSettings";
+import PortalSignup from "./pages/portal/PortalSignup";
+import PortalOAuthCallback from "./pages/portal/PortalOAuthCallback";
+import PortalVerifyEmail from "./pages/portal/PortalVerifyEmail";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import MultiAuthLogin from "./pages/auth/Login";
@@ -280,6 +283,15 @@ function Router() {
       </Route>
       <Route path="/portal/reset-password">
         {() => <PortalResetPassword />}
+      </Route>
+      <Route path="/portal/signup">
+        {() => <PortalSignup />}
+      </Route>
+      <Route path="/portal/oauth/callback">
+        {() => <PortalOAuthCallback />}
+      </Route>
+      <Route path="/portal/verify-email">
+        {() => <PortalVerifyEmail />}
       </Route>
       <Route path="/portal/dashboard">
         {() => <PortalDashboard />}
