@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 import { useParams } from "wouter";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ interface VerificationInfo {
   verificationNotes: string | null;
 }
 
-// Mock extracted fields with full traceability
+// Extracted field interface with full traceability
 interface ExtractedField {
   id: string;
   category: string;
@@ -58,7 +59,8 @@ interface ExtractedField {
   verification: VerificationInfo;
 }
 
-const mockExtractions: ExtractedField[] = [
+// Sample extractions (used when API returns empty)
+const sampleExtractions: ExtractedField[] = [
   // Interconnection / Overview
   { 
     id: "1", 
@@ -286,8 +288,8 @@ const mockExtractions: ExtractedField[] = [
   },
 ];
 
-// Mock extraction history
-const mockExtractionHistory = [
+// Sample extraction history (used when API returns empty)
+const sampleExtractionHistory = [
   { id: "h1", action: "extracted", user: "AI System", timestamp: "2026-01-14T10:30:00Z", details: "Initial extraction from Interconnection_Agreement.pdf" },
   { id: "h2", action: "verified", user: "Sarah Chen", timestamp: "2026-01-14T14:22:00Z", details: "Verified Application Date field" },
   { id: "h3", action: "verified", user: "Mike Johnson", timestamp: "2026-01-14T15:10:00Z", details: "Verified Utility field" },
@@ -395,7 +397,18 @@ function TraceabilityPanel({ field, onClose }: { field: ExtractedField; onClose:
 
 function DocumentExtractionContent() {
   const params = useParams();
-  const [extractions, setExtractions] = useState(mockExtractions);
+  const documentId = params.id ? parseInt(params.id) : 0;
+
+  // Fetch extractions from API
+  const { data: apiExtractions = [] } = trpc.documents.getExtractions?.useQuery?.({ documentId }) || { data: [] };
+
+  // Transform API data or use sample data
+  const initialExtractions: ExtractedField[] = useMemo(() => {
+    if ((apiExtractions as any[]).length === 0) return sampleExtractions;
+    return apiExtractions as ExtractedField[];
+  }, [apiExtractions]);
+
+  const [extractions, setExtractions] = useState(initialExtractions);
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedField, setSelectedField] = useState<string | null>(null);

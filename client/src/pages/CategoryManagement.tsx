@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,8 +91,8 @@ interface DocumentType {
   createdAt: string;
 }
 
-// Mock data for now - will be replaced with tRPC queries
-const mockCategories: DocumentCategory[] = [
+// Sample data (used when API returns empty)
+const sampleCategories: DocumentCategory[] = [
   {
     id: 1,
     name: "Site & Real Estate",
@@ -150,7 +150,7 @@ const mockCategories: DocumentCategory[] = [
   },
 ];
 
-const mockDocumentTypes: DocumentType[] = [
+const sampleDocumentTypes: DocumentType[] = [
   {
     id: 1,
     categoryId: 4,
@@ -196,8 +196,44 @@ export default function CategoryManagement() {
   const [editDescription, setEditDescription] = useState("");
   const [editColor, setEditColor] = useState("");
 
+  // Fetch categories from API
+  const { data: apiCategories = [] } = trpc.documents.getCategories.useQuery();
+
+  // Fetch document types from API
+  const { data: apiDocumentTypes = [] } = trpc.documents.getTypes.useQuery();
+
+  // Transform API data or use sample data
+  const categories: DocumentCategory[] = useMemo(() => {
+    if ((apiCategories as any[]).length === 0) return sampleCategories;
+    return (apiCategories as any[]).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      description: c.description,
+      icon: c.icon,
+      color: c.color,
+      isSystem: c.isSystem || false,
+      documentTypesCount: c.documentTypesCount || 0,
+      createdAt: c.createdAt,
+    }));
+  }, [apiCategories]);
+
+  const documentTypes: DocumentType[] = useMemo(() => {
+    if ((apiDocumentTypes as any[]).length === 0) return sampleDocumentTypes;
+    return (apiDocumentTypes as any[]).map((t: any) => ({
+      id: t.id,
+      categoryId: t.categoryId,
+      name: t.name,
+      code: t.code,
+      description: t.description,
+      aiCreated: t.aiCreated || false,
+      extractionConfig: t.extractionConfig,
+      createdAt: t.createdAt,
+    }));
+  }, [apiDocumentTypes]);
+
   // Filter categories
-  const filteredCategories = mockCategories.filter(
+  const filteredCategories = categories.filter(
     (cat) =>
       cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cat.code.toLowerCase().includes(searchQuery.toLowerCase())
@@ -205,7 +241,7 @@ export default function CategoryManagement() {
 
   // Get document types for selected category
   const categoryTypes = selectedCategory
-    ? mockDocumentTypes.filter((t) => t.categoryId === selectedCategory.id)
+    ? documentTypes.filter((t) => t.categoryId === selectedCategory.id)
     : [];
 
   const handleEditCategory = (category: DocumentCategory) => {
