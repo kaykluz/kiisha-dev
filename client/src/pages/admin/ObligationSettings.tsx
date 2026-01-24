@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -550,7 +550,7 @@ function CalendarIntegrationsTab() {
 // Main Page
 export default function ObligationSettingsPage() {
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Obligation Settings</h1>
@@ -580,6 +580,6 @@ export default function ObligationSettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

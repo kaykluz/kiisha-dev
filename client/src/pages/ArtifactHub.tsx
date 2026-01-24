@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { ArtifactUploader } from "@/components/ArtifactUploader";
 import { ExtractionReviewQueue } from "@/components/ExtractionReviewQueue";
 import { LifecycleWizard } from "@/components/LifecycleWizard";
@@ -257,7 +257,7 @@ export default function ArtifactHub() {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -663,6 +663,6 @@ export default function ArtifactHub() {
           }}
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

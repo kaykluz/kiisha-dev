@@ -1,4 +1,4 @@
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -42,7 +42,7 @@ export default function RequestAnalytics() {
   
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <AppLayout>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -63,12 +63,12 @@ export default function RequestAnalytics() {
             ))}
           </div>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -200,6 +200,6 @@ export default function RequestAnalytics() {
           </Card>
         </div>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

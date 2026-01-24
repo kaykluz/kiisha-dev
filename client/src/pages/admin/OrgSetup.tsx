@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -139,11 +139,11 @@ export default function OrgSetup() {
   
   if (prefsLoading || packsLoading) {
     return (
-      <DashboardLayout>
+      <AppLayout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
   
@@ -151,7 +151,7 @@ export default function OrgSetup() {
   const globalPacks = fieldPacks?.filter(p => !p.organizationId) || [];
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -615,6 +615,6 @@ export default function OrgSetup() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

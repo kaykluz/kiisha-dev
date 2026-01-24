@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -107,7 +107,7 @@ export default function LinkedAccounts() {
   ) || [];
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="container max-w-4xl py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Linked Accounts</h1>
@@ -267,6 +267,6 @@ export default function LinkedAccounts() {
           </Card>
         )}
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

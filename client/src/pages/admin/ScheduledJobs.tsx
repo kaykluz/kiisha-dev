@@ -27,7 +27,7 @@ import {
   History,
   Settings
 } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -87,7 +87,7 @@ export default function ScheduledJobs() {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -312,6 +312,6 @@ export default function ScheduledJobs() {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }
