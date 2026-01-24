@@ -6,6 +6,10 @@
  * - 0 workspaces: Show pending access message
  * - 1 workspace: Auto-select and redirect
  * - 2+ workspaces: Show selection UI
+ * 
+ * IMPORTANT: This page is the "workspace selection wall" - users MUST
+ * explicitly select a workspace on every fresh login, even if they have
+ * an active organization from a previous session.
  */
 
 import { useEffect, useState } from "react";
@@ -57,9 +61,12 @@ export default function SelectWorkspace() {
     }
   }, [sessionLoading, session]);
 
-  // Redirect if already has active workspace
+  // WORKSPACE SELECTION WALL: Only redirect to dashboard if:
+  // 1. User has an active organization AND
+  // 2. workspaceSelectionRequired is FALSE (user already selected in this session)
+  // This ensures fresh logins always show the workspace selection
   useEffect(() => {
-    if (session?.activeOrganizationId) {
+    if (session?.activeOrganizationId && session?.workspaceSelectionRequired === false) {
       setLocation("/dashboard");
     }
   }, [session]);
@@ -101,6 +108,9 @@ export default function SelectWorkspace() {
     );
   }
 
+  // Pre-select the user's last active organization if available
+  const previousOrgId = session?.activeOrganizationId;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -119,37 +129,49 @@ export default function SelectWorkspace() {
           )}
 
           <div className="space-y-3">
-            {workspaces?.filter(Boolean).map((workspace) => (
-              <button
-                key={workspace!.id}
-                onClick={() => handleSelect(workspace!.id)}
-                disabled={selectMutation.isPending}
-                className={`w-full p-4 rounded-lg border transition-all text-left flex items-center gap-4 ${
-                  selectedId === workspace!.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50 hover:bg-accent/50"
-                } ${selectMutation.isPending ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {workspace!.logoUrl ? (
-                  <img
-                    src={workspace!.logoUrl}
-                    alt={workspace!.name}
-                    className="h-10 w-10 rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-primary" />
+            {workspaces?.filter(Boolean).map((workspace) => {
+              const isPreviousOrg = workspace!.id === previousOrgId;
+              return (
+                <button
+                  key={workspace!.id}
+                  onClick={() => handleSelect(workspace!.id)}
+                  disabled={selectMutation.isPending}
+                  className={`w-full p-4 rounded-lg border transition-all text-left flex items-center gap-4 ${
+                    selectedId === workspace!.id
+                      ? "border-primary bg-primary/5"
+                      : isPreviousOrg
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-border hover:border-primary/50 hover:bg-accent/50"
+                  } ${selectMutation.isPending ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {workspace!.logoUrl ? (
+                    <img
+                      src={workspace!.logoUrl}
+                      alt={workspace!.name}
+                      className="h-10 w-10 rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate flex items-center gap-2">
+                      {workspace!.name}
+                      {isPreviousOrg && (
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                          Last used
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground capitalize">
+                      {workspace!.role}
+                    </div>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{workspace!.name}</div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {workspace!.role}
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </button>
-            ))}
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </button>
+              );
+            })}
           </div>
 
           {session?.user && (

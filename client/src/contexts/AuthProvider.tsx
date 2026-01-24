@@ -59,7 +59,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Routes that don't require auth
 const PUBLIC_ROUTES = [
-  "/",
   "/login",
   "/signup",
   "/verify-email",

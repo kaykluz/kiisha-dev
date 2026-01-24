@@ -112,8 +112,8 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 function Router() {
   return (
     <Switch>
-      {/* Public routes */}
-      <Route path="/" component={Dashboard} />
+      {/* Root redirect */}
+      <Route path="/">{() => <Redirect to="/dashboard" />}</Route>
       <Route path="/login" component={MultiAuthLogin} />
       <Route path="/data-room/:token" component={DataRoom} />
       <Route path="/forgot-password" component={ForgotPassword} />
