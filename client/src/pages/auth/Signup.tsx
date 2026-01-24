@@ -32,44 +32,23 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-export default function Login() {
+export default function Signup() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
+  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [rememberMe, setRememberMe] = useState(false);
 
-  // Email/password login mutation
-  const loginMutation = trpc.multiAuth.loginWithEmail.useMutation({
-    onSuccess: async (data) => {
+  // Email/password registration mutation
+  const registerMutation = trpc.multiAuth.registerWithEmail.useMutation({
+    onSuccess: (data) => {
       if (data.success) {
-        // Wait for session to be created in database
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Verify session before redirect
-        try {
-          const utils = trpc.useUtils();
-          await utils.authSession.getSession.invalidate();
-          const session = await utils.authSession.getSession.fetch();
-
-          if (session.authenticated) {
-            // Always redirect to workspace selection after fresh login
-            setLocation("/select-workspace");
-          } else {
-            // Retry once more after delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const retrySession = await utils.authSession.getSession.fetch();
-            if (retrySession.authenticated) {
-              setLocation("/select-workspace");
-            } else {
-              setError("Session could not be established. Please try again.");
-            }
-          }
-        } catch (err) {
-          setError("Failed to establish session. Please try again.");
-        }
+        setSuccess(data.message);
+        // Redirect to login after successful registration
+        setTimeout(() => {
+          setLocation("/login");
+        }, 2000);
       }
     },
     onError: (err) => {
@@ -90,15 +69,14 @@ export default function Login() {
     }
   });
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-
-    loginMutation.mutate({ email, password, rememberMe });
+    registerMutation.mutate({ email, password, name: name || undefined });
   };
 
-  const handleOAuthLogin = (provider: "google" | "github" | "microsoft") => {
+  const handleOAuthSignup = (provider: "google" | "github" | "microsoft") => {
     setError(null);
     const redirectUri = `${window.location.origin}/auth/callback/${provider}`;
     getAuthUrlMutation.mutate({
@@ -108,7 +86,7 @@ export default function Login() {
     });
   };
 
-  const isLoading = loginMutation.isPending || getAuthUrlMutation.isPending;
+  const isLoading = registerMutation.isPending || getAuthUrlMutation.isPending;
 
   return (
     <div className="min-h-screen flex bg-[var(--color-bg-base)]">
@@ -153,7 +131,7 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
+      {/* Right Side - Signup Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo */}
@@ -167,10 +145,10 @@ export default function Login() {
           {/* Header */}
           <div className="text-center lg:text-left">
             <h2 className="text-3xl font-bold text-[var(--color-text-primary)]">
-              Welcome back
+              Create your account
             </h2>
             <p className="mt-2 text-[var(--color-text-secondary)]">
-              Sign in to continue to your dashboard
+              Start managing your renewable energy assets
             </p>
           </div>
 
@@ -193,7 +171,7 @@ export default function Login() {
               <Button
                 variant="outline"
                 className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] hover:border-[var(--color-border-default)] rounded-xl"
-                onClick={() => handleOAuthLogin("google")}
+                onClick={() => handleOAuthSignup("google")}
                 disabled={isLoading}
               >
                 <GoogleIcon className="h-5 w-5" />
@@ -203,7 +181,7 @@ export default function Login() {
               <Button
                 variant="outline"
                 className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] hover:border-[var(--color-border-default)] rounded-xl"
-                onClick={() => handleOAuthLogin("github")}
+                onClick={() => handleOAuthSignup("github")}
                 disabled={isLoading}
               >
                 <Github className="h-5 w-5" />
@@ -213,7 +191,7 @@ export default function Login() {
               <Button
                 variant="outline"
                 className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] hover:border-[var(--color-border-default)] rounded-xl"
-                onClick={() => handleOAuthLogin("microsoft")}
+                onClick={() => handleOAuthSignup("microsoft")}
                 disabled={isLoading}
               >
                 <MicrosoftIcon className="h-5 w-5" />
@@ -234,7 +212,19 @@ export default function Login() {
           </div>
 
           {/* Email/Password Form */}
-          <form onSubmit={handleEmailSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-[var(--color-text-secondary)] text-sm">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isLoading}
+                className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] focus:border-[var(--color-brand-primary)] rounded-xl placeholder:text-[var(--color-text-tertiary)]"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-[var(--color-text-secondary)] text-sm">Email</Label>
               <Input
@@ -261,28 +251,9 @@ export default function Login() {
                 disabled={isLoading}
                 className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] focus:border-[var(--color-brand-primary)] rounded-xl placeholder:text-[var(--color-text-tertiary)]"
               />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-brand-primary)] focus:ring-[var(--color-brand-primary)]"
-                />
-                <Label htmlFor="rememberMe" className="text-sm text-[var(--color-text-secondary)] font-normal cursor-pointer">
-                  Remember me
-                </Label>
-              </div>
-              <button
-                type="button"
-                className="text-sm text-[var(--color-brand-primary)] hover:underline"
-                onClick={() => setLocation("/forgot-password")}
-              >
-                Forgot password?
-              </button>
+              <p className="text-xs text-[var(--color-text-tertiary)]">
+                Must be at least 8 characters
+              </p>
             </div>
 
             <Button
@@ -291,19 +262,19 @@ export default function Login() {
               disabled={isLoading}
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign in
+              Create account
             </Button>
           </form>
 
-          {/* Toggle between sign in and register */}
+          {/* Toggle to sign in */}
           <div className="text-center text-sm text-[var(--color-text-secondary)]">
-            Don't have an account?{" "}
+            Already have an account?{" "}
             <button
               type="button"
               className="text-[var(--color-brand-primary)] hover:underline font-medium"
-              onClick={() => setLocation("/signup")}
+              onClick={() => setLocation("/login")}
             >
-              Create one
+              Sign in
             </button>
           </div>
         </div>

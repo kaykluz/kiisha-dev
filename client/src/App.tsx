@@ -87,6 +87,7 @@ import PortalSettings from "./pages/portal/PortalSettings";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import MultiAuthLogin from "./pages/auth/Login";
+import Signup from "./pages/auth/Signup";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import VerifyEmail from "./pages/auth/VerifyEmail";
 import LinkedAccounts from "./pages/settings/LinkedAccounts";
@@ -115,6 +116,7 @@ function Router() {
       {/* Root redirect */}
       <Route path="/">{() => <Redirect to="/dashboard" />}</Route>
       <Route path="/login" component={MultiAuthLogin} />
+      <Route path="/signup" component={Signup} />
       <Route path="/data-room/:token" component={DataRoom} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
