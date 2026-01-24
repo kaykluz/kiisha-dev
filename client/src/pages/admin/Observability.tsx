@@ -179,7 +179,10 @@ export default function Observability() {
     toast.success("Webhook removed");
   };
 
-  if (!user || user.role !== "admin") {
+  // Allow admin, superuser_admin roles, or users with isSuperuser flag
+  const isAuthorized = user && (user.role === 'admin' || user.role === 'superuser_admin' || user.isSuperuser);
+  
+  if (!isAuthorized) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-full">

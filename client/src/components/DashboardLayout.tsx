@@ -58,11 +58,7 @@ const adminMenuItems = [
   { icon: Send, label: "WhatsApp Templates", path: "/admin/whatsapp-templates" },
   { icon: Plug, label: "Integrations", path: "/settings/integrations" },
   { icon: Shield, label: "AI Configuration", path: "/admin/ai-config" },
-  { icon: Shield, label: "OAuth Settings", path: "/admin/oauth-config" },
-  { icon: Shield, label: "Auth Policies", path: "/admin/auth-policy" },
-  { icon: Plug, label: "Inverter Config", path: "/admin/inverter-config" },
-  { icon: FileCheck, label: "Diligence Templates", path: "/admin/diligence-templates" },
-  { icon: ListChecks, label: "Requirement Items", path: "/admin/requirement-items" },
+  { icon: Activity, label: "Observability", path: "/admin/observability" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
