@@ -40,6 +40,7 @@ import { viewSharingRouter } from "./routers/viewSharing";
 import { aiChatRouter } from "./routers/aiChat";
 import { securityRouter } from "./routers/security";
 import { financialModelsRouter } from "./routers/financialModels";
+import { platformBillingRouter } from "./routers/platformBilling";
 import { documentCategoriesRouter } from "./routers/documentCategories";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
@@ -303,6 +304,7 @@ export const appRouter = router({
   grafana: grafanaRouter,
   customerNotifications: customerNotificationsRouter,
   billing: billingRouter,
+  platformBilling: platformBillingRouter,
   scheduledJobs: scheduledJobsRouter,
   invoiceBranding: invoiceBrandingRouter,
   diligence: diligenceRouter,

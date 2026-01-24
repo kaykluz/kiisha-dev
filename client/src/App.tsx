@@ -59,6 +59,9 @@ import RequirementItems from "./pages/admin/RequirementItems";
 import RenewalWorkflow from "./pages/RenewalWorkflow";
 import TemplateResponseWorkspace from "./pages/TemplateResponseWorkspace";
 import SuperuserAdmin from "./pages/SuperuserAdmin";
+import BillingDashboard from "./pages/billing/BillingDashboard";
+import BillingSettings from "./pages/billing/BillingSettings";
+import SuperuserBilling from "./pages/superuser/SuperuserBilling";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import ViewSharing from "./pages/ViewSharing";
 import InviteAccept from "./pages/InviteAccept";
@@ -254,6 +257,15 @@ function Router() {
       </Route>
       <Route path="/admin/superuser">
         {() => <AdminRoute component={SuperuserAdmin} />}
+      </Route>
+      <Route path="/billing">
+        {() => <BillingDashboard />}
+      </Route>
+      <Route path="/billing/settings">
+        {() => <BillingSettings />}
+      </Route>
+      <Route path="/superuser/billing">
+        {() => <AdminRoute component={SuperuserBilling} />}
       </Route>
       <Route path="/admin/organization-settings">
         {() => <AdminRoute component={OrganizationSettings} />}
