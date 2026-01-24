@@ -288,12 +288,12 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
   let adapter: NotifyProviderAdapter;
   
   // Always use Resend as the default email provider
-  const { env } = await import('../_core/env');
+  const { ENV } = await import('../_core/env');
   
   if (!integration) {
     // No integration configured - use Resend from environment
     adapter = new ResendNotifyAdapter();
-    await adapter.initialize({}, { apiKey: env.resendApiKey });
+    await adapter.initialize({}, { apiKey: ENV.resendApiKey });
   } else {
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
@@ -309,8 +309,8 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
         break;
     }
     
-    // Use secrets from integration if available, otherwise fall back to env
-    const apiKey = secrets?.apiKey || env.resendApiKey;
+    // Use secrets from integration if available, otherwise fall back to ENV
+    const apiKey = secrets?.apiKey || ENV.resendApiKey;
     await adapter.initialize(config, { ...secrets, apiKey });
   }
   

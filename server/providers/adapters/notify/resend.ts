@@ -10,7 +10,7 @@ import type {
   NotifySendResult,
   TestConnectionResult,
 } from '../../interfaces';
-import { env } from '../../../_core/env';
+import { ENV } from '../../../_core/env';
 
 interface ResendEmailResponse {
   id: string;
@@ -28,11 +28,11 @@ export class ResendNotifyAdapter implements NotifyProviderAdapter {
   readonly isBuiltIn = false;
   
   private apiKey: string = '';
-  private fromEmail: string = 'noreply@kiisha.io';
+  private fromEmail: string = 'noreply@mail.kiisha.io';
   
   async initialize(config?: Record<string, unknown>, secrets?: Record<string, string>): Promise<void> {
     // Try to get API key from secrets first, then from environment
-    this.apiKey = secrets?.apiKey || env.resendApiKey || '';
+    this.apiKey = secrets?.apiKey || ENV.resendApiKey || '';
     
     if (config?.fromEmail) {
       this.fromEmail = config.fromEmail as string;
