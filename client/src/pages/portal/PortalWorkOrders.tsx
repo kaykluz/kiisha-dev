@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { usePortalReadOnly } from './PortalLayout';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ function getCategoryIcon(category: string) {
 
 export default function PortalWorkOrders() {
   const [, navigate] = useLocation();
+  const { isReadOnly } = usePortalReadOnly();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   
@@ -109,10 +111,12 @@ export default function PortalWorkOrders() {
               <h1 className="text-2xl font-bold">Work Orders</h1>
               <p className="text-muted-foreground">Submit and track service requests</p>
             </div>
-            <Button onClick={() => navigate('/portal/work-orders/new')}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Request
-            </Button>
+            {!isReadOnly && (
+              <Button onClick={() => navigate('/portal/work-orders/new')}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Request
+              </Button>
+            )}
           </div>
         </div>
       </header>

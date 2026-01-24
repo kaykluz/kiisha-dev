@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { usePortalReadOnly } from './PortalLayout';
 import { useLocation, useParams } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ function getStatusBadge(status: string) {
 
 export default function PortalInvoices() {
   const [, setLocation] = useLocation();
+  const { isReadOnly } = usePortalReadOnly();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [customerId, setCustomerId] = useState<number | null>(null);
@@ -240,7 +242,7 @@ export default function PortalInvoices() {
                             variant="icon"
                           />
                         </div>
-                        {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'overdue' || invoice.status === 'partial') && (
+                        {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'overdue' || invoice.status === 'partial') && !isReadOnly && (
                           <Button 
                             size="sm" 
                             className="bg-orange-500 hover:bg-orange-600"
@@ -277,6 +279,7 @@ export default function PortalInvoices() {
 // Invoice Detail Page Component
 export function PortalInvoiceDetail() {
   const [, setLocation] = useLocation();
+  const { isReadOnly } = usePortalReadOnly();
   const params = useParams<{ id: string }>();
   const [isPaying, setIsPaying] = useState(false);
   const invoiceId = parseInt(params.id || '0');
@@ -408,7 +411,7 @@ export function PortalInvoiceDetail() {
                 Download PDF
               </Button>
             )}
-            {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && (
+            {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.status !== 'refunded' && !isReadOnly && (
               <Button 
                 className="bg-orange-500 hover:bg-orange-600"
                 onClick={handlePayNow}

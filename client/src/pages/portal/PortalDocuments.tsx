@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { usePortalReadOnly } from './PortalLayout';
 import { trpc } from '@/lib/trpc';
 import PortalLayout from './PortalLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +38,7 @@ import { Link } from 'wouter';
 import { format } from 'date-fns';
 
 export default function PortalDocuments() {
+  const { isReadOnly } = usePortalReadOnly();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   
@@ -121,12 +123,14 @@ export default function PortalDocuments() {
             <h1 className="text-2xl font-bold text-white">Documents</h1>
             <p className="text-slate-400 mt-1">Access your contracts, reports, and certificates</p>
           </div>
-          <Link href="/portal/documents/upload">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Document
-            </Button>
-          </Link>
+          {!isReadOnly && (
+            <Link href="/portal/documents/upload">
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Document
+              </Button>
+            </Link>
+          )}
         </div>
         
         {/* Summary Cards */}
