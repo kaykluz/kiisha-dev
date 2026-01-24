@@ -63,6 +63,12 @@ const PUBLIC_ROUTES = [
   "/signup",
   "/verify-email",
   "/reset-password",
+  "/forgot-password",
+  "/auth/login",
+  "/auth/callback",
+  "/auth/verify-email",
+  "/data-room",
+  "/invite",
 ];
 
 // Routes that require auth but not full gate passage
@@ -128,16 +134,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Authenticated but workspace selection required
-    if (session.workspaceRequired) {
-      if (location !== "/select-workspace" && location !== "/pending-access") {
-        setLocation("/select-workspace");
-        setHasRedirected(true);
-      }
-      return;
-    }
-
-    // No workspaces
+    // No workspaces available - user has no company access
     if (session.workspaceCount === 0) {
       if (location !== "/pending-access") {
         setLocation("/pending-access");
@@ -146,13 +143,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Fully authenticated - redirect away from auth pages
+    // WORKSPACE SELECTION WALL: No active organization selected
+    // User MUST select a company before accessing any dashboard routes
+    if (!session.activeOrganizationId) {
+      if (location !== "/select-workspace" && location !== "/pending-access" && !isPublicRoute) {
+        setLocation("/select-workspace");
+        setHasRedirected(true);
+      }
+      return;
+    }
+
+    // Fully authenticated with active organization - redirect away from auth pages
     if (isPublicRoute || isAuthOnlyRoute) {
       if (location === "/login" || location === "/signup") {
-        setLocation("/app");
+        setLocation("/dashboard");
         setHasRedirected(true);
-      } else if (location === "/2fa" || location === "/select-workspace") {
-        setLocation("/app");
+      } else if (location === "/2fa") {
+        setLocation("/dashboard");
+        setHasRedirected(true);
+      } else if (location === "/select-workspace") {
+        // Workspace already selected, go to dashboard
+        setLocation("/dashboard");
         setHasRedirected(true);
       }
     }

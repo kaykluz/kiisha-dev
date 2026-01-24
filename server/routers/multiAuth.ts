@@ -680,6 +680,12 @@ export const multiAuthRouter = router({
         emailVerifiedAt: new Date()
       });
       
+      // Check for pre-approved organization memberships and activate them
+      const preApproved = await db.getPreApprovedMembershipByEmail(tokenRecord.email);
+      if (preApproved) {
+        await db.activatePreApprovedMembership(preApproved.id, tokenRecord.userId);
+      }
+      
       return {
         success: true,
         message: "Email verified successfully. You can now log in."

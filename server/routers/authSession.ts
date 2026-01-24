@@ -98,13 +98,20 @@ export const authSessionRouter = router({
     const mfaRequired = await sessionManager.sessionRequiresMfa(session);
     const mfaSatisfied = !!session.mfaSatisfiedAt;
 
-    // Get workspace count
-    const memberships = await db.getUserOrganizationMemberships(user.id);
-    const activeMembers = memberships.filter(m => m.status === "active");
-    const workspaceCount = activeMembers.length;
+    // Get workspace count - superusers see all orgs
+    let workspaceCount: number;
+    if (user.isSuperuser) {
+      const allOrgs = await db.getAllOrganizations();
+      workspaceCount = allOrgs.length;
+    } else {
+      const memberships = await db.getUserOrganizationMemberships(user.id);
+      const activeMembers = memberships.filter(m => m.status === "active");
+      workspaceCount = activeMembers.length;
+    }
 
-    // Determine if workspace selection is required
-    const workspaceRequired = !session.activeOrganizationId && workspaceCount > 1;
+    // Workspace selection is ALWAYS required if no active org is set
+    // This creates the "wall" that forces users to select a company
+    const workspaceRequired = !session.activeOrganizationId && workspaceCount > 0;
 
     // Get active organization if set
     let activeOrganization = null;
@@ -145,6 +152,19 @@ export const authSessionRouter = router({
    * Only returns minimal info - no sensitive org data until selected
    */
   listWorkspaces: protectedProcedure.query(async ({ ctx }) => {
+    // Superusers see all organizations
+    if (ctx.user.isSuperuser) {
+      const allOrgs = await db.getAllOrganizations();
+      return allOrgs.map(org => ({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logoUrl: org.logoUrl,
+        role: 'superuser' as const,
+      }));
+    }
+
+    // Regular users only see their memberships
     const memberships = await db.getUserOrganizationMemberships(ctx.user.id);
     const activeMembers = memberships.filter(m => m.status === "active");
 
@@ -172,14 +192,17 @@ export const authSessionRouter = router({
       organizationId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Verify user has membership in this org
-      const memberships = await db.getOrganizationMemberships(ctx.user.id);
-      const membership = memberships.find(m => m.organizationId === input.organizationId);
-      if (!membership || membership.status !== "active") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You do not have access to this workspace",
-        });
+      // Superusers can select any organization
+      if (!ctx.user.isSuperuser) {
+        // Verify user has membership in this org
+        const memberships = await db.getOrganizationMemberships(ctx.user.id);
+        const membership = memberships.find(m => m.organizationId === input.organizationId);
+        if (!membership || membership.status !== "active") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have access to this workspace",
+          });
+        }
       }
 
       // Get session ID from cookie

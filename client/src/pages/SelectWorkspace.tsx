@@ -32,8 +32,8 @@ export default function SelectWorkspace() {
   // Select workspace mutation
   const selectMutation = trpc.authSession.selectWorkspace.useMutation({
     onSuccess: () => {
-      // Redirect to app after selection
-      setLocation("/app");
+      // Redirect to dashboard after selection
+      setLocation("/dashboard");
     },
   });
 
@@ -60,7 +60,7 @@ export default function SelectWorkspace() {
   // Redirect if already has active workspace
   useEffect(() => {
     if (session?.activeOrganizationId) {
-      setLocation("/app");
+      setLocation("/dashboard");
     }
   }, [session]);
 
@@ -169,9 +169,29 @@ export default function SelectWorkspace() {
  */
 export function PendingAccess() {
   const [, setLocation] = useLocation();
-  const { data: session, isLoading } = trpc.authSession.getSession.useQuery();
+  const [inviteToken, setInviteToken] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [tokenSuccess, setTokenSuccess] = useState(false);
+  
+  const { data: session, isLoading, refetch } = trpc.authSession.getSession.useQuery();
   const logoutMutation = trpc.authSession.logout.useMutation({
     onSuccess: () => setLocation("/login"),
+  });
+
+  // Accept invitation mutation
+  const acceptInviteMutation = trpc.signup.acceptInvitation.useMutation({
+    onSuccess: () => {
+      setTokenSuccess(true);
+      setTokenError(null);
+      // Refetch session to get updated workspace count
+      setTimeout(() => {
+        refetch();
+      }, 500);
+    },
+    onError: (err) => {
+      setTokenError(err.message || "Invalid or expired invitation token");
+      setTokenSuccess(false);
+    },
   });
 
   // Redirect if not authenticated
@@ -187,6 +207,16 @@ export function PendingAccess() {
       setLocation("/select-workspace");
     }
   }, [session]);
+
+  const handleTokenSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteToken.trim()) {
+      setTokenError("Please enter an invitation token");
+      return;
+    }
+    setTokenError(null);
+    acceptInviteMutation.mutate({ token: inviteToken.trim() });
+  };
 
   if (isLoading) {
     return (
@@ -208,12 +238,51 @@ export function PendingAccess() {
             Your account has been created, but you don't have access to any workspaces yet.
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-center space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Please contact your organization administrator to request access, or wait for an invitation.
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground text-center">
+            Please contact your organization administrator to request access, or enter an invitation token below.
           </p>
           
-          <div className="pt-4 border-t">
+          {/* Invite Token Input */}
+          <form onSubmit={handleTokenSubmit} className="space-y-3">
+            <div className="space-y-2">
+              <label htmlFor="invite-token" className="text-sm font-medium">
+                Have an invitation token?
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="invite-token"
+                  type="text"
+                  value={inviteToken}
+                  onChange={(e) => setInviteToken(e.target.value)}
+                  placeholder="Enter your invitation token"
+                  className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  disabled={acceptInviteMutation.isPending}
+                />
+                <Button
+                  type="submit"
+                  disabled={acceptInviteMutation.isPending || !inviteToken.trim()}
+                >
+                  {acceptInviteMutation.isPending ? "Joining..." : "Join"}
+                </Button>
+              </div>
+            </div>
+            
+            {tokenError && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {tokenError}
+              </div>
+            )}
+            
+            {tokenSuccess && (
+              <div className="p-3 bg-green-100 border border-green-200 rounded-md text-green-700 text-sm text-center">
+                Successfully joined! Redirecting...
+              </div>
+            )}
+          </form>
+          
+          <div className="pt-4 border-t text-center">
             <Button
               variant="outline"
               onClick={() => logoutMutation.mutate()}
@@ -224,7 +293,7 @@ export function PendingAccess() {
           </div>
 
           {session?.user && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground text-center">
               Signed in as {session.user.email || session.user.name}
             </div>
           )}
