@@ -470,13 +470,18 @@ export const multiAuthRouter = router({
       try {
         const verifyUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${verificationToken}`;
         
+        console.log(`[Registration] Sending verification email to ${input.email}`);
+        console.log(`[Registration] RESEND_API_KEY configured: ${!!process.env.RESEND_API_KEY}`);
+        
         // Use the notification provider to send email
         const { getNotifyAdapter } = await import('../providers/factory');
         // Use org 0 for system-level notifications
         const notifyProvider = await getNotifyAdapter(0);
         
+        console.log(`[Registration] Notify provider obtained: ${!!notifyProvider}`);
+        
         if (notifyProvider) {
-          await notifyProvider.sendEmail({
+          const emailResult = await notifyProvider.sendEmail({
             to: input.email,
             subject: 'Verify your KIISHA account',
             html: `
@@ -489,9 +494,17 @@ export const multiAuthRouter = router({
             `,
             text: `Welcome to KIISHA! Please verify your email by visiting: ${verifyUrl}. This link expires in 24 hours.`
           });
+          
+          console.log(`[Registration] Email send result:`, JSON.stringify(emailResult));
+          
+          if (!emailResult.success) {
+            console.error(`[Registration] Email failed: ${emailResult.error}`);
+          }
+        } else {
+          console.error('[Registration] No notify provider available');
         }
       } catch (emailError) {
-        console.error('Failed to send verification email:', emailError);
+        console.error('[Registration] Failed to send verification email:', emailError);
         // Don't fail registration if email fails
       }
       

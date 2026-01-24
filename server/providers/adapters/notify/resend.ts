@@ -85,7 +85,10 @@ export class ResendNotifyAdapter implements NotifyProviderAdapter {
   }
   
   async sendEmail(options: SendEmailOptions): Promise<NotifySendResult> {
+    console.log(`[ResendNotify] sendEmail called, API key configured: ${!!this.apiKey}, from: ${this.fromEmail}`);
+    
     if (!this.apiKey) {
+      console.error('[ResendNotify] No API key configured');
       return {
         success: false,
         error: 'Resend API key not configured',
@@ -94,6 +97,7 @@ export class ResendNotifyAdapter implements NotifyProviderAdapter {
     
     try {
       const toAddresses = Array.isArray(options.to) ? options.to : [options.to];
+      console.log(`[ResendNotify] Sending to: ${toAddresses.join(', ')}, subject: ${options.subject}`);
       
       const payload = {
         from: options.from || this.fromEmail,
