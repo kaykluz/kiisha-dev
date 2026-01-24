@@ -28,7 +28,7 @@ import {
   assets,
   customers,
 } from "../../drizzle/schema";
-import { eq, and, desc, sql, gte, lte, count, sum, or, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, or, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 // Helper to log billing actions (VATR compliant)
@@ -38,32 +38,33 @@ async function logBillingAction(params: {
   action: string;
   entityType: string;
   entityId?: number;
-  previousState?: any;
-  newState?: any;
-  metadata?: any;
+  previousState?: unknown;
+  newState?: unknown;
+  metadata?: Record<string, unknown>;
 }) {
   const db = await getDb();
   if (!db) return;
   
   await db.insert(billingAuditLog).values({
-    organizationId: params.organizationId,
-    userId: params.userId,
+    organizationId: params.organizationId ?? null,
+    userId: params.userId ?? null,
     action: params.action,
     entityType: params.entityType,
-    entityId: params.entityId,
-    previousState: params.previousState,
-    newState: params.newState,
-    metadata: params.metadata,
+    entityId: params.entityId ?? null,
+    previousState: params.previousState ?? null,
+    newState: params.newState ?? null,
+    metadata: params.metadata ?? null,
   });
 }
 
 // Check if user is superuser
-async function isSuperuser(userId: number): Promise<boolean> {
+async function checkIsSuperuser(userId: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
   
-  const [user] = await db.execute(sql`SELECT isSuperuser FROM users WHERE id = ${userId}`);
-  return (user as any[])?.[0]?.isSuperuser === 1;
+  const result = await db.execute(sql`SELECT isSuperuser FROM users WHERE id = ${userId}`);
+  const rows = result as unknown as Array<{ isSuperuser: number | boolean }>;
+  return rows?.[0]?.isSuperuser === 1 || rows?.[0]?.isSuperuser === true;
 }
 
 export const platformBillingRouter = router({
@@ -101,7 +102,11 @@ export const platformBillingRouter = router({
         .from(platformPlans)
         .where(eq(platformPlans.id, input.planId));
       
-      return plan || null;
+      if (!plan) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found" });
+      }
+      
+      return plan;
     }),
   
   // ============================================================================
@@ -117,25 +122,36 @@ export const platformBillingRouter = router({
     
     const orgId = ctx.user.activeOrgId;
     if (!orgId) {
-      return null;
+      throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
     }
     
     const [subscription] = await db
       .select({
-        subscription: platformSubscriptions,
-        plan: platformPlans,
+        id: platformSubscriptions.id,
+        organizationId: platformSubscriptions.organizationId,
+        planId: platformSubscriptions.planId,
+        status: platformSubscriptions.status,
+        billingCycle: platformSubscriptions.billingCycle,
+        pricePerPeriod: platformSubscriptions.pricePerPeriod,
+        currency: platformSubscriptions.currency,
+        trialEndsAt: platformSubscriptions.trialEndsAt,
+        currentPeriodStart: platformSubscriptions.currentPeriodStart,
+        currentPeriodEnd: platformSubscriptions.currentPeriodEnd,
+        canceledAt: platformSubscriptions.canceledAt,
+        cancelAtPeriodEnd: platformSubscriptions.cancelAtPeriodEnd,
+        planName: platformPlans.name,
+        planCode: platformPlans.code,
+        planFeatures: platformPlans.features,
       })
       .from(platformSubscriptions)
       .leftJoin(platformPlans, eq(platformSubscriptions.planId, platformPlans.id))
-      .where(eq(platformSubscriptions.organizationId, orgId))
-      .orderBy(desc(platformSubscriptions.createdAt))
-      .limit(1);
+      .where(eq(platformSubscriptions.organizationId, orgId));
     
     return subscription || null;
   }),
   
   /**
-   * Get subscription usage summary
+   * Get subscription usage vs limits
    */
   getUsageSummary: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
@@ -146,78 +162,67 @@ export const platformBillingRouter = router({
       throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
     }
     
-    // Get current subscription with plan limits
+    // Get subscription with plan limits
     const [subscription] = await db
       .select({
-        subscription: platformSubscriptions,
-        plan: platformPlans,
+        planId: platformSubscriptions.planId,
+        maxUsers: platformPlans.maxUsers,
+        maxAssets: platformPlans.maxAssets,
+        maxStorage: platformPlans.maxStorage,
+        maxCustomers: platformPlans.maxCustomers,
       })
       .from(platformSubscriptions)
       .leftJoin(platformPlans, eq(platformSubscriptions.planId, platformPlans.id))
-      .where(eq(platformSubscriptions.organizationId, orgId))
-      .orderBy(desc(platformSubscriptions.createdAt))
-      .limit(1);
+      .where(eq(platformSubscriptions.organizationId, orgId));
     
     // Get current usage
     const [userCount] = await db
-      .select({ count: count() })
+      .select({ count: sql<number>`count(*)` })
       .from(organizationMembers)
-      .where(and(
-        eq(organizationMembers.organizationId, orgId),
-        eq(organizationMembers.status, "active")
-      ));
+      .where(eq(organizationMembers.organizationId, orgId));
     
     const [assetCount] = await db
-      .select({ count: count() })
+      .select({ count: sql<number>`count(*)` })
       .from(assets)
       .where(eq(assets.organizationId, orgId));
     
     const [customerCount] = await db
-      .select({ count: count() })
+      .select({ count: sql<number>`count(*)` })
       .from(customers)
       .where(eq(customers.organizationId, orgId));
     
-    const plan = subscription?.plan;
-    
     return {
       users: {
-        current: userCount?.count || 0,
-        limit: plan?.maxUsers || 5,
-        percentage: plan?.maxUsers ? Math.round(((userCount?.count || 0) / plan.maxUsers) * 100) : 0,
+        current: Number(userCount?.count || 0),
+        limit: subscription?.maxUsers || 5,
       },
       assets: {
-        current: assetCount?.count || 0,
-        limit: plan?.maxAssets || 100,
-        percentage: plan?.maxAssets ? Math.round(((assetCount?.count || 0) / plan.maxAssets) * 100) : 0,
+        current: Number(assetCount?.count || 0),
+        limit: subscription?.maxAssets || 100,
       },
       customers: {
-        current: customerCount?.count || 0,
-        limit: plan?.maxCustomers || 50,
-        percentage: plan?.maxCustomers ? Math.round(((customerCount?.count || 0) / plan.maxCustomers) * 100) : 0,
+        current: Number(customerCount?.count || 0),
+        limit: subscription?.maxCustomers || 50,
       },
       storage: {
-        current: 0, // TODO: Calculate actual storage usage
-        limit: plan?.maxStorage || 5368709120,
-        percentage: 0,
+        current: 0, // Would need to calculate actual storage
+        limit: Number(subscription?.maxStorage || 5368709120), // 5GB default
       },
-      subscription: subscription?.subscription || null,
-      plan: plan || null,
     };
   }),
   
   // ============================================================================
-  // PLATFORM INVOICES (Invoices from KIISHA to organizations)
+  // INVOICES
   // ============================================================================
   
   /**
    * Get organization's platform invoices
    */
-  getPlatformInvoices: protectedProcedure
+  getInvoices: protectedProcedure
     .input(z.object({
-      limit: z.number().default(20),
-      offset: z.number().default(0),
-      status: z.enum(["draft", "open", "paid", "void", "uncollectible"]).optional(),
-    }))
+      limit: z.number().min(1).max(100).default(20),
+      offset: z.number().min(0).default(0),
+    }).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
@@ -227,26 +232,24 @@ export const platformBillingRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
       }
       
-      const conditions = [eq(platformInvoices.organizationId, orgId)];
-      if (input.status) {
-        conditions.push(eq(platformInvoices.status, input.status));
-      }
+      const limit = input?.limit || 20;
+      const offset = input?.offset || 0;
       
-      const invoicesList = await db
+      const invoices = await db
         .select()
         .from(platformInvoices)
-        .where(and(...conditions))
+        .where(eq(platformInvoices.organizationId, orgId))
         .orderBy(desc(platformInvoices.invoiceDate))
-        .limit(input.limit)
-        .offset(input.offset);
+        .limit(limit)
+        .offset(offset);
       
-      return invoicesList;
+      return invoices;
     }),
   
   /**
-   * Get platform invoice details with line items
+   * Get a specific invoice with line items
    */
-  getPlatformInvoiceDetail: protectedProcedure
+  getInvoice: protectedProcedure
     .input(z.object({ invoiceId: z.number() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
@@ -278,17 +281,17 @@ export const platformBillingRouter = router({
     }),
   
   // ============================================================================
-  // PLATFORM PAYMENTS
+  // PAYMENTS
   // ============================================================================
   
   /**
    * Get organization's payment history
    */
-  getPlatformPayments: protectedProcedure
+  getPayments: protectedProcedure
     .input(z.object({
-      limit: z.number().default(20),
-      offset: z.number().default(0),
-    }))
+      limit: z.number().min(1).max(100).default(20),
+      offset: z.number().min(0).default(0),
+    }).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
@@ -298,15 +301,18 @@ export const platformBillingRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
       }
       
-      const paymentsList = await db
+      const limit = input?.limit || 20;
+      const offset = input?.offset || 0;
+      
+      const payments = await db
         .select()
         .from(platformPayments)
         .where(eq(platformPayments.organizationId, orgId))
-        .orderBy(desc(platformPayments.paymentDate))
-        .limit(input.limit)
-        .offset(input.offset);
+        .orderBy(desc(platformPayments.createdAt))
+        .limit(limit)
+        .offset(offset);
       
-      return paymentsList;
+      return payments;
     }),
   
   // ============================================================================
@@ -338,81 +344,6 @@ export const platformBillingRouter = router({
   }),
   
   /**
-   * Add payment method (manual entry - for non-Stripe setups)
-   */
-  addPaymentMethod: protectedProcedure
-    .input(z.object({
-      type: z.enum(["card", "bank_account"]),
-      // Card details
-      last4: z.string().length(4).optional(),
-      brand: z.string().optional(),
-      expiryMonth: z.number().min(1).max(12).optional(),
-      expiryYear: z.number().min(2024).optional(),
-      // Bank details
-      bankName: z.string().optional(),
-      accountLast4: z.string().length(4).optional(),
-      // Billing address
-      billingName: z.string().optional(),
-      billingEmail: z.string().email().optional(),
-      billingAddress: z.string().optional(),
-      billingCity: z.string().optional(),
-      billingState: z.string().optional(),
-      billingPostalCode: z.string().optional(),
-      billingCountry: z.string().optional(),
-      isDefault: z.boolean().default(false),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      const orgId = ctx.user.activeOrgId;
-      if (!orgId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
-      }
-      
-      // If setting as default, remove default from others
-      if (input.isDefault) {
-        await db
-          .update(paymentMethods)
-          .set({ isDefault: false })
-          .where(eq(paymentMethods.organizationId, orgId));
-      }
-      
-      const [result] = await db
-        .insert(paymentMethods)
-        .values({
-          organizationId: orgId,
-          type: input.type,
-          last4: input.last4,
-          brand: input.brand,
-          expiryMonth: input.expiryMonth,
-          expiryYear: input.expiryYear,
-          bankName: input.bankName,
-          accountLast4: input.accountLast4,
-          billingName: input.billingName,
-          billingEmail: input.billingEmail,
-          billingAddress: input.billingAddress,
-          billingCity: input.billingCity,
-          billingState: input.billingState,
-          billingPostalCode: input.billingPostalCode,
-          billingCountry: input.billingCountry,
-          isDefault: input.isDefault,
-          status: "active",
-        });
-      
-      await logBillingAction({
-        organizationId: orgId,
-        userId: ctx.user.id,
-        action: "payment_method_added",
-        entityType: "payment_method",
-        entityId: result.insertId,
-        newState: { ...input, last4: input.last4 },
-      });
-      
-      return { id: result.insertId };
-    }),
-  
-  /**
    * Set default payment method
    */
   setDefaultPaymentMethod: protectedProcedure
@@ -439,13 +370,13 @@ export const platformBillingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment method not found" });
       }
       
-      // Remove default from all other methods
+      // Unset all defaults for this org
       await db
         .update(paymentMethods)
         .set({ isDefault: false })
         .where(eq(paymentMethods.organizationId, orgId));
       
-      // Set this one as default
+      // Set new default
       await db
         .update(paymentMethods)
         .set({ isDefault: true })
@@ -489,7 +420,7 @@ export const platformBillingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment method not found" });
       }
       
-      // Soft delete
+      // Soft delete by setting status to removed
       await db
         .update(paymentMethods)
         .set({ status: "removed" })
@@ -508,328 +439,168 @@ export const platformBillingRouter = router({
     }),
   
   // ============================================================================
-  // BILLING SETTINGS
+  // SUPERUSER ENDPOINTS
   // ============================================================================
   
   /**
-   * Get billing settings for organization
+   * Get platform-wide billing stats (superuser only)
    */
-  getBillingSettings: protectedProcedure.query(async ({ ctx }) => {
+  getPlatformStats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
     
-    const orgId = ctx.user.activeOrgId;
-    if (!orgId) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "No active organization" });
+    if (!await checkIsSuperuser(ctx.user.id)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
     }
     
-    const [org] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, orgId));
+    // Get counts
+    const [activeSubsResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(platformSubscriptions)
+      .where(eq(platformSubscriptions.status, "active"));
     
-    // Get default payment method
-    const [defaultMethod] = await db
-      .select()
-      .from(paymentMethods)
-      .where(and(
-        eq(paymentMethods.organizationId, orgId),
-        eq(paymentMethods.isDefault, true),
-        eq(paymentMethods.status, "active")
-      ));
+    const [totalOrgsResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(organizations);
+    
+    const [pastDueResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(platformSubscriptions)
+      .where(eq(platformSubscriptions.status, "past_due"));
+    
+    // Get monthly revenue (sum of active subscriptions)
+    const [revenueResult] = await db
+      .select({ total: sql<string>`COALESCE(SUM(pricePerPeriod), 0)` })
+      .from(platformSubscriptions)
+      .where(eq(platformSubscriptions.status, "active"));
     
     return {
-      organization: org,
-      defaultPaymentMethod: defaultMethod || null,
+      monthlyRevenue: parseFloat(revenueResult?.total || "0"),
+      activeSubscriptions: Number(activeSubsResult?.count || 0),
+      totalOrganizations: Number(totalOrgsResult?.count || 0),
+      pastDueCount: Number(pastDueResult?.count || 0),
+      pastDueAmount: 0, // Would calculate from past_due invoices
+      revenueChange: 0, // Would compare to last month
+      newSubscriptions: 0, // Would count new this month
     };
   }),
   
-  // ============================================================================
-  // SUPERUSER: PLATFORM BILLING MANAGEMENT
-  // ============================================================================
-  
   /**
-   * Get all organizations with their subscription status (superuser only)
+   * Get all subscriptions with org info (superuser only)
    */
-  getAllOrganizationBilling: protectedProcedure
+  getAllSubscriptions: protectedProcedure
     .input(z.object({
-      limit: z.number().default(50),
-      offset: z.number().default(0),
-      status: z.enum(["trialing", "active", "past_due", "canceled", "paused"]).optional(),
       search: z.string().optional(),
-    }))
+      status: z.string().optional(),
+    }).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
+      if (!await checkIsSuperuser(ctx.user.id)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
       }
       
+      // Get all organizations with their subscriptions
       const orgs = await db
         .select({
-          organization: organizations,
-          subscription: platformSubscriptions,
-          plan: platformPlans,
+          organizationId: organizations.id,
+          organizationName: organizations.name,
+          organizationCode: organizations.code,
+          subscriptionId: platformSubscriptions.id,
+          planId: platformSubscriptions.planId,
+          status: platformSubscriptions.status,
+          billingCycle: platformSubscriptions.billingCycle,
+          pricePerPeriod: platformSubscriptions.pricePerPeriod,
+          currentPeriodEnd: platformSubscriptions.currentPeriodEnd,
+          planName: platformPlans.name,
         })
         .from(organizations)
         .leftJoin(platformSubscriptions, eq(organizations.id, platformSubscriptions.organizationId))
-        .leftJoin(platformPlans, eq(platformSubscriptions.planId, platformPlans.id))
-        .orderBy(desc(organizations.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
+        .leftJoin(platformPlans, eq(platformSubscriptions.planId, platformPlans.id));
       
-      return orgs;
+      // Get user counts per org
+      const userCounts = await db
+        .select({
+          organizationId: organizationMembers.organizationId,
+          count: sql<number>`count(*)`,
+        })
+        .from(organizationMembers)
+        .groupBy(organizationMembers.organizationId);
+      
+      const userCountMap = new Map(userCounts.map(uc => [uc.organizationId, Number(uc.count)]));
+      
+      let results = orgs.map(org => ({
+        ...org,
+        userCount: userCountMap.get(org.organizationId) || 0,
+      }));
+      
+      // Apply filters
+      if (input?.search) {
+        const search = input.search.toLowerCase();
+        results = results.filter(r => 
+          r.organizationName?.toLowerCase().includes(search) ||
+          r.organizationCode?.toLowerCase().includes(search)
+        );
+      }
+      
+      if (input?.status && input.status !== "all") {
+        results = results.filter(r => r.status === input.status);
+      }
+      
+      return results;
     }),
-  
-  /**
-   * Get platform revenue summary (superuser only)
-   */
-  getPlatformRevenueSummary: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-    
-    // Check superuser
-    if (!await isSuperuser(ctx.user.id)) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-    }
-    
-    // Get total revenue
-    const [totalRevenue] = await db
-      .select({ total: sum(platformPayments.amount) })
-      .from(platformPayments)
-      .where(eq(platformPayments.status, "succeeded"));
-    
-    // Get this month's revenue
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    
-    const [monthlyRevenue] = await db
-      .select({ total: sum(platformPayments.amount) })
-      .from(platformPayments)
-      .where(and(
-        eq(platformPayments.status, "succeeded"),
-        gte(platformPayments.paymentDate, startOfMonth)
-      ));
-    
-    // Get subscription counts by status
-    const subscriptionCounts = await db
-      .select({
-        status: platformSubscriptions.status,
-        count: count(),
-      })
-      .from(platformSubscriptions)
-      .groupBy(platformSubscriptions.status);
-    
-    // Get total organizations
-    const [orgCount] = await db
-      .select({ count: count() })
-      .from(organizations);
-    
-    // Get outstanding invoices
-    const [outstandingAmount] = await db
-      .select({ total: sum(platformInvoices.amountDue) })
-      .from(platformInvoices)
-      .where(eq(platformInvoices.status, "open"));
-    
-    return {
-      totalRevenue: totalRevenue?.total || "0",
-      monthlyRevenue: monthlyRevenue?.total || "0",
-      totalOrganizations: orgCount?.count || 0,
-      outstandingAmount: outstandingAmount?.total || "0",
-      subscriptionsByStatus: subscriptionCounts,
-    };
-  }),
   
   /**
    * Get all platform invoices (superuser only)
    */
   getAllPlatformInvoices: protectedProcedure
-    .input(z.object({
-      limit: z.number().default(50),
-      offset: z.number().default(0),
-      status: z.enum(["draft", "open", "paid", "void", "uncollectible"]).optional(),
-    }))
+    .input(z.object({ limit: z.number().default(50) }).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
+      if (!await checkIsSuperuser(ctx.user.id)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
       }
       
-      const conditions = [];
-      if (input.status) {
-        conditions.push(eq(platformInvoices.status, input.status));
-      }
-      
-      const invoicesList = await db
+      const invoices = await db
         .select({
-          invoice: platformInvoices,
-          organization: organizations,
+          id: platformInvoices.id,
+          invoiceNumber: platformInvoices.invoiceNumber,
+          organizationId: platformInvoices.organizationId,
+          organizationName: organizations.name,
+          status: platformInvoices.status,
+          total: platformInvoices.total,
+          invoiceDate: platformInvoices.invoiceDate,
+          dueDate: platformInvoices.dueDate,
+          paidAt: platformInvoices.paidAt,
         })
         .from(platformInvoices)
         .leftJoin(organizations, eq(platformInvoices.organizationId, organizations.id))
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(platformInvoices.invoiceDate))
-        .limit(input.limit)
-        .offset(input.offset);
+        .limit(input?.limit || 50);
       
-      return invoicesList;
+      return invoices;
     }),
   
   /**
-   * Manage all plans (superuser only)
+   * Update organization subscription (superuser only)
    */
-  getAllPlans: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-    
-    // Check superuser
-    if (!await isSuperuser(ctx.user.id)) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-    }
-    
-    const plans = await db
-      .select()
-      .from(platformPlans)
-      .orderBy(platformPlans.sortOrder);
-    
-    return plans;
-  }),
-  
-  /**
-   * Create or update a plan (superuser only)
-   */
-  upsertPlan: protectedProcedure
-    .input(z.object({
-      id: z.number().optional(),
-      code: z.string(),
-      name: z.string(),
-      description: z.string().optional(),
-      monthlyPrice: z.string(),
-      annualPrice: z.string(),
-      currency: z.string().default("USD"),
-      maxUsers: z.number(),
-      maxAssets: z.number(),
-      maxStorage: z.number(),
-      maxCustomers: z.number(),
-      maxMonthlyApiCalls: z.number(),
-      features: z.object({
-        customerPortal: z.boolean(),
-        customBranding: z.boolean(),
-        apiAccess: z.boolean(),
-        advancedReporting: z.boolean(),
-        whiteLabeling: z.boolean(),
-        prioritySupport: z.boolean(),
-        ssoIntegration: z.boolean(),
-        customIntegrations: z.boolean(),
-        auditLogs: z.boolean(),
-        dataExport: z.boolean(),
-      }),
-      isActive: z.boolean().default(true),
-      isPublic: z.boolean().default(true),
-      sortOrder: z.number().default(0),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-      }
-      
-      if (input.id) {
-        // Update existing plan
-        await db
-          .update(platformPlans)
-          .set({
-            code: input.code,
-            name: input.name,
-            description: input.description,
-            monthlyPrice: input.monthlyPrice,
-            annualPrice: input.annualPrice,
-            currency: input.currency,
-            maxUsers: input.maxUsers,
-            maxAssets: input.maxAssets,
-            maxStorage: input.maxStorage,
-            maxCustomers: input.maxCustomers,
-            maxMonthlyApiCalls: input.maxMonthlyApiCalls,
-            features: input.features,
-            isActive: input.isActive,
-            isPublic: input.isPublic,
-            sortOrder: input.sortOrder,
-          })
-          .where(eq(platformPlans.id, input.id));
-        
-        await logBillingAction({
-          userId: ctx.user.id,
-          action: "plan_updated",
-          entityType: "plan",
-          entityId: input.id,
-          newState: input,
-        });
-        
-        return { id: input.id };
-      } else {
-        // Create new plan
-        const [result] = await db
-          .insert(platformPlans)
-          .values({
-            code: input.code,
-            name: input.name,
-            description: input.description,
-            monthlyPrice: input.monthlyPrice,
-            annualPrice: input.annualPrice,
-            currency: input.currency,
-            maxUsers: input.maxUsers,
-            maxAssets: input.maxAssets,
-            maxStorage: input.maxStorage,
-            maxCustomers: input.maxCustomers,
-            maxMonthlyApiCalls: input.maxMonthlyApiCalls,
-            features: input.features,
-            isActive: input.isActive,
-            isPublic: input.isPublic,
-            sortOrder: input.sortOrder,
-          });
-        
-        await logBillingAction({
-          userId: ctx.user.id,
-          action: "plan_created",
-          entityType: "plan",
-          entityId: result.insertId,
-          newState: input,
-        });
-        
-        return { id: result.insertId };
-      }
-    }),
-  
-  /**
-   * Create subscription for organization (superuser only)
-   */
-  createSubscription: protectedProcedure
+  updateOrgSubscription: protectedProcedure
     .input(z.object({
       organizationId: z.number(),
       planId: z.number(),
-      billingCycle: z.enum(["monthly", "annual"]),
-      status: z.enum(["trialing", "active", "past_due", "canceled", "paused"]).default("active"),
-      trialDays: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
+      if (!await checkIsSuperuser(ctx.user.id)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
       }
       
-      // Get plan pricing
+      // Get the plan
       const [plan] = await db
         .select()
         .from(platformPlans)
@@ -839,225 +610,60 @@ export const platformBillingRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found" });
       }
       
-      const price = input.billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+      // Check if subscription exists
+      const [existingSub] = await db
+        .select()
+        .from(platformSubscriptions)
+        .where(eq(platformSubscriptions.organizationId, input.organizationId));
+      
       const now = new Date();
       const periodEnd = new Date(now);
-      if (input.billingCycle === "annual") {
-        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      } else {
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-      }
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
       
-      const trialEndsAt = input.trialDays 
-        ? new Date(now.getTime() + input.trialDays * 24 * 60 * 60 * 1000)
-        : null;
-      
-      const [result] = await db
-        .insert(platformSubscriptions)
-        .values({
-          organizationId: input.organizationId,
-          planId: input.planId,
-          status: input.trialDays ? "trialing" : input.status,
-          billingCycle: input.billingCycle,
-          pricePerPeriod: price || "0",
-          currency: plan.currency || "USD",
-          trialEndsAt,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-        });
-      
-      await logBillingAction({
-        organizationId: input.organizationId,
-        userId: ctx.user.id,
-        action: "subscription_created",
-        entityType: "subscription",
-        entityId: result.insertId,
-        newState: input,
-      });
-      
-      return { id: result.insertId };
-    }),
-  
-  /**
-   * Create platform invoice (superuser only)
-   */
-  createPlatformInvoice: protectedProcedure
-    .input(z.object({
-      organizationId: z.number(),
-      subscriptionId: z.number().optional(),
-      description: z.string().optional(),
-      notes: z.string().optional(),
-      dueDate: z.string(),
-      lineItems: z.array(z.object({
-        description: z.string(),
-        quantity: z.string(),
-        unitPrice: z.string(),
-        itemType: z.enum(["subscription", "usage", "addon", "credit", "discount", "tax"]).default("subscription"),
-      })),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-      }
-      
-      // Calculate totals
-      let subtotal = 0;
-      for (const item of input.lineItems) {
-        subtotal += parseFloat(item.quantity) * parseFloat(item.unitPrice);
-      }
-      const total = subtotal; // Add tax calculation if needed
-      
-      // Generate invoice number
-      const invoiceNumber = `KIISHA-${Date.now()}`;
-      
-      const [result] = await db
-        .insert(platformInvoices)
-        .values({
-          organizationId: input.organizationId,
-          subscriptionId: input.subscriptionId,
-          invoiceNumber,
-          status: "open",
-          subtotal: subtotal.toFixed(2),
-          tax: "0.00",
-          total: total.toFixed(2),
-          amountPaid: "0.00",
-          amountDue: total.toFixed(2),
-          currency: "USD",
-          invoiceDate: new Date(),
-          dueDate: new Date(input.dueDate),
-          description: input.description,
-          notes: input.notes,
-        });
-      
-      // Insert line items
-      for (const item of input.lineItems) {
-        const amount = parseFloat(item.quantity) * parseFloat(item.unitPrice);
-        await db.insert(platformInvoiceLineItems).values({
-          invoiceId: result.insertId,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          amount: amount.toFixed(2),
-          itemType: item.itemType,
-        });
-      }
-      
-      await logBillingAction({
-        organizationId: input.organizationId,
-        userId: ctx.user.id,
-        action: "platform_invoice_created",
-        entityType: "platform_invoice",
-        entityId: result.insertId,
-        newState: { ...input, invoiceNumber, total },
-      });
-      
-      return { id: result.insertId, invoiceNumber };
-    }),
-  
-  /**
-   * Record platform payment (superuser only)
-   */
-  recordPlatformPayment: protectedProcedure
-    .input(z.object({
-      organizationId: z.number(),
-      invoiceId: z.number().optional(),
-      amount: z.string(),
-      paymentMethod: z.enum(["card", "bank_transfer", "manual"]),
-      paymentDate: z.string(),
-      notes: z.string().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-      }
-      
-      const [result] = await db
-        .insert(platformPayments)
-        .values({
-          organizationId: input.organizationId,
-          invoiceId: input.invoiceId,
-          amount: input.amount,
-          currency: "USD",
-          status: "succeeded",
-          paymentMethod: input.paymentMethod,
-          paymentDate: new Date(input.paymentDate),
-        });
-      
-      // Update invoice if provided
-      if (input.invoiceId) {
-        const [invoice] = await db
-          .select()
-          .from(platformInvoices)
-          .where(eq(platformInvoices.id, input.invoiceId));
+      if (existingSub) {
+        // Update existing subscription
+        await db
+          .update(platformSubscriptions)
+          .set({
+            planId: input.planId,
+            pricePerPeriod: plan.monthlyPrice || "0",
+            status: "active",
+          })
+          .where(eq(platformSubscriptions.id, existingSub.id));
         
-        if (invoice) {
-          const newAmountPaid = parseFloat(invoice.amountPaid || "0") + parseFloat(input.amount);
-          const newAmountDue = parseFloat(invoice.total || "0") - newAmountPaid;
-          const newStatus = newAmountDue <= 0 ? "paid" : "open";
-          
-          await db
-            .update(platformInvoices)
-            .set({
-              amountPaid: newAmountPaid.toFixed(2),
-              amountDue: Math.max(0, newAmountDue).toFixed(2),
-              status: newStatus,
-              paidAt: newStatus === "paid" ? new Date() : null,
-            })
-            .where(eq(platformInvoices.id, input.invoiceId));
-        }
+        await logBillingAction({
+          organizationId: input.organizationId,
+          userId: ctx.user.id,
+          action: "subscription_plan_changed",
+          entityType: "subscription",
+          entityId: existingSub.id,
+          previousState: { planId: existingSub.planId },
+          newState: { planId: input.planId },
+        });
+      } else {
+        // Create new subscription
+        const [newSub] = await db
+          .insert(platformSubscriptions)
+          .values({
+            organizationId: input.organizationId,
+            planId: input.planId,
+            status: "active",
+            billingCycle: "monthly",
+            pricePerPeriod: plan.monthlyPrice || "0",
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+          });
+        
+        await logBillingAction({
+          organizationId: input.organizationId,
+          userId: ctx.user.id,
+          action: "subscription_created",
+          entityType: "subscription",
+          entityId: newSub.insertId,
+          newState: { planId: input.planId },
+        });
       }
       
-      await logBillingAction({
-        organizationId: input.organizationId,
-        userId: ctx.user.id,
-        action: "platform_payment_recorded",
-        entityType: "platform_payment",
-        entityId: result.insertId,
-        newState: input,
-      });
-      
-      return { id: result.insertId };
-    }),
-  
-  /**
-   * Get billing audit log (superuser only)
-   */
-  getBillingAuditLog: protectedProcedure
-    .input(z.object({
-      organizationId: z.number().optional(),
-      limit: z.number().default(100),
-      offset: z.number().default(0),
-    }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
-      // Check superuser
-      if (!await isSuperuser(ctx.user.id)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Superuser access required" });
-      }
-      
-      const conditions = [];
-      if (input.organizationId) {
-        conditions.push(eq(billingAuditLog.organizationId, input.organizationId));
-      }
-      
-      const logs = await db
-        .select()
-        .from(billingAuditLog)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(billingAuditLog.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      
-      return logs;
+      return { success: true };
     }),
 });
