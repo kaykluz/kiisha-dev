@@ -469,7 +469,11 @@ export const multiAuthRouter = router({
       // Send verification email using notification system
       try {
         const { ENV } = await import('../_core/env');
+        console.log(`[Registration] APP_URL env: ${process.env.APP_URL}`);
+        console.log(`[Registration] VITE_APP_URL env: ${process.env.VITE_APP_URL}`);
+        console.log(`[Registration] ENV.appUrl: ${ENV.appUrl}`);
         const verifyUrl = `${ENV.appUrl}/auth/verify-email?token=${verificationToken}`;
+        console.log(`[Registration] Verify URL: ${verifyUrl}`);
         
         console.log(`[Registration] Sending verification email to ${input.email}`);
         console.log(`[Registration] RESEND_API_KEY configured: ${!!process.env.RESEND_API_KEY}`);
