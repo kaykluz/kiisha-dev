@@ -351,8 +351,8 @@ function ExpandableNavItem({
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
-  const { user, loading, logout } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { user, isLoading, logout, state, isReady } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
@@ -417,7 +417,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Portfolio name - use organization name or default
   const portfolioName = "Portfolio";
 
-  if (loading || projectsLoading) {
+  if (isLoading || projectsLoading) {
     return (
       <div className="min-h-screen bg-background">
         <SkeletonDashboard />
@@ -425,8 +425,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
+  // Not authenticated - redirect to login
   if (!user) {
     window.location.href = "/login";
+    return null;
+  }
+
+  // Workspace selection wall - redirect if workspace selection is required
+  if (state?.workspaceSelectionRequired && state?.workspaceCount > 0) {
+    setLocation("/select-workspace");
+    return null;
+  }
+
+  // No workspaces - redirect to pending access
+  if (state?.workspaceCount === 0) {
+    setLocation("/pending-access");
     return null;
   }
 
