@@ -69,6 +69,7 @@ const PUBLIC_ROUTES = [
   "/auth/verify-email",
   "/data-room",
   "/invite",
+  "/portal", // Customer portal has its own auth system
 ];
 
 // Routes that require auth but not full gate passage
@@ -111,7 +112,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (isLoading || hasRedirected) return;
 
-    const isPublicRoute = PUBLIC_ROUTES.some(r => location === r || location.startsWith(r + "?"));
+    const isPublicRoute = PUBLIC_ROUTES.some(r => location === r || location.startsWith(r + "?") || location.startsWith(r + "/"));
     const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some(r => location === r || location.startsWith(r + "?"));
 
     // Not authenticated
