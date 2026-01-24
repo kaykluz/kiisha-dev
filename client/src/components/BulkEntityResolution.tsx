@@ -90,8 +90,8 @@ interface ResolutionRule {
   enabled: boolean;
 }
 
-// Mock data
-const mockMentions: EntityMention[] = [
+// Sample data (used when API returns empty)
+const sampleMentions: EntityMention[] = [
   {
     id: "m1",
     mentionText: "Cloudbreak Energy",
@@ -236,7 +236,7 @@ const mockMentions: EntityMention[] = [
   },
 ];
 
-const mockEntities: CanonicalEntity[] = [
+const sampleEntities: CanonicalEntity[] = [
   { id: "e1", name: "Cloudbreak Energy LLC", type: "company", aliases: ["Cloudbreak", "CBE", "Cloudbreak Energy"], mentionCount: 45 },
   { id: "e2", name: "National Grid USA", type: "company", aliases: ["National Grid", "NGrid", "NG"], mentionCount: 32 },
   { id: "s1", name: "MA - Gillette BTM Solar", type: "site", aliases: ["Gillette Solar", "Gillette Solar Farm", "Gillette Project"], mentionCount: 28 },
@@ -246,7 +246,7 @@ const mockEntities: CanonicalEntity[] = [
   { id: "c1", name: "Gillette PPA Agreement", type: "contract", aliases: ["PPA-2025-001", "Gillette PPA"], mentionCount: 6 },
 ];
 
-const mockRules: ResolutionRule[] = [
+const sampleRules: ResolutionRule[] = [
   { id: "r1", name: "Cloudbreak Abbreviations", matchType: "exact_alias", pattern: "CBE", targetEntityId: "e1", targetEntityName: "Cloudbreak Energy LLC", autoResolve: true, enabled: true },
   { id: "r2", name: "National Grid Variants", matchType: "fuzzy_name", pattern: "National Grid*", targetEntityId: "e2", targetEntityName: "National Grid USA", autoResolve: false, enabled: true },
 ];

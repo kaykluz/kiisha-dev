@@ -685,7 +685,7 @@ function DocumentExtractionContent() {
           <TabsContent value="history" className="flex-1 m-0">
             <ScrollArea className="h-[calc(100vh-16rem)]">
               <div className="p-4 space-y-3">
-                {mockExtractionHistory.map((entry) => (
+                {sampleExtractionHistory.map((entry) => (
                   <div key={entry.id} className="flex items-start gap-3 p-3 bg-secondary/30 rounded-lg">
                     <div className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",

@@ -341,7 +341,7 @@ export function GenerationComparison() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockMonthlyData.map((data) => (
+                  {monthlyData.map((data) => (
                     <TableRow key={data.month}>
                       <TableCell className="font-medium">{data.month}</TableCell>
                       <TableCell className="text-right">{formatNumber(data.actual)}</TableCell>
@@ -410,7 +410,7 @@ export function GenerationComparison() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockProjects.map((project) => (
+                  {projects.map((project) => (
                     <TableRow key={project.id}>
                       <TableCell className="font-medium">{project.name}</TableCell>
                       <TableCell className="text-right">{formatNumber(project.capacity)}</TableCell>

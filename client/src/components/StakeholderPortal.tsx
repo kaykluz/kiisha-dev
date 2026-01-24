@@ -378,7 +378,7 @@ export function StakeholderPortalManager() {
                 </tr>
               </thead>
               <tbody>
-                {mockAccessLogs.map((log) => {
+                {sampleAccessLogs.map((log) => {
                   const portal = portals.find((p) => p.id === log.portalId);
                   return (
                     <tr key={log.id} className="border-b border-border/50 hover:bg-muted/20">
