@@ -5,7 +5,7 @@
  * Location: /billing/settings
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { AppLayout } from "@/components/AppLayout";
@@ -88,26 +88,27 @@ export default function BillingSettings() {
   });
 
   const { data: paymentMethods, isLoading: methodsLoading } = trpc.platformBilling.getPaymentMethods.useQuery();
-  const { data: settings, isLoading: settingsLoading } = trpc.platformBilling.getBillingSettings.useQuery(undefined, {
-    onSuccess: (data) => {
-      if (data) {
-        setBillingAddress({
-          companyName: data.companyName || "",
-          addressLine1: data.addressLine1 || "",
-          addressLine2: data.addressLine2 || "",
-          city: data.city || "",
-          state: data.state || "",
-          postalCode: data.postalCode || "",
-          country: data.country || "US",
-        });
-        setInvoicePrefs({
-          emailInvoices: data.emailInvoices ?? true,
-          invoiceEmail: data.invoiceEmail || "",
-          autoPay: data.autoPay ?? true,
-        });
-      }
-    },
-  });
+  const { data: settings, isLoading: settingsLoading } = trpc.platformBilling.getBillingSettings.useQuery();
+
+  // Update state when settings data is loaded
+  useEffect(() => {
+    if (settings) {
+      setBillingAddress({
+        companyName: settings.companyName || "",
+        addressLine1: settings.addressLine1 || "",
+        addressLine2: settings.addressLine2 || "",
+        city: settings.city || "",
+        state: settings.state || "",
+        postalCode: settings.postalCode || "",
+        country: settings.country || "US",
+      });
+      setInvoicePrefs({
+        emailInvoices: settings.emailInvoices ?? true,
+        invoiceEmail: settings.invoiceEmail || "",
+        autoPay: settings.autoPay ?? true,
+      });
+    }
+  }, [settings]);
 
   const addPaymentMethod = trpc.platformBilling.addPaymentMethod.useMutation({
     onSuccess: () => {
