@@ -58,7 +58,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 function StatCard({ 
   title, 
@@ -117,7 +117,7 @@ function getStatusBadge(status: string) {
 }
 
 export default function SuperuserBilling() {
-  const { toast } = useToast();
+
   const utils = trpc.useUtils();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -136,13 +136,13 @@ export default function SuperuserBilling() {
 
   const updateSubscription = trpc.platformBilling.updateOrgSubscription.useMutation({
     onSuccess: () => {
-      toast({ title: "Subscription updated successfully" });
+      toast.success("Subscription updated successfully");
       setShowPlanDialog(false);
       setSelectedOrg(null);
       utils.platformBilling.getAllSubscriptions.invalidate();
     },
     onError: (error) => {
-      toast({ title: "Failed to update subscription", description: error.message, variant: "destructive" });
+      toast.error("Failed to update subscription", { description: error.message });
     },
   });
 

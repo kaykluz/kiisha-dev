@@ -55,11 +55,11 @@ import {
   CheckCircle,
   AlertCircle
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function BillingSettings() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
+
   const utils = trpc.useUtils();
 
   const [showAddCard, setShowAddCard] = useState(false);
@@ -112,43 +112,43 @@ export default function BillingSettings() {
 
   const addPaymentMethod = trpc.platformBilling.addPaymentMethod.useMutation({
     onSuccess: () => {
-      toast({ title: "Payment method added successfully" });
+      toast.success("Payment method added successfully");
       setShowAddCard(false);
       setNewCard({ cardNumber: "", expiryMonth: "", expiryYear: "", cvc: "", name: "" });
       utils.platformBilling.getPaymentMethods.invalidate();
     },
     onError: (error) => {
-      toast({ title: "Failed to add payment method", description: error.message, variant: "destructive" });
+      toast.error("Failed to add payment method", { description: error.message });
     },
   });
 
   const removePaymentMethod = trpc.platformBilling.removePaymentMethod.useMutation({
     onSuccess: () => {
-      toast({ title: "Payment method removed" });
+      toast.success("Payment method removed");
       utils.platformBilling.getPaymentMethods.invalidate();
     },
     onError: (error) => {
-      toast({ title: "Failed to remove payment method", description: error.message, variant: "destructive" });
+      toast.error("Failed to remove payment method", { description: error.message });
     },
   });
 
   const setDefaultPaymentMethod = trpc.platformBilling.setDefaultPaymentMethod.useMutation({
     onSuccess: () => {
-      toast({ title: "Default payment method updated" });
+      toast.success("Default payment method updated");
       utils.platformBilling.getPaymentMethods.invalidate();
     },
     onError: (error) => {
-      toast({ title: "Failed to update default", description: error.message, variant: "destructive" });
+      toast.error("Failed to update default", { description: error.message });
     },
   });
 
   const updateBillingSettings = trpc.platformBilling.updateBillingSettings.useMutation({
     onSuccess: () => {
-      toast({ title: "Billing settings updated" });
+      toast.success("Billing settings updated");
       utils.platformBilling.getBillingSettings.invalidate();
     },
     onError: (error) => {
-      toast({ title: "Failed to update settings", description: error.message, variant: "destructive" });
+      toast.error("Failed to update settings", { description: error.message });
     },
   });
 
