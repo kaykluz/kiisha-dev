@@ -817,6 +817,265 @@ export const openclawRouter = router({
   /**
    * Approve or reject a request
    */
+  // Get capabilities (alias for admin page)
+  getCapabilities: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const capabilities = await sdk.db
+        .select()
+        .from(db.orgCapabilities)
+        .where(eq(db.orgCapabilities.organizationId, input.organizationId));
+      
+      return capabilities;
+    }),
+
+  // Initialize capabilities for an organization
+  initializeCapabilities: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Default capabilities to seed
+      const defaultCapabilities = [
+        { id: "kiisha.portfolio.summary", name: "Portfolio Summary", category: "query", risk: "low", description: "View portfolio overview" },
+        { id: "kiisha.project.list", name: "List Projects", category: "query", risk: "low", description: "List all projects" },
+        { id: "kiisha.project.details", name: "Project Details", category: "query", risk: "low", description: "View project details" },
+        { id: "kiisha.documents.status", name: "Document Status", category: "query", risk: "low", description: "Check document status" },
+        { id: "kiisha.documents.list", name: "List Documents", category: "query", risk: "low", description: "List project documents" },
+        { id: "kiisha.alerts.list", name: "List Alerts", category: "query", risk: "low", description: "View active alerts" },
+        { id: "kiisha.tickets.list", name: "List Work Orders", category: "query", risk: "low", description: "View work orders" },
+        { id: "kiisha.compliance.status", name: "Compliance Status", category: "query", risk: "low", description: "View compliance status" },
+        { id: "kiisha.document.upload", name: "Upload Document", category: "document", risk: "medium", description: "Upload documents" },
+        { id: "kiisha.alert.acknowledge", name: "Acknowledge Alert", category: "operation", risk: "medium", description: "Acknowledge alerts" },
+        { id: "kiisha.ticket.create", name: "Create Work Order", category: "operation", risk: "medium", description: "Create work orders" },
+        { id: "channel.whatsapp", name: "WhatsApp Channel", category: "channel", risk: "low", description: "Access via WhatsApp" },
+        { id: "channel.telegram", name: "Telegram Channel", category: "channel", risk: "low", description: "Access via Telegram" },
+        { id: "channel.slack", name: "Slack Channel", category: "channel", risk: "low", description: "Access via Slack" },
+        { id: "channel.webchat", name: "Web Chat", category: "channel", risk: "low", description: "Access via web chat" },
+      ];
+
+      // Insert into capability_registry if not exists
+      for (const cap of defaultCapabilities) {
+        const [existing] = await sdk.db
+          .select()
+          .from(db.capabilityRegistry)
+          .where(eq(db.capabilityRegistry.capabilityId, cap.id))
+          .limit(1);
+        
+        if (!existing) {
+          await sdk.db.insert(db.capabilityRegistry).values({
+            capabilityId: cap.id,
+            name: cap.name,
+            description: cap.description,
+            category: cap.category as any,
+            riskLevel: cap.risk as any,
+            requiresApproval: cap.risk !== "low",
+            isActive: true,
+          });
+        }
+      }
+
+      // Create org capabilities
+      for (const cap of defaultCapabilities) {
+        const [existing] = await sdk.db
+          .select()
+          .from(db.orgCapabilities)
+          .where(and(
+            eq(db.orgCapabilities.organizationId, input.organizationId),
+            eq(db.orgCapabilities.capabilityId, cap.id)
+          ))
+          .limit(1);
+        
+        if (!existing) {
+          await sdk.db.insert(db.orgCapabilities).values({
+            organizationId: input.organizationId,
+            capabilityId: cap.id,
+            enabled: cap.risk === "low", // Enable low-risk by default
+            enabledBy: ctx.user.id,
+            enabledAt: new Date(),
+          });
+        }
+      }
+
+      return { success: true };
+    }),
+
+  // Update org capability
+  updateOrgCapability: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+      capabilityId: z.string(),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const [existing] = await sdk.db
+        .select()
+        .from(db.orgCapabilities)
+        .where(and(
+          eq(db.orgCapabilities.organizationId, input.organizationId),
+          eq(db.orgCapabilities.capabilityId, input.capabilityId)
+        ))
+        .limit(1);
+      
+      if (existing) {
+        await sdk.db
+          .update(db.orgCapabilities)
+          .set({
+            enabled: input.enabled,
+            enabledBy: input.enabled ? ctx.user.id : null,
+            enabledAt: input.enabled ? new Date() : null,
+          })
+          .where(eq(db.orgCapabilities.id, existing.id));
+      } else {
+        await sdk.db.insert(db.orgCapabilities).values({
+          organizationId: input.organizationId,
+          capabilityId: input.capabilityId,
+          enabled: input.enabled,
+          enabledBy: input.enabled ? ctx.user.id : null,
+          enabledAt: input.enabled ? new Date() : null,
+        });
+      }
+
+      return { success: true };
+    }),
+
+  // Get security policy
+  getSecurityPolicy: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const [policy] = await sdk.db
+        .select()
+        .from(db.openclawSecurityPolicies)
+        .where(eq(db.openclawSecurityPolicies.organizationId, input.organizationId))
+        .limit(1);
+      
+      return policy || {
+        requirePairing: true,
+        requireAdminApprovalForNewChannels: true,
+        browserAutomationAllowed: false,
+        fileUploadAllowed: true,
+        globalRateLimitPerMinute: 60,
+        globalRateLimitPerDay: 1000,
+        auditLevel: "standard",
+        retainConversationsForDays: 365,
+      };
+    }),
+
+  // Update security policy
+  updateSecurityPolicy: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+      requirePairing: z.boolean().optional(),
+      requireAdminApprovalForNewChannels: z.boolean().optional(),
+      browserAutomationAllowed: z.boolean().optional(),
+      fileUploadAllowed: z.boolean().optional(),
+      globalRateLimitPerMinute: z.number().optional(),
+      globalRateLimitPerDay: z.number().optional(),
+      auditLevel: z.string().optional(),
+      retainConversationsForDays: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { organizationId, ...updates } = input;
+      
+      const [existing] = await sdk.db
+        .select()
+        .from(db.openclawSecurityPolicies)
+        .where(eq(db.openclawSecurityPolicies.organizationId, organizationId))
+        .limit(1);
+      
+      if (existing) {
+        await sdk.db
+          .update(db.openclawSecurityPolicies)
+          .set(updates)
+          .where(eq(db.openclawSecurityPolicies.id, existing.id));
+      } else {
+        await sdk.db.insert(db.openclawSecurityPolicies).values({
+          organizationId,
+          ...updates,
+        } as any);
+      }
+
+      return { success: true };
+    }),
+
+  // Get conversation stats
+  getConversationStats: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      // Get total conversations in last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const [stats] = await sdk.db
+        .select({
+          totalConversations: sql<number>`COUNT(*)`,
+          avgResponseTime: sql<number>`AVG(${db.conversationVatrs.latencyMs})`,
+        })
+        .from(db.conversationVatrs)
+        .where(and(
+          eq(db.conversationVatrs.organizationId, input.organizationId),
+          gte(db.conversationVatrs.messageReceivedAt, thirtyDaysAgo)
+        ));
+      
+      // Get active users (linked channels)
+      const [userStats] = await sdk.db
+        .select({
+          activeUsers: sql<number>`COUNT(DISTINCT ${db.channelIdentities.userId})`,
+        })
+        .from(db.channelIdentities)
+        .where(and(
+          eq(db.channelIdentities.organizationId, input.organizationId),
+          eq(db.channelIdentities.verificationStatus, "verified")
+        ));
+      
+      return {
+        totalConversations: stats?.totalConversations || 0,
+        avgResponseTime: Math.round(stats?.avgResponseTime || 0),
+        activeUsers: userStats?.activeUsers || 0,
+      };
+    }),
+
+  // Process approval (for admin page)
+  processApproval: protectedProcedure
+    .input(z.object({
+      requestId: z.string(),
+      action: z.enum(["approve", "reject"]),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const [request] = await sdk.db
+        .select()
+        .from(db.approvalRequests)
+        .where(eq(db.approvalRequests.requestId, input.requestId))
+        .limit(1);
+      
+      if (!request) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Approval request not found",
+        });
+      }
+      
+      await sdk.db
+        .update(db.approvalRequests)
+        .set({
+          status: input.action === "approve" ? "approved" : "rejected",
+          approvedBy: ctx.user.id,
+          approvedAt: new Date(),
+          approvalMethod: "web",
+          rejectionReason: input.action === "reject" ? input.reason : null,
+        })
+        .where(eq(db.approvalRequests.id, request.id));
+      
+      return { success: true };
+    }),
+
   respondToApproval: protectedProcedure
     .input(z.object({
       requestId: z.string(),

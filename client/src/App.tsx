@@ -97,6 +97,8 @@ import Signup from "./pages/auth/Signup";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import VerifyEmail from "./pages/auth/VerifyEmail";
 import LinkedAccounts from "./pages/settings/LinkedAccounts";
+import ChannelSettings from "./pages/settings/ChannelSettings";
+import OpenClawAdmin from "./pages/admin/OpenClawAdmin";
 import RequestsDashboard from "./pages/RequestsDashboard";
 import RequestDetail from "./pages/RequestDetail";
 import ResponseWorkspace from "./pages/ResponseWorkspace";
@@ -218,6 +220,9 @@ function Router() {
       </Route>
       <Route path="/admin/invoice-branding">
         {() => <AdminRoute component={InvoiceBranding} />}
+      </Route>
+      <Route path="/admin/openclaw">
+        {() => <AdminRoute component={OpenClawAdmin} />}
       </Route>
       
       {/* Company Hub Routes */}
@@ -361,6 +366,7 @@ function Router() {
       <Route path="/settings/linked-accounts" component={LinkedAccounts} />
       <Route path="/settings/security" component={SecuritySettings} />
       <Route path="/settings/whatsapp" component={WhatsAppSettings} />
+      <Route path="/settings/channels" component={ChannelSettings} />
       <Route path="/views" component={CustomViews} />
       <Route path="/views/builder" component={CustomViews} />
       <Route path="/views/builder/:viewId" component={CustomViews} />

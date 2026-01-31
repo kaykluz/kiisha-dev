@@ -64,6 +64,7 @@ import { toast } from "sonner";
 import { useFeatureFlag } from "@/contexts/FeatureFlagContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
+import { OpenClawChatSidebar } from "./OpenClawChatSidebar";
 
 // Project context for filtering
 interface ProjectContextType {
@@ -158,7 +159,7 @@ const settingsNav: NavItem[] = [
       { label: "General", path: "/settings", icon: Settings },
       { label: "Profile", path: "/profile", icon: User },
       { label: "Security", path: "/settings/security", icon: Shield },
-      { label: "WhatsApp", path: "/settings/whatsapp", icon: MessageSquare },
+      { label: "Connected Channels", path: "/settings/channels", icon: MessageSquare },
       { label: "Notifications", path: "/settings/notifications", icon: Bell },
     ]
   },
@@ -187,6 +188,7 @@ const adminNav: NavItem[] = [
       { label: "View Sharing", path: "/admin/view-sharing", icon: Send },
       { label: "Custom Views", path: "/views", icon: LayoutGrid },
       { label: "Observability", path: "/admin/observability", icon: Activity },
+      { label: "AI Assistant (OpenClaw)", path: "/admin/openclaw", icon: MessageSquare },
     ]
   },
   {
@@ -830,6 +832,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {/* Command Palette */}
         <CommandPalette isOpen={commandPalette.isOpen} onClose={commandPalette.close} />
+        
+        {/* OpenClaw Chat Sidebar - AI Assistant */}
+        {state?.activeOrg?.id && (
+          <OpenClawChatSidebar 
+            organizationId={state.activeOrg.id} 
+            projectId={selectedProjectId || undefined}
+          />
+        )}
       </div>
     </ProjectContext.Provider>
   );
