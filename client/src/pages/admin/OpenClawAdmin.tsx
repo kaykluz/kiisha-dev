@@ -110,7 +110,7 @@ export default function OpenClawAdmin() {
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
   const [capabilityDialogOpen, setCapabilityDialogOpen] = useState(false);
   
-  const organizationId = state?.activeOrg?.id || 0;
+  const organizationId = state?.activeOrganization?.id || 0;
   
   // Get capabilities
   const { data: capabilities, refetch: refetchCapabilities, isLoading: capabilitiesLoading } = trpc.openclaw.getCapabilities.useQuery(

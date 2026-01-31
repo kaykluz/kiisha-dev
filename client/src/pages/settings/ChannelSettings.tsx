@@ -42,7 +42,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Phone,
   MessageSquare,
@@ -122,8 +122,8 @@ const channelConfigs: ChannelConfig[] = [
 ];
 
 export default function ChannelSettings() {
-  const { user, activeOrg } = useAuth();
-  const { toast } = useToast();
+  const { state } = useAuth();
+  const organizationId = state?.activeOrganization?.id || 0;
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<ChannelType | null>(null);
@@ -134,7 +134,7 @@ export default function ChannelSettings() {
     externalId: string;
   } | null>(null);
   
-  const organizationId = activeOrg?.id || 0;
+
   
   // Get linked channels
   const { data: linkedChannels, refetch: refetchChannels, isLoading } = trpc.openclaw.getLinkedChannels.useQuery(
@@ -145,8 +145,7 @@ export default function ChannelSettings() {
   // Initiate channel link mutation
   const initiateLink = trpc.openclaw.initiateChannelLink.useMutation({
     onSuccess: (data) => {
-      toast({
-        title: "Verification Started",
+      toast.success("Verification Started", {
         description: data.message,
       });
       setPendingVerification({
@@ -157,10 +156,8 @@ export default function ChannelSettings() {
       setVerifyDialogOpen(true);
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -168,8 +165,7 @@ export default function ChannelSettings() {
   // Verify channel link mutation
   const verifyLink = trpc.openclaw.verifyChannelLink.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Channel Linked",
+      toast.success("Channel Linked", {
         description: "Your channel has been successfully linked!",
       });
       setVerifyDialogOpen(false);
@@ -178,10 +174,8 @@ export default function ChannelSettings() {
       refetchChannels();
     },
     onError: (error) => {
-      toast({
-        title: "Verification Failed",
+      toast.error("Verification Failed", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -189,17 +183,14 @@ export default function ChannelSettings() {
   // Revoke channel mutation
   const revokeChannel = trpc.openclaw.revokeChannel.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Channel Removed",
+      toast.success("Channel Removed", {
         description: "The channel has been unlinked from your account.",
       });
       refetchChannels();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
