@@ -387,7 +387,5 @@ export async function chatResponse(
 }
 
 // ============================================================================
-// Exports
+// End of gateway module
 // ============================================================================
-
-export { initializeGateway, runTask };

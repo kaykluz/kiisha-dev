@@ -2952,7 +2952,7 @@ Respond with JSON array of extractions.`;
   }),
 
   // Owner Notifications
-  notifications: router({
+  ownerNotifications: router({
     sendOwnerAlert: protectedProcedure
       .input(z.object({
         title: z.string(),
