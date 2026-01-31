@@ -118,7 +118,14 @@ import {
   InsertOAuthAccount, InsertOAuthProviderConfig, InsertEmailVerificationToken,
   OAuthAccount, OAuthProviderConfig, EmailVerificationToken,
   // Login Activity
-  loginActivity, InsertLoginActivity, LoginActivity
+  loginActivity, InsertLoginActivity, LoginActivity,
+  // OpenClaw Integration
+  channelIdentities, capabilityRegistry, orgCapabilities, approvalRequests,
+  openclawSecurityPolicies, conversationVatrs, openclawTasks, openclawScheduledTasks,
+  InsertChannelIdentity, InsertCapabilityRegistry, InsertOrgCapability, InsertApprovalRequest,
+  InsertOpenclawSecurityPolicy, InsertConversationVatr, InsertOpenclawTask, InsertOpenclawScheduledTask,
+  ChannelIdentity, CapabilityRegistry, OrgCapability, ApprovalRequest,
+  OpenclawSecurityPolicy, ConversationVatr, OpenclawTask, OpenclawScheduledTask
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 

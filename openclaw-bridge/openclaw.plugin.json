@@ -1,0 +1,31 @@
+{
+  "id": "kiisha-bridge",
+  "name": "KIISHA Bridge",
+  "description": "Connect OpenClaw to KIISHA platform for enterprise asset management, document verification, and compliance workflows",
+  "version": "1.0.0",
+  "author": "KIISHA",
+  "homepage": "https://kiisha.io",
+  "capabilities": [
+    "skill",
+    "webhook"
+  ],
+  "config": {
+    "kiishaApiUrl": {
+      "type": "string",
+      "description": "KIISHA API endpoint URL",
+      "required": true
+    },
+    "kiishaApiKey": {
+      "type": "string",
+      "description": "KIISHA API key for authentication",
+      "required": true,
+      "secret": true
+    },
+    "webhookSecret": {
+      "type": "string",
+      "description": "Shared secret for webhook verification",
+      "required": true,
+      "secret": true
+    }
+  }
+}

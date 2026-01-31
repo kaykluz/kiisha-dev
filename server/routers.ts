@@ -42,6 +42,7 @@ import { securityRouter } from "./routers/security";
 import { financialModelsRouter } from "./routers/financialModels";
 import { platformBillingRouter } from "./routers/platformBilling";
 import { documentCategoriesRouter } from "./routers/documentCategories";
+import { openclawRouter } from "./routers/openclaw";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -317,6 +318,7 @@ export const appRouter = router({
   identity: identityRouter,
   signup: signupRouter,
   superuser: superuserRouter,
+  openclaw: openclawRouter,
   
   // Background job status - canonical contract across all job types
   // SECURITY: All job queries enforce ownership (user must own job OR be admin)
