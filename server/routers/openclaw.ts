@@ -36,6 +36,9 @@ import {
   listTickets,
   createTicket,
   getComplianceStatus,
+  acknowledgeAlert,
+  uploadDocument,
+  respondToRfi,
   type SkillContext,
 } from "../services/openclawSkills";
 
@@ -461,6 +464,52 @@ export const openclawRouter = router({
             },
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "acknowledge_alert",
+            description: "Acknowledge/dismiss an active alert (requires approval for medium+ risk)",
+            parameters: {
+              type: "object",
+              properties: {
+                alertId: { type: "number", description: "The alert ID to acknowledge" },
+              },
+              required: ["alertId"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "upload_document",
+            description: "Create a document record for a project. The actual file must be uploaded via the web portal. (requires approval)",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "The project ID" },
+                name: { type: "string", description: "Document name/title" },
+                documentTypeId: { type: "number", description: "The document type ID" },
+                notes: { type: "string", description: "Optional notes about the document" },
+              },
+              required: ["projectId", "name", "documentTypeId"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "respond_to_rfi",
+            description: "Add a response to an RFI (Request for Information). Requires approval.",
+            parameters: {
+              type: "object",
+              properties: {
+                rfiId: { type: "number", description: "The RFI ID" },
+                response: { type: "string", description: "The response content" },
+              },
+              required: ["rfiId", "response"],
+            },
+          },
+        },
       ];
 
       // Build conversation messages for the AI gateway
@@ -551,6 +600,18 @@ Channel: ${input.channel.type}`;
               case "create_ticket":
                 skillResult = await createTicket(skillContext, args);
                 dataAccessed.push("workOrders");
+                break;
+              case "acknowledge_alert":
+                skillResult = await acknowledgeAlert(skillContext, args.alertId);
+                dataAccessed.push("alerts");
+                break;
+              case "upload_document":
+                skillResult = await uploadDocument(skillContext, args);
+                dataAccessed.push("documents");
+                break;
+              case "respond_to_rfi":
+                skillResult = await respondToRfi(skillContext, args);
+                dataAccessed.push("rfis");
                 break;
               default:
                 skillResult = { success: false, error: "Unknown tool" };
@@ -1115,6 +1176,7 @@ Channel: ${input.channel.type}`;
         { id: "kiisha.document.upload", name: "Upload Document", category: "document", risk: "medium", description: "Upload documents" },
         { id: "kiisha.alert.acknowledge", name: "Acknowledge Alert", category: "operation", risk: "medium", description: "Acknowledge alerts" },
         { id: "kiisha.ticket.create", name: "Create Work Order", category: "operation", risk: "medium", description: "Create work orders" },
+        { id: "kiisha.rfi.respond", name: "Respond to RFI", category: "operation", risk: "medium", description: "Respond to RFIs" },
         { id: "channel.whatsapp", name: "WhatsApp Channel", category: "channel", risk: "low", description: "Access via WhatsApp" },
         { id: "channel.telegram", name: "Telegram Channel", category: "channel", risk: "low", description: "Access via Telegram" },
         { id: "channel.slack", name: "Slack Channel", category: "channel", risk: "low", description: "Access via Slack" },
@@ -1408,7 +1470,108 @@ Channel: ${input.channel.type}`;
           rejectionReason: input.action === "reject" ? input.reason : null,
         })
         .where(eq(approvalRequests.id, request.id));
-      
+
       return { success: true };
+    }),
+
+  // ==========================================================================
+  // CAPABILITY CHECK (documented endpoint)
+  // ==========================================================================
+
+  /**
+   * Check if user has access to a specific capability
+   */
+  checkCapability: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+      capabilityId: z.string(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const result = await checkCapabilityAccess(
+        input.organizationId,
+        input.capabilityId,
+        ctx.user.id
+      );
+      return result;
+    }),
+
+  // ==========================================================================
+  // APPROVAL REQUEST (documented endpoint)
+  // ==========================================================================
+
+  /**
+   * Request approval for a sensitive action
+   */
+  requestApproval: protectedProcedure
+    .input(z.object({
+      organizationId: z.number(),
+      capabilityId: z.string(),
+      summary: z.string(),
+      taskSpec: z.record(z.unknown()),
+      riskAssessment: z.object({
+        level: z.enum(["low", "medium", "high", "critical"]),
+        reason: z.string(),
+      }).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+
+      // Verify user belongs to org
+      const [membership] = await db
+        .select()
+        .from(organizationMembers)
+        .where(and(
+          eq(organizationMembers.userId, ctx.user.id),
+          eq(organizationMembers.organizationId, input.organizationId),
+          eq(organizationMembers.status, "active")
+        ))
+        .limit(1);
+
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You don't have access to this organization",
+        });
+      }
+
+      // Check if capability actually requires approval
+      const access = await checkCapabilityAccess(
+        input.organizationId,
+        input.capabilityId,
+        ctx.user.id
+      );
+
+      if (!access.allowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: access.reason || "Capability not available",
+        });
+      }
+
+      // Create the approval request
+      const requestId = uuidv4();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await db.insert(approvalRequests).values({
+        requestId,
+        organizationId: input.organizationId,
+        requestedBy: ctx.user.id,
+        capabilityId: input.capabilityId,
+        taskSpec: JSON.stringify(input.taskSpec),
+        summary: input.summary,
+        riskAssessment: input.riskAssessment ? JSON.stringify(input.riskAssessment) : null,
+        status: access.requiresApproval ? "pending" : "auto_approved",
+        expiresAt,
+        approvedAt: access.requiresApproval ? null : new Date(),
+        approvalMethod: access.requiresApproval ? null : "api",
+      });
+
+      return {
+        requestId,
+        status: access.requiresApproval ? "pending" as const : "auto_approved" as const,
+        requiresApproval: access.requiresApproval,
+        expiresAt: expiresAt.toISOString(),
+      };
     }),
 });

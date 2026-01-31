@@ -591,6 +591,213 @@ export async function createTicket(
   }
 }
 
+/**
+ * Acknowledge an alert (requires approval for medium+ risk)
+ */
+export async function acknowledgeAlert(
+  context: SkillContext,
+  alertId: number
+): Promise<SkillResult> {
+  const capabilityId = "kiisha.alert.acknowledge";
+
+  const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
+  if (!access.allowed) {
+    return { success: false, error: access.reason };
+  }
+
+  if (access.requiresApproval) {
+    return {
+      success: false,
+      requiresApproval: true,
+      message: "⏳ Acknowledging alerts requires approval. Please confirm this action in the KIISHA web portal.",
+    };
+  }
+
+  try {
+    // Verify alert belongs to user's org by joining through project
+    const [alert] = await sdk.db
+      .select({
+        id: db.alerts.id,
+        title: db.alerts.title,
+        severity: db.alerts.severity,
+        projectId: db.alerts.projectId,
+        orgId: db.projects.organizationId,
+      })
+      .from(db.alerts)
+      .leftJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
+      .where(eq(db.alerts.id, alertId))
+      .limit(1);
+
+    if (!alert || alert.orgId !== context.organizationId) {
+      return { success: false, error: "Alert not found or access denied" };
+    }
+
+    // Mark as dismissed (acknowledged)
+    await sdk.db
+      .update(db.alerts)
+      .set({ isDismissed: true, isRead: true })
+      .where(eq(db.alerts.id, alertId));
+
+    await incrementCapabilityUsage(context.organizationId, capabilityId);
+
+    return {
+      success: true,
+      data: { alertId, acknowledged: true },
+      message: `✅ Alert **${alert.title}** has been acknowledged.`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error acknowledging alert:", error);
+    return { success: false, error: "Failed to acknowledge alert" };
+  }
+}
+
+/**
+ * Upload a document reference via chat (requires approval)
+ * Note: Actual file upload must happen through web portal. This creates a placeholder document record.
+ */
+export async function uploadDocument(
+  context: SkillContext,
+  params: {
+    projectId: number;
+    name: string;
+    documentTypeId: number;
+    notes?: string;
+  }
+): Promise<SkillResult> {
+  const capabilityId = "kiisha.document.upload";
+
+  const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
+  if (!access.allowed) {
+    return { success: false, error: access.reason };
+  }
+
+  if (access.requiresApproval) {
+    return {
+      success: false,
+      requiresApproval: true,
+      message: "⏳ Uploading documents requires approval. Please confirm this action in the KIISHA web portal.",
+    };
+  }
+
+  try {
+    // Verify project belongs to user's org
+    const [project] = await sdk.db
+      .select({ id: db.projects.id, name: db.projects.name })
+      .from(db.projects)
+      .where(and(
+        eq(db.projects.id, params.projectId),
+        eq(db.projects.organizationId, context.organizationId)
+      ))
+      .limit(1);
+
+    if (!project) {
+      return { success: false, error: "Project not found or access denied" };
+    }
+
+    // Create a pending document record (actual file must be uploaded via web portal)
+    const [result] = await sdk.db.insert(db.documents).values({
+      projectId: params.projectId,
+      documentTypeId: params.documentTypeId,
+      name: params.name,
+      status: "pending",
+      uploadedById: context.userId,
+      notes: params.notes || `Created via ${context.channelType} channel`,
+    });
+
+    await incrementCapabilityUsage(context.organizationId, capabilityId);
+
+    return {
+      success: true,
+      data: { documentId: result.insertId, projectName: project.name },
+      message: `📄 Document record created for **${project.name}**\n\n` +
+        `📝 **${params.name}**\n` +
+        `Status: Pending\n\n` +
+        `⚠️ Please upload the actual file through the KIISHA web portal to complete the submission.`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error uploading document:", error);
+    return { success: false, error: "Failed to create document record" };
+  }
+}
+
+/**
+ * Respond to an RFI (requires approval)
+ */
+export async function respondToRfi(
+  context: SkillContext,
+  params: {
+    rfiId: number;
+    response: string;
+  }
+): Promise<SkillResult> {
+  const capabilityId = "kiisha.rfi.respond";
+
+  const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
+  if (!access.allowed) {
+    return { success: false, error: access.reason };
+  }
+
+  if (access.requiresApproval) {
+    return {
+      success: false,
+      requiresApproval: true,
+      message: "⏳ Responding to RFIs requires approval. Please confirm this action in the KIISHA web portal.",
+    };
+  }
+
+  try {
+    // Verify RFI belongs to a project in user's org
+    const [rfi] = await sdk.db
+      .select({
+        id: db.rfis.id,
+        title: db.rfis.title,
+        code: db.rfis.code,
+        status: db.rfis.status,
+        projectId: db.rfis.projectId,
+        orgId: db.projects.organizationId,
+      })
+      .from(db.rfis)
+      .leftJoin(db.projects, eq(db.rfis.projectId, db.projects.id))
+      .where(eq(db.rfis.id, params.rfiId))
+      .limit(1);
+
+    if (!rfi || rfi.orgId !== context.organizationId) {
+      return { success: false, error: "RFI not found or access denied" };
+    }
+
+    if (rfi.status === "closed" || rfi.status === "resolved") {
+      return { success: false, error: `RFI ${rfi.code} is already ${rfi.status}` };
+    }
+
+    // Add response as a comment
+    await sdk.db.insert(db.rfiComments).values({
+      rfiId: params.rfiId,
+      userId: context.userId,
+      content: params.response,
+      isInternal: false,
+    });
+
+    // Update RFI status to in_progress if it was open
+    if (rfi.status === "open") {
+      await sdk.db
+        .update(db.rfis)
+        .set({ status: "in_progress" })
+        .where(eq(db.rfis.id, params.rfiId));
+    }
+
+    await incrementCapabilityUsage(context.organizationId, capabilityId);
+
+    return {
+      success: true,
+      data: { rfiId: params.rfiId, rfiCode: rfi.code },
+      message: `✅ Response added to **${rfi.code}: ${rfi.title}**\n\nYour response has been recorded and the RFI status has been updated.`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error responding to RFI:", error);
+    return { success: false, error: "Failed to respond to RFI" };
+  }
+}
+
 // ============================================================================
 // COMPLIANCE SKILLS
 // ============================================================================
