@@ -42,7 +42,7 @@ import {
   CheckCircle,
   History
 } from "lucide-react";
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 
 interface LineItem {
   description: string;
@@ -225,7 +225,7 @@ export default function RecurringInvoices() {
   };
 
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -774,6 +774,6 @@ export default function RecurringInvoices() {
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

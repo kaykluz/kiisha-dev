@@ -22,10 +22,8 @@ export function EnergyProductionChart({
   const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d" | "1y">("30d");
   const [aggregation, setAggregation] = useState<"hourly" | "daily" | "weekly" | "monthly">("daily");
 
-  // Note: This component uses generated sample data for demonstration
-  // In production, this would fetch from operations.getDerivedMetrics API
-  // when telemetry data is available for the asset
-  const chartData = useMemo(() => {
+  // Mock data for demonstration - in production, fetch from telemetry API
+  const mockData = useMemo(() => {
     const now = new Date();
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : timeRange === "90d" ? 90 : 365;
     const data = [];
@@ -57,11 +55,11 @@ export function EnergyProductionChart({
 
   // Calculate summary stats
   const stats = useMemo(() => {
-    const totalProduction = chartData.reduce((sum, d) => sum + d.production, 0);
-    const totalExpected = chartData.reduce((sum, d) => sum + d.expected, 0);
-    const totalConsumption = chartData.reduce((sum, d) => sum + d.consumption, 0);
-    const totalExport = chartData.reduce((sum, d) => sum + d.gridExport, 0);
-    const avgDaily = totalProduction / chartData.length;
+    const totalProduction = mockData.reduce((sum, d) => sum + d.production, 0);
+    const totalExpected = mockData.reduce((sum, d) => sum + d.expected, 0);
+    const totalConsumption = mockData.reduce((sum, d) => sum + d.consumption, 0);
+    const totalExport = mockData.reduce((sum, d) => sum + d.gridExport, 0);
+    const avgDaily = totalProduction / mockData.length;
     const performanceRatio = (totalProduction / totalExpected) * 100;
     
     return {
@@ -73,10 +71,10 @@ export function EnergyProductionChart({
       performanceRatio: Math.round(performanceRatio),
       selfConsumption: Math.round((totalConsumption / totalProduction) * 100),
     };
-  }, [chartData]);
+  }, [mockData]);
 
   // Find max value for chart scaling
-  const maxValue = Math.max(...chartData.map(d => Math.max(d.production, d.expected)));
+  const maxValue = Math.max(...mockData.map(d => Math.max(d.production, d.expected)));
 
   return (
     <Card>
@@ -163,7 +161,7 @@ export function EnergyProductionChart({
           
           {/* Chart area */}
           <div className="ml-14 h-full flex items-end gap-[2px] pb-8">
-            {chartData.map((d, i) => {
+            {mockData.map((d, i) => {
               const productionHeight = (d.production / maxValue) * 100;
               const expectedHeight = (d.expected / maxValue) * 100;
               
@@ -206,9 +204,9 @@ export function EnergyProductionChart({
           
           {/* X-axis labels */}
           <div className="ml-14 flex justify-between text-xs text-muted-foreground">
-            <span>{new Date(chartData[0]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-            <span>{new Date(chartData[Math.floor(chartData.length / 2)]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-            <span>{new Date(chartData[chartData.length - 1]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+            <span>{new Date(mockData[0]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+            <span>{new Date(mockData[Math.floor(mockData.length / 2)]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+            <span>{new Date(mockData[mockData.length - 1]?.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
           </div>
         </div>
 

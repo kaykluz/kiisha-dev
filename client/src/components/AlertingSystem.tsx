@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
 import {
   Bell,
   Plus,
@@ -50,8 +49,131 @@ import {
   Zap,
   Battery,
   ThermometerSun,
-  Loader2,
 } from "lucide-react";
+
+// Mock alert rules
+const mockAlertRules = [
+  {
+    id: 1,
+    name: "Low Battery SOC",
+    description: "Alert when battery state of charge drops below threshold",
+    metricCode: "battery_soc",
+    condition: "lt",
+    threshold: 20,
+    thresholdUnit: "%",
+    severity: "high",
+    enabled: true,
+    notificationChannels: ["email", "slack"],
+    cooldownMinutes: 60,
+    lastTriggeredAt: new Date("2026-01-15T08:30:00"),
+    triggerCount: 12,
+  },
+  {
+    id: 2,
+    name: "Inverter Offline",
+    description: "Alert when inverter goes offline for more than 5 minutes",
+    metricCode: "device_status",
+    condition: "offline",
+    threshold: null,
+    thresholdUnit: null,
+    severity: "critical",
+    enabled: true,
+    notificationChannels: ["email", "slack", "webhook"],
+    cooldownMinutes: 30,
+    lastTriggeredAt: new Date("2026-01-14T15:45:00"),
+    triggerCount: 5,
+  },
+  {
+    id: 3,
+    name: "High Temperature",
+    description: "Alert when equipment temperature exceeds safe operating range",
+    metricCode: "temperature",
+    condition: "gt",
+    threshold: 65,
+    thresholdUnit: "°C",
+    severity: "medium",
+    enabled: true,
+    notificationChannels: ["email"],
+    cooldownMinutes: 120,
+    lastTriggeredAt: null,
+    triggerCount: 0,
+  },
+  {
+    id: 4,
+    name: "Low Performance Ratio",
+    description: "Alert when PR drops below expected value",
+    metricCode: "performance_ratio",
+    condition: "lt",
+    threshold: 75,
+    thresholdUnit: "%",
+    severity: "low",
+    enabled: false,
+    notificationChannels: ["email"],
+    cooldownMinutes: 1440,
+    lastTriggeredAt: new Date("2026-01-10T12:00:00"),
+    triggerCount: 3,
+  },
+];
+
+// Mock alert events
+const mockAlertEvents = [
+  {
+    id: 1,
+    ruleId: 1,
+    ruleName: "Low Battery SOC",
+    site: "TX - Austin",
+    device: "Battery-01",
+    triggeredAt: new Date("2026-01-15T10:15:00"),
+    triggerValue: 18.5,
+    status: "open",
+    severity: "high",
+    acknowledgedBy: null,
+    acknowledgedAt: null,
+    resolvedAt: null,
+  },
+  {
+    id: 2,
+    ruleId: 2,
+    ruleName: "Inverter Offline",
+    site: "FL - Miami",
+    device: "Inverter-03",
+    triggeredAt: new Date("2026-01-15T09:45:00"),
+    triggerValue: null,
+    status: "acknowledged",
+    severity: "critical",
+    acknowledgedBy: "John Smith",
+    acknowledgedAt: new Date("2026-01-15T09:50:00"),
+    resolvedAt: null,
+  },
+  {
+    id: 3,
+    ruleId: 1,
+    ruleName: "Low Battery SOC",
+    site: "MA - Gillette",
+    device: "Battery-02",
+    triggeredAt: new Date("2026-01-15T08:30:00"),
+    triggerValue: 15.2,
+    status: "resolved",
+    severity: "high",
+    acknowledgedBy: "Jane Doe",
+    acknowledgedAt: new Date("2026-01-15T08:35:00"),
+    resolvedAt: new Date("2026-01-15T09:00:00"),
+  },
+  {
+    id: 4,
+    ruleId: 3,
+    ruleName: "High Temperature",
+    site: "AZ - Phoenix",
+    device: "Inverter-01",
+    triggeredAt: new Date("2026-01-14T14:20:00"),
+    triggerValue: 68.3,
+    status: "resolved",
+    severity: "medium",
+    acknowledgedBy: "Mike Johnson",
+    acknowledgedAt: new Date("2026-01-14T14:25:00"),
+    resolvedAt: new Date("2026-01-14T16:00:00"),
+  },
+];
 
 interface AlertRule {
   id: number;
@@ -85,99 +207,13 @@ interface AlertEvent {
 }
 
 export function AlertingSystem() {
+  const [rules, setRules] = useState<AlertRule[]>(mockAlertRules);
+  const [events, setEvents] = useState<AlertEvent[]>(mockAlertEvents);
   const [showAddRuleDialog, setShowAddRuleDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<AlertEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Fetch alert rules from API
-  const { data: apiRules = [], isLoading: rulesLoading, refetch: refetchRules } = trpc.operations.getAlertRules.useQuery({
-    organizationId: 1,
-  });
-
-  // Fetch alert events from API
-  const { data: apiEvents = [], isLoading: eventsLoading, refetch: refetchEvents } = trpc.operations.getAlertEvents.useQuery({
-    organizationId: 1,
-  });
-
-  // Mutations
-  const createRuleMutation = trpc.operations.createAlertRule.useMutation({
-    onSuccess: () => {
-      toast.success("Alert rule created");
-      setShowAddRuleDialog(false);
-      refetchRules();
-    },
-    onError: (error) => {
-      toast.error(`Failed to create rule: ${error.message}`);
-    },
-  });
-
-  const updateRuleMutation = trpc.operations.updateAlertRule.useMutation({
-    onSuccess: () => {
-      refetchRules();
-    },
-    onError: (error) => {
-      toast.error(`Failed to update rule: ${error.message}`);
-    },
-  });
-
-  const acknowledgeAlertMutation = trpc.operations.acknowledgeAlert.useMutation({
-    onSuccess: () => {
-      toast.success("Alert acknowledged");
-      refetchEvents();
-    },
-    onError: (error) => {
-      toast.error(`Failed to acknowledge alert: ${error.message}`);
-    },
-  });
-
-  const resolveAlertMutation = trpc.operations.resolveAlert.useMutation({
-    onSuccess: () => {
-      toast.success("Alert resolved");
-      refetchEvents();
-      setSelectedEvent(null);
-    },
-    onError: (error) => {
-      toast.error(`Failed to resolve alert: ${error.message}`);
-    },
-  });
-
-  // Transform API data
-  const rules: AlertRule[] = useMemo(() => {
-    return (apiRules as any[]).map((rule: any) => ({
-      id: rule.id,
-      name: rule.name,
-      description: rule.description || '',
-      metricCode: rule.metricCode || 'unknown',
-      condition: rule.condition,
-      threshold: rule.threshold ? parseFloat(rule.threshold) : null,
-      thresholdUnit: rule.thresholdUnit,
-      severity: rule.severity || 'medium',
-      enabled: rule.enabled !== false,
-      notificationChannels: rule.notificationChannels || ['email'],
-      cooldownMinutes: rule.cooldownMinutes || 60,
-      lastTriggeredAt: rule.lastTriggeredAt ? new Date(rule.lastTriggeredAt) : null,
-      triggerCount: rule.triggerCount || 0,
-    }));
-  }, [apiRules]);
-
-  const events: AlertEvent[] = useMemo(() => {
-    return (apiEvents as any[]).map((event: any) => ({
-      id: event.id,
-      ruleId: event.alertRuleId || 0,
-      ruleName: event.ruleName || 'Unknown Rule',
-      site: event.siteName || 'Unknown Site',
-      device: event.deviceName || 'Unknown Device',
-      triggeredAt: new Date(event.triggeredAt || event.createdAt),
-      triggerValue: event.triggerValue ? parseFloat(event.triggerValue) : null,
-      status: event.status || 'open',
-      severity: event.severity || 'medium',
-      acknowledgedBy: event.acknowledgedByName || null,
-      acknowledgedAt: event.acknowledgedAt ? new Date(event.acknowledgedAt) : null,
-      resolvedAt: event.resolvedAt ? new Date(event.resolvedAt) : null,
-    }));
-  }, [apiEvents]);
 
   const getSeverityConfig = (severity: string) => {
     switch (severity) {
@@ -238,44 +274,49 @@ export function AlertingSystem() {
   });
 
   const handleAcknowledge = (eventId: number) => {
-    acknowledgeAlertMutation.mutate({ id: eventId });
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === eventId
+          ? { ...e, status: "acknowledged", acknowledgedBy: "Current User", acknowledgedAt: new Date() }
+          : e
+      )
+    );
+    toast.success("Alert acknowledged");
   };
 
-  const handleResolve = (eventId: number, note?: string) => {
-    resolveAlertMutation.mutate({ id: eventId, note });
+  const handleResolve = (eventId: number) => {
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === eventId ? { ...e, status: "resolved", resolvedAt: new Date() } : e
+      )
+    );
+    toast.success("Alert resolved");
   };
 
   const handleToggleRule = (ruleId: number, enabled: boolean) => {
-    updateRuleMutation.mutate({ id: ruleId, enabled });
+    setRules((prev) =>
+      prev.map((r) => (r.id === ruleId ? { ...r, enabled } : r))
+    );
     toast.success(enabled ? "Alert rule enabled" : "Alert rule disabled");
   };
 
   const handleEditRule = (ruleId: number) => {
     const rule = rules.find(r => r.id === ruleId);
     if (rule) {
+      // Open dialog with rule data pre-filled (simplified - just show info)
       toast.info(`Editing rule: ${rule.name}. Rule editing dialog will open.`);
       setShowAddRuleDialog(true);
     }
   };
 
   const handleDeleteRule = (ruleId: number) => {
-    // Would need a delete mutation
+    setRules((prev) => prev.filter((r) => r.id !== ruleId));
     toast.success("Alert rule deleted");
   };
 
   const openCount = events.filter((e) => e.status === "open").length;
   const acknowledgedCount = events.filter((e) => e.status === "acknowledged").length;
   const criticalCount = events.filter((e) => e.status === "open" && e.severity === "critical").length;
-
-  const isLoading = rulesLoading || eventsLoading;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -372,48 +413,50 @@ export function AlertingSystem() {
           </div>
 
           {/* Events List */}
-          <Card>
-            <ScrollArea className="h-[400px]">
-              <div className="divide-y divide-border">
-                {filteredEvents.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Bell className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                    <p>No alert events found</p>
-                  </div>
-                ) : (
-                  filteredEvents.map((event) => {
-                    const statusConfig = getStatusConfig(event.status);
+          <Card className="bg-card border-border">
+            <CardContent className="p-0">
+              <ScrollArea className="h-[500px]">
+                <div className="divide-y divide-border">
+                  {filteredEvents.map((event) => {
                     const severityConfig = getSeverityConfig(event.severity);
+                    const statusConfig = getStatusConfig(event.status);
                     const StatusIcon = statusConfig.icon;
 
                     return (
                       <div
                         key={event.id}
                         className={cn(
-                          "p-4 hover:bg-muted/50 cursor-pointer transition-colors",
-                          event.status === "open" && "border-l-4 border-l-destructive"
+                          "p-4 hover:bg-muted/20 cursor-pointer transition-colors",
+                          event.status === "open" && severityConfig.bg
                         )}
                         onClick={() => setSelectedEvent(event)}
                       >
                         <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-4">
                             <div className={cn("p-2 rounded-lg", severityConfig.bg)}>
-                              <StatusIcon className={cn("w-4 h-4", statusConfig.color)} />
+                              <AlertTriangle className={cn("w-5 h-5", severityConfig.color)} />
                             </div>
                             <div>
-                              <p className="font-medium">{event.ruleName}</p>
-                              <p className="text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium">{event.ruleName}</h3>
+                                <Badge variant="outline" className={cn("text-xs", severityConfig.color, severityConfig.border)}>
+                                  {event.severity}
+                                </Badge>
+                                <Badge variant="outline" className={cn("text-xs", statusConfig.color)}>
+                                  <StatusIcon className="w-3 h-3 mr-1" />
+                                  {statusConfig.label}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
                                 {event.site} • {event.device}
+                                {event.triggerValue !== null && ` • Value: ${event.triggerValue}`}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {event.triggeredAt.toLocaleString()}
+                                Triggered: {event.triggeredAt.toLocaleString()}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={severityConfig.color}>
-                              {event.severity}
-                            </Badge>
                             {event.status === "open" && (
                               <Button
                                 variant="outline"
@@ -426,130 +469,133 @@ export function AlertingSystem() {
                                 Acknowledge
                               </Button>
                             )}
+                            {event.status === "acknowledged" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleResolve(event.id);
+                                }}
+                              >
+                                Resolve
+                              </Button>
+                            )}
                             <ChevronRight className="w-4 h-4 text-muted-foreground" />
                           </div>
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
-            </ScrollArea>
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
           </Card>
         </TabsContent>
 
         {/* Alert Rules Tab */}
         <TabsContent value="rules" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {rules.length} rules configured • {rules.filter((r) => r.enabled).length} active
-            </p>
+          <div className="flex justify-end">
             <Button onClick={() => setShowAddRuleDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Rule
             </Button>
           </div>
 
-          <div className="grid gap-4">
-            {rules.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center text-muted-foreground">
-                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>No alert rules configured</p>
-                  <Button className="mt-4" onClick={() => setShowAddRuleDialog(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create First Rule
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              rules.map((rule) => {
-                const severityConfig = getSeverityConfig(rule.severity);
+          <Card className="bg-card border-border">
+            <CardContent className="p-0">
+              <ScrollArea className="h-[500px]">
+                <div className="divide-y divide-border">
+                  {rules.map((rule) => {
+                    const severityConfig = getSeverityConfig(rule.severity);
 
-                return (
-                  <Card key={rule.id} className={cn(!rule.enabled && "opacity-60")}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <Switch
-                            checked={rule.enabled}
-                            onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{rule.name}</p>
-                              <Badge variant="outline" className={severityConfig.color}>
-                                {rule.severity}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {rule.description}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                              <span>
-                                {rule.metricCode} {getConditionLabel(rule.condition)}{" "}
-                                {rule.threshold}
-                                {rule.thresholdUnit}
-                              </span>
-                              <span>Cooldown: {rule.cooldownMinutes}m</span>
-                              <span>Triggered: {rule.triggerCount}x</span>
+                    return (
+                      <div key={rule.id} className="p-4 hover:bg-muted/20">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <Switch
+                              checked={rule.enabled}
+                              onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className={cn("font-medium", !rule.enabled && "text-muted-foreground")}>
+                                  {rule.name}
+                                </h3>
+                                <Badge variant="outline" className={cn("text-xs", severityConfig.color, severityConfig.border)}>
+                                  {rule.severity}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">{rule.description}</p>
+                              <div className="flex items-center gap-4 mt-2">
+                                <span className="text-xs bg-muted px-2 py-1 rounded">
+                                  {rule.metricCode} {getConditionLabel(rule.condition)} {rule.threshold}{rule.thresholdUnit}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Cooldown: {rule.cooldownMinutes}m
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Triggered: {rule.triggerCount} times
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                {rule.notificationChannels.includes("email") && (
+                                  <Mail className="w-4 h-4 text-muted-foreground" />
+                                )}
+                                {rule.notificationChannels.includes("slack") && (
+                                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                                )}
+                                {rule.notificationChannels.includes("webhook") && (
+                                  <Webhook className="w-4 h-4 text-muted-foreground" />
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            {rule.notificationChannels.includes("email") && (
-                              <Mail className="w-4 h-4 text-muted-foreground" />
-                            )}
-                            {rule.notificationChannels.includes("slack") && (
-                              <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                            )}
-                            {rule.notificationChannels.includes("webhook") && (
-                              <Webhook className="w-4 h-4 text-muted-foreground" />
-                            )}
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditRule(rule.id)}
+                            >
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-destructive"
+                              onClick={() => handleDeleteRule(rule.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditRule(rule.id)}
-                          >
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteRule(rule.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
       {/* Add Rule Dialog */}
       <Dialog open={showAddRuleDialog} onOpenChange={setShowAddRuleDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Alert Rule</DialogTitle>
             <DialogDescription>
-              Configure a new alert rule to monitor your assets
+              Define conditions that trigger alerts
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Rule Name</Label>
-              <Input placeholder="e.g., Low Battery Alert" className="mt-1" />
+              <Input placeholder="e.g., Low Battery SOC" className="mt-1" />
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea placeholder="Describe what this rule monitors..." className="mt-1" />
+              <Textarea placeholder="Describe when this alert should trigger" className="mt-1" />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -703,13 +749,16 @@ export function AlertingSystem() {
             {selectedEvent?.status === "open" && (
               <Button onClick={() => {
                 handleAcknowledge(selectedEvent.id);
-                setSelectedEvent({ ...selectedEvent, status: "acknowledged" });
+                setSelectedEvent(null);
               }}>
                 Acknowledge
               </Button>
             )}
-            {selectedEvent?.status !== "resolved" && (
-              <Button variant="default" onClick={() => handleResolve(selectedEvent!.id)}>
+            {selectedEvent?.status === "acknowledged" && (
+              <Button onClick={() => {
+                handleResolve(selectedEvent.id);
+                setSelectedEvent(null);
+              }}>
                 Resolve
               </Button>
             )}
@@ -719,3 +768,5 @@ export function AlertingSystem() {
     </div>
   );
 }
+
+export default AlertingSystem;

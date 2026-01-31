@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { usePortalReadOnly } from './PortalLayout';
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,14 +35,6 @@ const DOCUMENT_CATEGORIES = [
 
 export default function PortalDocumentUpload() {
   const [, navigate] = useLocation();
-  const { isReadOnly } = usePortalReadOnly();
-  
-  // Redirect company users (read-only) away from upload page
-  useEffect(() => {
-    if (isReadOnly) {
-      navigate('/portal/documents');
-    }
-  }, [isReadOnly, navigate]);
 
   
   const [file, setFile] = useState<File | null>(null);

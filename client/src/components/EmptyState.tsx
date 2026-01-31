@@ -39,16 +39,16 @@ interface EmptyStateProps {
 }
 
 const iconMap: Record<EmptyStateType, ReactNode> = {
-  documents: <FileText className="w-12 h-12 stroke-[1.5]" />,
-  projects: <FolderOpen className="w-12 h-12 stroke-[1.5]" />,
-  tasks: <CheckSquare className="w-12 h-12 stroke-[1.5]" />,
-  reports: <BarChart3 className="w-12 h-12 stroke-[1.5]" />,
-  search: <Search className="w-12 h-12 stroke-[1.5]" />,
-  notifications: <Bell className="w-12 h-12 stroke-[1.5]" />,
-  users: <Users className="w-12 h-12 stroke-[1.5]" />,
-  schedule: <Calendar className="w-12 h-12 stroke-[1.5]" />,
-  alerts: <AlertTriangle className="w-12 h-12 stroke-[1.5]" />,
-  generic: <FolderOpen className="w-12 h-12 stroke-[1.5]" />,
+  documents: <FileText className="w-12 h-12 stroke-1" />,
+  projects: <FolderOpen className="w-12 h-12 stroke-1" />,
+  tasks: <CheckSquare className="w-12 h-12 stroke-1" />,
+  reports: <BarChart3 className="w-12 h-12 stroke-1" />,
+  search: <Search className="w-12 h-12 stroke-1" />,
+  notifications: <Bell className="w-12 h-12 stroke-1" />,
+  users: <Users className="w-12 h-12 stroke-1" />,
+  schedule: <Calendar className="w-12 h-12 stroke-1" />,
+  alerts: <AlertTriangle className="w-12 h-12 stroke-1" />,
+  generic: <FolderOpen className="w-12 h-12 stroke-1" />,
 };
 
 export function EmptyState({
@@ -67,7 +67,7 @@ export function EmptyState({
   if (icon) {
     if (typeof icon === 'function') {
       const IconComponent = icon as ComponentType<LucideProps>;
-      displayIcon = <IconComponent className="w-12 h-12 stroke-[1.5]" />;
+      displayIcon = <IconComponent className="w-12 h-12 stroke-1" />;
     } else {
       displayIcon = icon;
     }
@@ -76,25 +76,20 @@ export function EmptyState({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-20 h-20 rounded-2xl bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)] flex items-center justify-center mb-6 text-[var(--color-text-tertiary)]">
-        {displayIcon}
-      </div>
-      <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">{title}</h3>
-      <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mb-6 leading-relaxed">{description}</p>
+    <div className="empty-state">
+      <div className="empty-state-icon">{displayIcon}</div>
+      <h3 className="empty-state-title">{title}</h3>
+      <p className="empty-state-description">{description}</p>
       {action}
       {actionLabel && onAction && (
-        <Button 
-          onClick={onAction} 
-          className="bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] text-[var(--color-bg-base)] rounded-xl h-10 px-5"
-        >
+        <Button onClick={onAction} className="btn-primary">
           {actionLabel}
         </Button>
       )}
       {secondaryActionLabel && onSecondaryAction && (
         <button
           onClick={onSecondaryAction}
-          className="mt-4 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+          className="mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           {secondaryActionLabel} →
         </button>

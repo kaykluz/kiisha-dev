@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import AppLayout from '@/components/AppLayout';
+import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,7 +95,7 @@ export default function ConversationHistory() {
   };
 
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -294,6 +294,6 @@ export default function ConversationHistory() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

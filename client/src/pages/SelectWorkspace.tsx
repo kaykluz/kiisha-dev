@@ -1,15 +1,11 @@
 /**
  * Phase 35: Workspace Selection Page
  * 
- * Shown when user needs to select a workspace on every fresh login.
+ * Shown when user has multiple workspaces and needs to select one.
  * Also handles:
- * - 0 workspaces: Show pending access message with invite token input
- * - 1+ workspaces: Show selection UI with invite token option
- * 
- * IMPORTANT: This page is the "workspace selection wall" - users MUST
- * explicitly select a workspace on every fresh login, even if they have
- * an active organization from a previous session. This allows users to
- * enter invite tokens to join new organizations.
+ * - 0 workspaces: Show pending access message
+ * - 1 workspace: Auto-select and redirect
+ * - 2+ workspaces: Show selection UI
  */
 
 import { useEffect, useState } from "react";
@@ -18,22 +14,17 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, ChevronRight, Clock, AlertCircle, Plus, Ticket } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Building2, ChevronRight, Clock, AlertCircle } from "lucide-react";
 
 export default function SelectWorkspace() {
   const [, setLocation] = useLocation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showInviteInput, setShowInviteInput] = useState(false);
-  const [inviteToken, setInviteToken] = useState("");
-  const [tokenError, setTokenError] = useState<string | null>(null);
-  const [tokenSuccess, setTokenSuccess] = useState(false);
 
   // Get session state
-  const { data: session, isLoading: sessionLoading, refetch: refetchSession } = trpc.authSession.getSession.useQuery();
+  const { data: session, isLoading: sessionLoading } = trpc.authSession.getSession.useQuery();
   
   // Get available workspaces
-  const { data: workspaces, isLoading: workspacesLoading, refetch: refetchWorkspaces } = trpc.authSession.listWorkspaces.useQuery(
+  const { data: workspaces, isLoading: workspacesLoading } = trpc.authSession.listWorkspaces.useQuery(
     undefined,
     { enabled: session?.authenticated }
   );
@@ -41,34 +32,21 @@ export default function SelectWorkspace() {
   // Select workspace mutation
   const selectMutation = trpc.authSession.selectWorkspace.useMutation({
     onSuccess: () => {
-      // Redirect to dashboard after selection
-      setLocation("/dashboard");
+      // Redirect to app after selection
+      setLocation("/app");
     },
   });
 
-  // Accept invitation mutation
-  const acceptInviteMutation = trpc.signup.acceptInvitation.useMutation({
-    onSuccess: () => {
-      setTokenSuccess(true);
-      setTokenError(null);
-      setInviteToken("");
-      // Refetch workspaces to show the new one
-      setTimeout(() => {
-        refetchWorkspaces();
-        refetchSession();
-        setShowInviteInput(false);
-      }, 1000);
-    },
-    onError: (err) => {
-      setTokenError(err.message || "Invalid or expired invitation token");
-      setTokenSuccess(false);
-    },
-  });
-
-  // Redirect to pending access if no workspaces
+  // Handle auto-selection for single workspace
   useEffect(() => {
-    if (!sessionLoading && !workspacesLoading && workspaces && workspaces.length === 0) {
-      setLocation("/pending-access");
+    if (!sessionLoading && !workspacesLoading && workspaces) {
+      if (workspaces.length === 1) {
+        // Auto-select single workspace
+        selectMutation.mutate({ organizationId: workspaces[0]!.id });
+      } else if (workspaces.length === 0) {
+        // No workspaces - redirect to pending access
+        setLocation("/pending-access");
+      }
     }
   }, [sessionLoading, workspacesLoading, workspaces]);
 
@@ -79,29 +57,16 @@ export default function SelectWorkspace() {
     }
   }, [sessionLoading, session]);
 
-  // WORKSPACE SELECTION WALL: Only redirect to dashboard if:
-  // 1. User has an active organization AND
-  // 2. workspaceSelectionRequired is FALSE (user already selected in this session)
-  // This ensures fresh logins always show the workspace selection
+  // Redirect if already has active workspace
   useEffect(() => {
-    if (session?.activeOrganizationId && session?.workspaceSelectionRequired === false) {
-      setLocation("/dashboard");
+    if (session?.activeOrganizationId) {
+      setLocation("/app");
     }
   }, [session]);
 
   const handleSelect = (organizationId: number) => {
     setSelectedId(organizationId);
     selectMutation.mutate({ organizationId });
-  };
-
-  const handleTokenSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteToken.trim()) {
-      setTokenError("Please enter an invitation token");
-      return;
-    }
-    setTokenError(null);
-    acceptInviteMutation.mutate({ token: inviteToken.trim() });
   };
 
   if (sessionLoading || workspacesLoading) {
@@ -122,8 +87,19 @@ export default function SelectWorkspace() {
     );
   }
 
-  // Pre-select the user's last active organization if available
-  const previousOrgId = session?.activeOrganizationId;
+  // Show loading while auto-selecting single workspace
+  if (workspaces?.length === 1) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+            <p className="text-muted-foreground">Entering workspace...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -143,121 +119,37 @@ export default function SelectWorkspace() {
           )}
 
           <div className="space-y-3">
-            {workspaces?.filter(Boolean).map((workspace) => {
-              const isPreviousOrg = workspace!.id === previousOrgId;
-              return (
-                <button
-                  key={workspace!.id}
-                  onClick={() => handleSelect(workspace!.id)}
-                  disabled={selectMutation.isPending}
-                  className={`w-full p-4 rounded-lg border transition-all text-left flex items-center gap-4 ${
-                    selectedId === workspace!.id
-                      ? "border-primary bg-primary/5"
-                      : isPreviousOrg
-                      ? "border-primary/30 bg-primary/5"
-                      : "border-border hover:border-primary/50 hover:bg-accent/50"
-                  } ${selectMutation.isPending ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {workspace!.logoUrl ? (
-                    <img
-                      src={workspace!.logoUrl}
-                      alt={workspace!.name}
-                      className="h-10 w-10 rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-primary" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate flex items-center gap-2">
-                      {workspace!.name}
-                      {isPreviousOrg && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          Last used
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground capitalize">
-                      {workspace!.role}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </button>
-              );
-            })}
-
-            {/* Join another organization option */}
-            {!showInviteInput ? (
+            {workspaces?.filter(Boolean).map((workspace) => (
               <button
-                onClick={() => setShowInviteInput(true)}
-                className="w-full p-4 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-4"
+                key={workspace!.id}
+                onClick={() => handleSelect(workspace!.id)}
+                disabled={selectMutation.isPending}
+                className={`w-full p-4 rounded-lg border transition-all text-left flex items-center gap-4 ${
+                  selectedId === workspace!.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-accent/50"
+                } ${selectMutation.isPending ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-muted-foreground" />
-                </div>
+                {workspace!.logoUrl ? (
+                  <img
+                    src={workspace!.logoUrl}
+                    alt={workspace!.name}
+                    className="h-10 w-10 rounded-md object-cover"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-muted-foreground">Join another organization</div>
-                  <div className="text-sm text-muted-foreground">
-                    Enter an invitation token
+                  <div className="font-medium truncate">{workspace!.name}</div>
+                  <div className="text-sm text-muted-foreground capitalize">
+                    {workspace!.role}
                   </div>
                 </div>
-                <Ticket className="h-5 w-5 text-muted-foreground" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </button>
-            ) : (
-              <div className="p-4 rounded-lg border border-border bg-muted/30">
-                <form onSubmit={handleTokenSubmit} className="space-y-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ticket className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Enter invitation token</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      value={inviteToken}
-                      onChange={(e) => setInviteToken(e.target.value)}
-                      placeholder="Paste your invitation token"
-                      className="flex-1"
-                      disabled={acceptInviteMutation.isPending}
-                    />
-                    <Button
-                      type="submit"
-                      disabled={acceptInviteMutation.isPending || !inviteToken.trim()}
-                      size="sm"
-                    >
-                      {acceptInviteMutation.isPending ? "Joining..." : "Join"}
-                    </Button>
-                  </div>
-                  
-                  {tokenError && (
-                    <div className="p-2 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-xs">
-                      <AlertCircle className="h-3 w-3 flex-shrink-0" />
-                      {tokenError}
-                    </div>
-                  )}
-                  
-                  {tokenSuccess && (
-                    <div className="p-2 bg-green-100 border border-green-200 rounded-md text-green-700 text-xs text-center">
-                      Successfully joined! Refreshing...
-                    </div>
-                  )}
-                  
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-muted-foreground"
-                    onClick={() => {
-                      setShowInviteInput(false);
-                      setInviteToken("");
-                      setTokenError(null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </form>
-              </div>
-            )}
+            ))}
           </div>
 
           {session?.user && (
@@ -277,44 +169,9 @@ export default function SelectWorkspace() {
  */
 export function PendingAccess() {
   const [, setLocation] = useLocation();
-  const [inviteToken, setInviteToken] = useState("");
-  const [tokenError, setTokenError] = useState<string | null>(null);
-  const [tokenSuccess, setTokenSuccess] = useState(false);
-  const [showCreateOrg, setShowCreateOrg] = useState(false);
-  const [orgName, setOrgName] = useState("");
-  const [orgDescription, setOrgDescription] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-  
-  const { data: session, isLoading, refetch } = trpc.authSession.getSession.useQuery();
+  const { data: session, isLoading } = trpc.authSession.getSession.useQuery();
   const logoutMutation = trpc.authSession.logout.useMutation({
     onSuccess: () => setLocation("/login"),
-  });
-
-  // Accept invitation mutation
-  const acceptInviteMutation = trpc.signup.acceptInvitation.useMutation({
-    onSuccess: () => {
-      setTokenSuccess(true);
-      setTokenError(null);
-      // Refetch session to get updated workspace count
-      setTimeout(() => {
-        refetch();
-      }, 500);
-    },
-    onError: (err) => {
-      setTokenError(err.message || "Invalid or expired invitation token");
-      setTokenSuccess(false);
-    },
-  });
-
-  // Create organization mutation
-  const createOrgMutation = trpc.authSession.createOrganization.useMutation({
-    onSuccess: () => {
-      // Redirect to dashboard after creating org
-      setLocation("/dashboard");
-    },
-    onError: (err) => {
-      setCreateError(err.message || "Failed to create organization");
-    },
   });
 
   // Redirect if not authenticated
@@ -330,29 +187,6 @@ export function PendingAccess() {
       setLocation("/select-workspace");
     }
   }, [session]);
-
-  const handleTokenSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteToken.trim()) {
-      setTokenError("Please enter an invitation token");
-      return;
-    }
-    setTokenError(null);
-    acceptInviteMutation.mutate({ token: inviteToken.trim() });
-  };
-
-  const handleCreateOrg = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!orgName.trim()) {
-      setCreateError("Please enter an organization name");
-      return;
-    }
-    setCreateError(null);
-    createOrgMutation.mutate({ 
-      name: orgName.trim(),
-      description: orgDescription.trim() || undefined,
-    });
-  };
 
   if (isLoading) {
     return (
@@ -374,150 +208,12 @@ export function PendingAccess() {
             Your account has been created, but you don't have access to any workspaces yet.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground text-center">
-            Please contact your organization administrator to request access, or enter an invitation token below.
+        <CardContent className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Please contact your organization administrator to request access, or wait for an invitation.
           </p>
           
-          {/* Invite Token Input */}
-          <form onSubmit={handleTokenSubmit} className="space-y-3">
-            <div className="space-y-2">
-              <label htmlFor="invite-token" className="text-sm font-medium">
-                Have an invitation token?
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="invite-token"
-                  type="text"
-                  value={inviteToken}
-                  onChange={(e) => setInviteToken(e.target.value)}
-                  placeholder="Enter your invitation token"
-                  className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  disabled={acceptInviteMutation.isPending}
-                />
-                <Button
-                  type="submit"
-                  disabled={acceptInviteMutation.isPending || !inviteToken.trim()}
-                >
-                  {acceptInviteMutation.isPending ? "Joining..." : "Join"}
-                </Button>
-              </div>
-            </div>
-            
-            {tokenError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {tokenError}
-              </div>
-            )}
-            
-            {tokenSuccess && (
-              <div className="p-3 bg-green-100 border border-green-200 rounded-md text-green-700 text-sm text-center">
-                Successfully joined! Redirecting...
-              </div>
-            )}
-          </form>
-
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or</span>
-            </div>
-          </div>
-
-          {/* Create Organization Option */}
-          {!showCreateOrg ? (
-            <button
-              onClick={() => setShowCreateOrg(true)}
-              className="w-full p-4 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-4"
-            >
-              <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium">Create your own organization</div>
-                <div className="text-sm text-muted-foreground">
-                  Start a new workspace for your team
-                </div>
-              </div>
-              <Plus className="h-5 w-5 text-muted-foreground" />
-            </button>
-          ) : (
-            <div className="p-4 rounded-lg border border-border bg-muted/30">
-              <form onSubmit={handleCreateOrg} className="space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Create new organization</span>
-                </div>
-                
-                <div className="space-y-2">
-                  <label htmlFor="org-name" className="text-sm font-medium">
-                    Organization name *
-                  </label>
-                  <input
-                    id="org-name"
-                    type="text"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="e.g., Acme Corporation"
-                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    disabled={createOrgMutation.isPending}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label htmlFor="org-description" className="text-sm font-medium">
-                    Description (optional)
-                  </label>
-                  <input
-                    id="org-description"
-                    type="text"
-                    value={orgDescription}
-                    onChange={(e) => setOrgDescription(e.target.value)}
-                    placeholder="Brief description of your organization"
-                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    disabled={createOrgMutation.isPending}
-                  />
-                </div>
-                
-                {createError && (
-                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2 text-destructive text-sm">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                    {createError}
-                  </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setShowCreateOrg(false);
-                      setOrgName("");
-                      setOrgDescription("");
-                      setCreateError(null);
-                    }}
-                    disabled={createOrgMutation.isPending}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={createOrgMutation.isPending || !orgName.trim()}
-                  >
-                    {createOrgMutation.isPending ? "Creating..." : "Create Organization"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          )}
-          
-          <div className="pt-4 border-t text-center">
+          <div className="pt-4 border-t">
             <Button
               variant="outline"
               onClick={() => logoutMutation.mutate()}
@@ -528,7 +224,7 @@ export function PendingAccess() {
           </div>
 
           {session?.user && (
-            <div className="text-sm text-muted-foreground text-center">
+            <div className="text-sm text-muted-foreground">
               Signed in as {session.user.email || session.user.name}
             </div>
           )}
