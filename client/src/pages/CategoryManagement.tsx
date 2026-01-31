@@ -215,24 +215,23 @@ export default function CategoryManagement() {
     setEditColor(category.color || "#3B82F6");
   };
 
+  const updateCategoryMutation = trpc.documentCategories.updateCategory.useMutation({
+    onSuccess: () => { toast.success("Category updated"); setEditingCategory(null); },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteCategoryMutation = trpc.documentCategories.deleteCategory.useMutation({
+    onSuccess: () => { toast.success("Category deleted"); setDeletingCategory(null); },
+    onError: (err) => toast.error(err.message),
+  });
+
   const handleSaveCategory = () => {
     if (!editingCategory) return;
-    
-    // TODO: Call tRPC mutation to update category
-    toast.success("Category updated", {
-      description: `${editName} has been updated successfully.`,
-    });
-    setEditingCategory(null);
+    updateCategoryMutation.mutate({ id: editingCategory.id, name: editName, description: editDescription, color: editColor });
   };
 
   const handleDeleteCategory = () => {
     if (!deletingCategory) return;
-    
-    // TODO: Call tRPC mutation to delete category
-    toast.success("Category deleted", {
-      description: `${deletingCategory.name} has been deleted.`,
-    });
-    setDeletingCategory(null);
+    deleteCategoryMutation.mutate({ id: deletingCategory.id });
     if (selectedCategory?.id === deletingCategory.id) {
       setSelectedCategory(null);
     }
@@ -244,24 +243,23 @@ export default function CategoryManagement() {
     setEditDescription(type.description || "");
   };
 
+  const updateTypeMutation = trpc.documentCategories.updateDocumentType.useMutation({
+    onSuccess: () => { toast.success("Document type updated"); setEditingType(null); },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteTypeMutation = trpc.documentCategories.deleteDocumentType.useMutation({
+    onSuccess: () => { toast.success("Document type deleted"); setDeletingType(null); },
+    onError: (err) => toast.error(err.message),
+  });
+
   const handleSaveType = () => {
     if (!editingType) return;
-    
-    // TODO: Call tRPC mutation to update document type
-    toast.success("Document type updated", {
-      description: `${editName} has been updated successfully.`,
-    });
-    setEditingType(null);
+    updateTypeMutation.mutate({ id: editingType.id, name: editName, description: editDescription });
   };
 
   const handleDeleteType = () => {
     if (!deletingType) return;
-    
-    // TODO: Call tRPC mutation to delete document type
-    toast.success("Document type deleted", {
-      description: `${deletingType.name} has been deleted.`,
-    });
-    setDeletingType(null);
+    deleteTypeMutation.mutate({ id: deletingType.id });
   };
 
   return (

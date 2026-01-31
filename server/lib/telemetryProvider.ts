@@ -330,19 +330,82 @@ export class PrometheusTelemetryProvider implements TelemetryQueryProvider {
     this.baseUrl = baseUrl;
   }
 
-  async query(_query: TelemetryQuery): Promise<TelemetryResult> {
-    // TODO: Implement Prometheus query_range API
-    throw new Error('Prometheus provider not yet implemented');
+  async query(query: TelemetryQuery): Promise<TelemetryResult> {
+    const startTime = Date.now();
+    const step = this.intervalToSeconds(query.interval || '1h');
+    const metricsExpr = query.metrics.map(m => `{__name__="${m}"}`).join(' or ');
+    const promQuery = query.aggregation
+      ? `${query.aggregation}_over_time(${metricsExpr}[${query.interval || '1h'}])`
+      : metricsExpr;
+
+    const params = new URLSearchParams({
+      query: promQuery,
+      start: (query.timeRange.from.getTime() / 1000).toString(),
+      end: (query.timeRange.to.getTime() / 1000).toString(),
+      step: step.toString(),
+    });
+
+    const response = await fetch(`${this.baseUrl}/api/v1/query_range?${params}`);
+    if (!response.ok) throw new Error(`Prometheus query failed: ${response.status}`);
+
+    const data = await response.json();
+    const series: TelemetrySeries[] = (data.data?.result || []).map((r: any) => ({
+      metric: r.metric?.__name__ || 'unknown',
+      labels: r.metric || {},
+      dataPoints: (r.values || []).map(([ts, val]: [number, string]) => ({
+        timestamp: new Date(ts * 1000),
+        value: parseFloat(val),
+        metric: r.metric?.__name__ || 'unknown',
+      })),
+    }));
+
+    return { series, query, executionTimeMs: Date.now() - startTime };
   }
 
-  async getSummary(_query: Omit<TelemetryQuery, 'interval' | 'aggregation'>): Promise<TelemetrySummary[]> {
-    // TODO: Implement Prometheus instant query for summary
-    throw new Error('Prometheus provider not yet implemented');
+  async getSummary(query: Omit<TelemetryQuery, 'interval' | 'aggregation'>): Promise<TelemetrySummary[]> {
+    const summaries: TelemetrySummary[] = [];
+    for (const metric of query.metrics) {
+      const fns = ['avg', 'min', 'max', 'count'] as const;
+      const results: Record<string, number> = {};
+
+      for (const fn of fns) {
+        const duration = Math.floor((query.timeRange.to.getTime() - query.timeRange.from.getTime()) / 1000);
+        const promQuery = `${fn}_over_time({__name__="${metric}"}[${duration}s])`;
+        const params = new URLSearchParams({ query: promQuery, time: (query.timeRange.to.getTime() / 1000).toString() });
+        const response = await fetch(`${this.baseUrl}/api/v1/query?${params}`);
+        if (response.ok) {
+          const data = await response.json();
+          const val = data.data?.result?.[0]?.value?.[1];
+          results[fn] = val ? parseFloat(val) : 0;
+        }
+      }
+
+      summaries.push({
+        metric,
+        current: results.avg || 0,
+        min: results.min || 0,
+        max: results.max || 0,
+        avg: results.avg || 0,
+        total: (results.avg || 0) * (results.count || 0),
+        count: results.count || 0,
+      });
+    }
+    return summaries;
   }
 
   async getAvailableMetrics(_orgId: number, _projectIds?: number[]): Promise<string[]> {
-    // TODO: Implement Prometheus label values API
-    throw new Error('Prometheus provider not yet implemented');
+    const response = await fetch(`${this.baseUrl}/api/v1/label/__name__/values`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.data || [];
+  }
+
+  private intervalToSeconds(interval: string): number {
+    const match = interval.match(/^(\d+)([smhd])$/);
+    if (!match) return 3600;
+    const [, num, unit] = match;
+    const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+    return parseInt(num) * (multipliers[unit] || 3600);
   }
 
   async healthCheck(): Promise<ProviderHealth> {

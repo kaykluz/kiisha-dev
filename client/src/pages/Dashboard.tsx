@@ -1,4 +1,5 @@
 import AppLayout, { useProject } from "@/components/AppLayout";
+import { useAuth } from "@/contexts/AuthProvider";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
@@ -89,11 +90,13 @@ const MAP_COLOR_OPTIONS = [
 
 function DashboardContent() {
   const { selectedProjectId, setSelectedProjectId } = useProject();
+  const { state } = useAuth();
+  const orgId = state?.activeOrganization?.id ?? 1;
   const summary = getPortfolioSummary();
   
   // Fetch customer stats for portal card
   const { data: customerStats } = trpc.customerPortal.getCustomerStats.useQuery(
-    { orgId: 1 }, // TODO: Get from user context
+    { orgId },
     { staleTime: 60000 } // Cache for 1 minute
   );
   

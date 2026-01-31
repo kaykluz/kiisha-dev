@@ -10,6 +10,10 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { storageGetContent, isUsingLocalStorage } from "../storage";
 import { getDb } from "../db";
+import { handleStripeWebhook } from "../stripe/webhook";
+import { handleGrafanaAlertWebhook } from "../grafana/alertWebhookBridge";
+import { parseSendGridEmail, parseMailgunEmail, autoFileEmail, verifyMailgunSignature } from "../services/emailInbound";
+import { ENV } from "./env";
 
 // Simple in-memory rate limiter
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -78,6 +82,9 @@ async function startServer() {
 
   // Cookie parser - MUST be before routes that access req.cookies
   app.use(cookieParser());
+
+  // Stripe webhook - MUST be before express.json() for raw body signature verification
+  app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
@@ -202,6 +209,37 @@ async function startServer() {
     return res.status(403).send('Forbidden');
   });
   
+  // Grafana alert webhook
+  app.post('/api/webhooks/grafana/alerts', handleGrafanaAlertWebhook);
+
+  // Email inbound webhooks (SendGrid & Mailgun)
+  app.post('/api/webhooks/email/sendgrid', async (req, res) => {
+    try {
+      const email = parseSendGridEmail(req.body, (req as any).files || []);
+      const result = await autoFileEmail(email);
+      res.json(result);
+    } catch (error) {
+      console.error('[Email Inbound] SendGrid processing error:', error);
+      res.status(500).json({ error: 'Failed to process inbound email' });
+    }
+  });
+
+  app.post('/api/webhooks/email/mailgun', async (req, res) => {
+    try {
+      // Verify Mailgun signature
+      const { timestamp, token, signature } = req.body;
+      if (ENV.mailgunApiKey && !verifyMailgunSignature(ENV.mailgunApiKey, timestamp, token, signature)) {
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+      const email = parseMailgunEmail(req.body, (req as any).files || []);
+      const result = await autoFileEmail(email);
+      res.json(result);
+    } catch (error) {
+      console.error('[Email Inbound] Mailgun processing error:', error);
+      res.status(500).json({ error: 'Failed to process inbound email' });
+    }
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
@@ -251,6 +289,10 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // Start OpenClaw cron scheduler in production
+    if (process.env.NODE_ENV === "production") {
+      import('../services/openclawCronScheduler').then(m => m.startCronScheduler());
+    }
   });
 }
 

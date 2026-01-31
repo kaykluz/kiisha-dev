@@ -3009,7 +3009,7 @@ Respond with JSON array of extractions.`;
         
         // Create ingested file record
         await db.createIngestedFile({
-          organizationId: 1, // TODO: Get from user context
+          organizationId: ctx.user.activeOrgId || 1,
           projectId: input.projectId,
           originalFilename: input.filename,
           fileType: input.fileType,

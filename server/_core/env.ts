@@ -21,4 +21,7 @@ export const ENV = {
   // Grafana
   grafanaUrl: process.env.GRAFANA_URL ?? "",
   grafanaAdminToken: process.env.GRAFANA_ADMIN_TOKEN ?? "",
+
+  // Email Inbound
+  mailgunApiKey: process.env.MAILGUN_API_KEY ?? "",
 };

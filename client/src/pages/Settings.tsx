@@ -115,8 +115,6 @@ export default function Settings() {
               description="Configure your notification preferences and alert settings."
               icon={<Bell className="h-5 w-5" />}
               path="/profile"
-              badge="Coming Soon"
-              badgeVariant="outline"
             />
           </div>
         </div>
@@ -175,8 +173,7 @@ export default function Settings() {
                 description="Configure incoming webhooks for WhatsApp, email, and third-party integrations."
                 icon={<Webhook className="h-5 w-5" />}
                 path="/settings/integrations"
-                badge="Coming Soon"
-                badgeVariant="outline"
+                badge="Active"
                 adminOnly
               />
               <SettingsCard
@@ -212,17 +209,13 @@ export default function Settings() {
                 description="Manage API keys for programmatic access to KIISHA services."
                 icon={<Key className="h-5 w-5" />}
                 path="/settings/integrations"
-                badge="Coming Soon"
-                badgeVariant="outline"
                 adminOnly
               />
               <SettingsCard
                 title="Organization"
                 description="Manage organization settings, team members, and access permissions."
                 icon={<Globe className="h-5 w-5" />}
-                path="/settings/integrations"
-                badge="Coming Soon"
-                badgeVariant="outline"
+                path="/settings/organization"
                 adminOnly
               />
             </div>

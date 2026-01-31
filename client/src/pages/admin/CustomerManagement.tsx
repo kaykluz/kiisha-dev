@@ -12,9 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/contexts/AuthProvider";
 import { Plus, Search, Mail, Building2, Users, FileText, CreditCard, Send, Eye, Trash2, Edit } from "lucide-react";
 
 export default function CustomerManagement() {
+  const { state } = useAuth();
+  const orgId = state?.activeOrganization?.id ?? 1;
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -34,7 +37,7 @@ export default function CustomerManagement() {
   const [inviteEmail, setInviteEmail] = useState("");
 
   const { data: customers, isLoading, refetch } = trpc.customerPortal.listCustomers.useQuery({
-    orgId: 1, // TODO: Get from user context
+    orgId,
     search: searchQuery || undefined,
     limit: 50,
   });
@@ -80,7 +83,7 @@ export default function CustomerManagement() {
       return;
     }
     createCustomerMutation.mutate({
-      orgId: 1, // TODO: Get from user context
+      orgId,
       code: newCustomer.company?.replace(/\s+/g, '-').toUpperCase() || `CUST-${Date.now()}`,
       name: newCustomer.name,
       companyName: newCustomer.company,
