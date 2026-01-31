@@ -280,6 +280,31 @@ export class KiishaClient {
   }
   
   /**
+   * Acknowledge an alert
+   */
+  async acknowledgeAlert(params: {
+    alertId: number;
+    organizationId: number;
+    userId: number;
+  }): Promise<{ success: boolean; message?: string }> {
+    try {
+      // Send as a chat message through handleEvent which routes to the acknowledge_alert skill
+      const response = await this.client.post("/api/trpc/openclaw.handleEvent", {
+        json: {
+          channel: "webchat",
+          sender: { externalId: `user-${params.userId}`, displayName: "Bridge" },
+          content: { type: "text", text: `Acknowledge alert ${params.alertId}` },
+          metadata: { organizationId: params.organizationId },
+        },
+      });
+      return { success: true, message: response.data?.result?.data?.response };
+    } catch (error) {
+      console.error("[KIISHA Client] Error acknowledging alert:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Check capability access
    */
   async checkCapability(params: {

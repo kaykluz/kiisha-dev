@@ -427,11 +427,11 @@ function createAcknowledgeAlertSkill(client: KiishaClient): OpenClawSkill {
 
       try {
         // Check capability access — this is a medium-risk operation
-        const capCheck = await client.checkCapability(
-          context.organizationId,
-          context.userId,
-          "kiisha.alert.acknowledge"
-        );
+        const capCheck = await client.checkCapability({
+          organizationId: context.organizationId,
+          userId: context.userId,
+          capabilityId: "kiisha.alert.acknowledge",
+        });
 
         if (!capCheck.allowed) {
           return {
@@ -447,6 +447,7 @@ function createAcknowledgeAlertSkill(client: KiishaClient): OpenClawSkill {
             userId: context.userId,
             capabilityId: "kiisha.alert.acknowledge",
             summary: `Acknowledge alert #${alertId}${reason ? `: ${reason}` : ""}`,
+            taskSpec: { action: "acknowledge_alert", alertId, reason },
           });
 
           return {
@@ -460,12 +461,17 @@ function createAcknowledgeAlertSkill(client: KiishaClient): OpenClawSkill {
           };
         }
 
-        // Direct acknowledgment (no approval needed — low-risk or admin user)
-        // Note: actual alert resolution would call the KIISHA API
+        // Direct acknowledgment via KIISHA API
+        const ackResult = await client.acknowledgeAlert({
+          alertId,
+          organizationId: context.organizationId,
+          userId: context.userId,
+        });
+
         return {
           success: true,
           data: { alertId, acknowledged: true },
-          message: `✅ Alert #${alertId} has been acknowledged.${reason ? `\nReason: ${reason}` : ""}`,
+          message: ackResult.message || `✅ Alert #${alertId} has been acknowledged.${reason ? `\nReason: ${reason}` : ""}`,
         };
       } catch (error) {
         return {
