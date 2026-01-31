@@ -6,7 +6,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto rounded-2xl border border-border/40 bg-card"
+      className="relative w-full overflow-x-auto"
     >
       <table
         data-slot="table"
@@ -21,7 +21,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-muted/20 sticky top-0 z-10 [&_tr]:border-b [&_tr]:border-border/40", className)}
+      className={cn("[&_tr]:border-b", className)}
       {...props}
     />
   );
@@ -42,7 +42,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "bg-muted/20 border-t border-border/40 font-medium [&>tr]:last:border-b-0",
+        "bg-muted/50 border-t font-medium [&>tr]:last:border-b-0",
         className
       )}
       {...props}
@@ -55,7 +55,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/30 data-[state=selected]:bg-primary/5 border-b border-border/20 transition-colors duration-150",
+        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
         className
       )}
       {...props}
@@ -68,7 +68,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-muted-foreground h-10 px-4 text-left align-middle text-[11px] font-medium uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}
@@ -81,7 +81,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "px-4 py-3.5 align-middle whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}
@@ -102,30 +102,6 @@ function TableCaption({
   );
 }
 
-// Enhanced table components for pagination
-function TablePagination({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="table-pagination"
-      className={cn(
-        "flex items-center justify-between px-4 py-3 border-t border-border/40",
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-function TablePaginationInfo({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="table-pagination-info"
-      className={cn("text-sm text-muted-foreground", className)}
-      {...props}
-    />
-  );
-}
-
 export {
   Table,
   TableHeader,
@@ -135,6 +111,4 @@ export {
   TableRow,
   TableCell,
   TableCaption,
-  TablePagination,
-  TablePaginationInfo,
 };

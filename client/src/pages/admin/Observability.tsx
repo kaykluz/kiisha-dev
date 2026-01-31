@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,21 +179,18 @@ export default function Observability() {
     toast.success("Webhook removed");
   };
 
-  // Allow admin, superuser_admin roles, or users with isSuperuser flag
-  const isAuthorized = user && (user.role === 'admin' || user.role === 'superuser_admin' || user.isSuperuser);
-  
-  if (!isAuthorized) {
+  if (!user || user.role !== "admin") {
     return (
-      <AppLayout>
+      <DashboardLayout>
         <div className="flex items-center justify-center h-full">
           <p className="text-muted-foreground">Access denied. Admin role required.</p>
         </div>
-      </AppLayout>
+      </DashboardLayout>
     );
   }
 
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -931,6 +928,6 @@ export default function Observability() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

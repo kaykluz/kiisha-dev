@@ -150,8 +150,12 @@ export function ArtifactUploader({ open, onOpenChange, projectId, onUploadComple
 
   const uploadMutation = trpc.artifacts.upload.useMutation();
 
-  // Fetch projects from API
-  const { data: projects = [] } = trpc.projects.list.useQuery();
+  // Mock projects for selection
+  const mockProjects = [
+    { id: 1, name: 'MA - Gillette BTM' },
+    { id: 2, name: 'NY - Saratoga CDG 1' },
+    { id: 3, name: 'CT - Hartford Solar' },
+  ];
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -501,7 +505,7 @@ export function ArtifactUploader({ open, onOpenChange, projectId, onUploadComple
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">No project</SelectItem>
-                      {(projects as any[]).map((project: any) => (
+                      {mockProjects.map((project) => (
                         <SelectItem key={project.id} value={project.id.toString()}>
                           {project.name}
                         </SelectItem>

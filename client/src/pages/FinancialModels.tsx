@@ -39,7 +39,6 @@ import {
   LineChart,
   PieChart,
   Zap,
-  Loader2,
 } from "lucide-react";
 import { Drawer, DrawerSection, DrawerFieldGrid, DrawerField } from "@/components/Drawer";
 import { EmptyState } from "@/components/EmptyState";
@@ -49,9 +48,9 @@ import { BulkUploadButton } from "@/components/BulkUploadDialog";
 import { VarianceAlertSettingsButton } from "@/components/VarianceAlertSettings";
 import { ExportReportButton } from "@/components/ExportReportDialog";
 import { SkeletonTable } from "@/components/Skeleton";
-import { trpc } from "@/lib/trpc";
+import { mockProjects } from "@shared/mockData";
 
-// Financial model types
+// Mock financial model data
 interface FinancialModelMetrics {
   npv: number;
   irr: number;
@@ -106,6 +105,171 @@ interface FinancialModel {
   isCurrentVersion: boolean;
 }
 
+const mockFinancialModels: FinancialModel[] = [
+  {
+    id: 1,
+    projectId: 1,
+    name: "MA Gillette - Base Case Model",
+    version: 3,
+    modelType: "project_finance",
+    status: "approved",
+    stage: "development",
+    baseCase: true,
+    scenarioName: null,
+    fileName: "MA_Gillette_Financial_Model_v3.xlsx",
+    fileSize: 2450000,
+    uploadedBy: "Sarah Chen",
+    uploadedAt: "2026-01-15T10:30:00Z",
+    extractionStatus: "completed",
+    extractionConfidence: 0.95,
+    metrics: {
+      npv: 4250000,
+      irr: 0.142,
+      paybackYears: 6.8,
+      moic: 1.85,
+      totalCapex: 15600000,
+      totalRevenue: 52000000,
+      avgEbitda: 1850000,
+      dscr: 1.35,
+      minDscr: 1.25,
+      debtAmount: 10920000,
+      equityAmount: 4680000,
+      leverageRatio: 0.70,
+      annualProductionMwh: 22500,
+      capacityFactor: 0.205,
+      ppaRate: 0.085,
+      escalationRate: 0.02,
+      projectLifeYears: 25,
+      codDate: "2026-09-01",
+    },
+    cashFlows: [
+      { year: 1, calendarYear: 2027, revenue: 1912500, opex: 312500, ebitda: 1600000, debtService: 1185000, freeCashFlow: 415000, dscr: 1.35, productionMwh: 22500 },
+      { year: 2, calendarYear: 2028, revenue: 1950750, opex: 318750, ebitda: 1632000, debtService: 1185000, freeCashFlow: 447000, dscr: 1.38, productionMwh: 22275 },
+      { year: 3, calendarYear: 2029, revenue: 1989765, opex: 325125, ebitda: 1664640, debtService: 1185000, freeCashFlow: 479640, dscr: 1.40, productionMwh: 22052 },
+      { year: 4, calendarYear: 2030, revenue: 2029560, opex: 331628, ebitda: 1697932, debtService: 1185000, freeCashFlow: 512932, dscr: 1.43, productionMwh: 21832 },
+      { year: 5, calendarYear: 2031, revenue: 2070151, opex: 338260, ebitda: 1731891, debtService: 1185000, freeCashFlow: 546891, dscr: 1.46, productionMwh: 21613 },
+    ],
+    isCurrentVersion: true,
+  },
+  {
+    id: 2,
+    projectId: 1,
+    name: "MA Gillette - Downside Scenario",
+    version: 1,
+    modelType: "project_finance",
+    status: "review",
+    stage: "development",
+    baseCase: false,
+    scenarioName: "P90 Production",
+    fileName: "MA_Gillette_Downside_v1.xlsx",
+    fileSize: 2380000,
+    uploadedBy: "Mike Johnson",
+    uploadedAt: "2026-01-14T14:20:00Z",
+    extractionStatus: "completed",
+    extractionConfidence: 0.92,
+    metrics: {
+      npv: 2850000,
+      irr: 0.118,
+      paybackYears: 8.2,
+      moic: 1.62,
+      totalCapex: 15600000,
+      totalRevenue: 46800000,
+      avgEbitda: 1665000,
+      dscr: 1.22,
+      minDscr: 1.12,
+      debtAmount: 10920000,
+      equityAmount: 4680000,
+      leverageRatio: 0.70,
+      annualProductionMwh: 20250,
+      capacityFactor: 0.185,
+      ppaRate: 0.085,
+      escalationRate: 0.02,
+      projectLifeYears: 25,
+      codDate: "2026-09-01",
+    },
+    cashFlows: [],
+    isCurrentVersion: true,
+  },
+  {
+    id: 3,
+    projectId: 2,
+    name: "NY Saratoga - NTP Model",
+    version: 2,
+    modelType: "project_finance",
+    status: "approved",
+    stage: "ntp",
+    baseCase: true,
+    scenarioName: null,
+    fileName: "NY_Saratoga_NTP_Model_v2.xlsx",
+    fileSize: 3120000,
+    uploadedBy: "Emily Watson",
+    uploadedAt: "2026-01-10T09:15:00Z",
+    extractionStatus: "completed",
+    extractionConfidence: 0.97,
+    metrics: {
+      npv: 3180000,
+      irr: 0.156,
+      paybackYears: 5.9,
+      moic: 1.92,
+      totalCapex: 12400000,
+      totalRevenue: 41500000,
+      avgEbitda: 1520000,
+      dscr: 1.42,
+      minDscr: 1.32,
+      debtAmount: 8680000,
+      equityAmount: 3720000,
+      leverageRatio: 0.70,
+      annualProductionMwh: 14760,
+      capacityFactor: 0.206,
+      ppaRate: 0.092,
+      escalationRate: 0.025,
+      projectLifeYears: 25,
+      codDate: "2026-06-15",
+    },
+    cashFlows: [],
+    isCurrentVersion: true,
+  },
+  {
+    id: 4,
+    projectId: 5,
+    name: "PA Lancaster - Operations Model",
+    version: 5,
+    modelType: "project_finance",
+    status: "approved",
+    stage: "operations",
+    baseCase: true,
+    scenarioName: null,
+    fileName: "PA_Lancaster_Ops_Model_v5.xlsx",
+    fileSize: 4250000,
+    uploadedBy: "Sarah Chen",
+    uploadedAt: "2026-01-08T16:45:00Z",
+    extractionStatus: "completed",
+    extractionConfidence: 0.98,
+    metrics: {
+      npv: 5620000,
+      irr: 0.168,
+      paybackYears: 5.2,
+      moic: 2.15,
+      totalCapex: 18500000,
+      totalRevenue: 68000000,
+      avgEbitda: 2450000,
+      dscr: 1.55,
+      minDscr: 1.45,
+      debtAmount: 12950000,
+      equityAmount: 5550000,
+      leverageRatio: 0.70,
+      annualProductionMwh: 27000,
+      capacityFactor: 0.205,
+      ppaRate: 0.095,
+      escalationRate: 0.02,
+      projectLifeYears: 25,
+      codDate: "2024-03-01",
+    },
+    cashFlows: [],
+    isCurrentVersion: true,
+  },
+];
+
 // Status badge component
 function ModelStatusBadge({ status }: { status: FinancialModel["status"] }) {
   const config = {
@@ -114,7 +278,7 @@ function ModelStatusBadge({ status }: { status: FinancialModel["status"] }) {
     approved: { label: "Approved", className: "status-badge status-badge-success" },
     superseded: { label: "Superseded", className: "status-badge status-badge-muted" },
   };
-  const { label, className } = config[status] || config.draft;
+  const { label, className } = config[status];
   return <span className={className}>{label}</span>;
 }
 
@@ -126,7 +290,7 @@ function ExtractionStatusBadge({ status, confidence }: { status: FinancialModel[
     completed: { label: `${Math.round(confidence * 100)}% Confidence`, icon: CheckCircle2, className: "text-[var(--color-semantic-success)]" },
     failed: { label: "Failed", icon: AlertTriangle, className: "text-[var(--color-semantic-error)]" },
   };
-  const { label, icon: Icon, className } = config[status] || config.pending;
+  const { label, icon: Icon, className } = config[status];
   return (
     <div className={cn("flex items-center gap-1.5 text-xs", className)}>
       <Icon className="w-3.5 h-3.5" />
@@ -205,8 +369,9 @@ function MetricCard({
 }
 
 // Financial Model Drawer
-function FinancialModelDrawer({ model, project, onClose }: { model: FinancialModel; project: any; onClose: () => void }) {
+function FinancialModelDrawer({ model, onClose }: { model: FinancialModel; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<"metrics" | "cashflows" | "comparison" | "history">("metrics");
+  const project = mockProjects.find(p => p.id === model.projectId);
 
   const tabs = [
     { id: "metrics", label: "Key Metrics" },
@@ -220,7 +385,7 @@ function FinancialModelDrawer({ model, project, onClose }: { model: FinancialMod
       open={true}
       onClose={onClose}
       title={model.name}
-      subtitle={`${project?.name || 'Unknown Project'} · v${model.version}`}
+      subtitle={`${project?.name} · v${model.version}`}
       size="lg"
       footer={
         <div className="flex gap-3 w-full">
@@ -313,7 +478,7 @@ function FinancialModelDrawer({ model, project, onClose }: { model: FinancialMod
       {/* Cash Flows Tab */}
       {activeTab === "cashflows" && (
         <div className="space-y-4">
-          {model.cashFlows && model.cashFlows.length > 0 ? (
+          {model.cashFlows.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -415,25 +580,17 @@ function FinancialModelDrawer({ model, project, onClose }: { model: FinancialMod
 
 // Main Financial Models Page
 export default function FinancialModels() {
-  const { selectedProject, selectedProjectId } = useProject();
+  const { selectedProject } = useProject();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [selectedModel, setSelectedModel] = useState<FinancialModel | null>(null);
 
-  // Fetch projects from API
-  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
-
-  const isLoading = projectsLoading;
-
-  // For now, financial models are empty until we add the API endpoint
-  const financialModels: FinancialModel[] = [];
-
   // Filter models
   const filteredModels = useMemo(() => {
-    return financialModels.filter((model) => {
+    return mockFinancialModels.filter((model) => {
       // Project filter
-      if (selectedProjectId && model.projectId !== selectedProjectId) return false;
+      if (selectedProject && model.projectId !== selectedProject.id) return false;
       
       // Search filter
       if (searchQuery) {
@@ -452,11 +609,11 @@ export default function FinancialModels() {
       
       return true;
     });
-  }, [selectedProjectId, searchQuery, statusFilter, stageFilter, financialModels]);
+  }, [selectedProject, searchQuery, statusFilter, stageFilter]);
 
   // Calculate portfolio metrics
   const portfolioMetrics = useMemo(() => {
-    const approvedModels = financialModels.filter(m => m.status === "approved" && m.metrics);
+    const approvedModels = mockFinancialModels.filter(m => m.status === "approved" && m.metrics);
     if (approvedModels.length === 0) return null;
     
     const totalNpv = approvedModels.reduce((sum, m) => sum + (m.metrics?.npv || 0), 0);
@@ -465,22 +622,7 @@ export default function FinancialModels() {
     const avgDscr = approvedModels.reduce((sum, m) => sum + (m.metrics?.dscr || 0), 0) / approvedModels.length;
     
     return { totalNpv, avgIrr, totalCapex, avgDscr, modelCount: approvedModels.length };
-  }, [financialModels]);
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="p-6">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-primary)]" />
-              <p className="text-sm text-[var(--color-text-secondary)]">Loading financial models...</p>
-            </div>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  }, []);
 
   return (
     <AppLayout>
@@ -495,19 +637,19 @@ export default function FinancialModels() {
           </div>
           <div className="flex items-center gap-2">
             <UploadFinancialModelDialog
-              projectId={selectedProjectId || 1}
+              projectId={selectedProject?.id || 1}
               projectName={selectedProject?.name || "All Projects"}
               onSuccess={() => toast.success("Model uploaded successfully")}
             />
             <BulkUploadButton
-              projectId={selectedProjectId || 1}
+              projectId={selectedProject?.id || 1}
               onSuccess={() => toast.success("Models uploaded successfully")}
             />
           </div>
         </div>
 
         {/* Portfolio Summary */}
-        {!selectedProjectId && portfolioMetrics && (
+        {!selectedProject && portfolioMetrics && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard label="Total NPV" value={portfolioMetrics.totalNpv} format="currency" icon={DollarSign} highlight />
             <MetricCard label="Avg IRR" value={portfolioMetrics.avgIrr} format="percent" icon={TrendingUp} />
@@ -574,7 +716,7 @@ export default function FinancialModels() {
               </thead>
               <tbody>
                 {filteredModels.map((model) => {
-                  const project = projects.find((p: any) => p.id === model.projectId);
+                  const project = mockProjects.find(p => p.id === model.projectId);
                   return (
                     <tr 
                       key={model.id} 
@@ -592,7 +734,7 @@ export default function FinancialModels() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--color-text-secondary)]">{project?.name || 'Unknown'}</td>
+                      <td className="py-3 px-4 text-sm text-[var(--color-text-secondary)]">{project?.name}</td>
                       <td className="py-3 px-4 text-center">
                         <ModelStatusBadge status={model.status} />
                       </td>
@@ -622,10 +764,10 @@ export default function FinancialModels() {
             <EmptyState
               icon={<Calculator className="w-12 h-12 stroke-1" />}
               title="No Financial Models"
-              description={selectedProjectId ? "No financial models found for this project." : "Upload your first financial model to get started."}
+              description={selectedProject ? "No financial models found for this project." : "Upload your first financial model to get started."}
               action={
                 <UploadFinancialModelDialog
-                  projectId={selectedProjectId || 1}
+                  projectId={selectedProject?.id || 1}
                   projectName={selectedProject?.name || "All Projects"}
                   onSuccess={() => toast.success("Model uploaded successfully")}
                 />
@@ -637,11 +779,7 @@ export default function FinancialModels() {
 
       {/* Model Drawer */}
       {selectedModel && (
-        <FinancialModelDrawer 
-          model={selectedModel} 
-          project={projects.find((p: any) => p.id === selectedModel.projectId)}
-          onClose={() => setSelectedModel(null)} 
-        />
+        <FinancialModelDrawer model={selectedModel} onClose={() => setSelectedModel(null)} />
       )}
     </AppLayout>
   );

@@ -126,7 +126,6 @@ export async function createSession(options: CreateSessionOptions): Promise<{
     csrfSecret,
     refreshTokenHash: hashValue(refreshToken),
     activeOrganizationId: options.activeOrganizationId ?? null,
-    workspaceSelectionRequired: true, // Always require workspace selection on fresh login
     mfaSatisfiedAt: options.mfaSatisfied ? new Date() : null,
     deviceType: deviceInfo.deviceType,
     browserName: deviceInfo.browserName,
@@ -232,9 +231,6 @@ export async function satisfyMfa(sessionId: string, userId: number): Promise<voi
  */
 export async function setActiveOrganization(sessionId: string, userId: number, organizationId: number): Promise<void> {
   await db.updateSessionActiveOrg(sessionId, organizationId);
-  
-  // Clear the workspace selection required flag - user has explicitly selected
-  await db.clearWorkspaceSelectionRequired(sessionId);
   
   // Also update user's last context
   await db.updateUserLastContext(userId, { lastOrganizationId: organizationId });

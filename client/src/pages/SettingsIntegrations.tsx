@@ -103,42 +103,21 @@ interface IntegrationCardProps {
   isLoading?: boolean;
 }
 
-// Provider display names for better UX
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  manus: 'Manus AI (Built-in)',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic Claude',
-  azure_openai: 'Azure OpenAI',
-  gemini: 'Google Gemini',
-  deepseek: 'DeepSeek',
-  grok: 'xAI Grok',
-  llama: 'Meta Llama',
-  s3: 'Amazon S3',
-  r2: 'Cloudflare R2',
-  supabase: 'Supabase Storage',
-  gcs: 'Google Cloud Storage',
-};
-
 function IntegrationCard({ type, status, onConfigure, onTest, onDisconnect, isLoading }: IntegrationCardProps) {
   const meta = INTEGRATION_META[type];
   const Icon = meta.icon;
   
-  const getProviderDisplayName = (provider?: string) => {
-    if (!provider) return '';
-    return PROVIDER_DISPLAY_NAMES[provider] || provider.charAt(0).toUpperCase() + provider.slice(1);
-  };
-  
   const getStatusBadge = () => {
     if (!status?.configured) {
-      return <Badge variant="secondary">NOT CONFIGURED</Badge>;
+      return <Badge variant="secondary">Not Configured</Badge>;
     }
     if (status.status === 'connected') {
-      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">ACTIVE</Badge>;
+      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Connected</Badge>;
     }
     if (status.status === 'error') {
-      return <Badge variant="destructive">ERROR</Badge>;
+      return <Badge variant="destructive">Error</Badge>;
     }
-    return <Badge variant="secondary">{status.status?.toUpperCase()}</Badge>;
+    return <Badge variant="secondary">{status.status}</Badge>;
   };
   
   const getStatusIcon = () => {
@@ -172,18 +151,14 @@ function IntegrationCard({ type, status, onConfigure, onTest, onDisconnect, isLo
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {getStatusIcon()}
-            {status?.provider ? (
-              <span className="font-medium text-foreground">
-                {getProviderDisplayName(status.provider)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">No provider selected</span>
+            {status?.provider && (
+              <span className="capitalize">{status.provider}</span>
             )}
             {status?.lastTestAt && (
-              <span className="text-xs text-muted-foreground ml-2">
-                • Last tested: {new Date(status.lastTestAt).toLocaleDateString()}
+              <span className="text-xs">
+                Last tested: {new Date(status.lastTestAt).toLocaleDateString()}
               </span>
             )}
           </div>

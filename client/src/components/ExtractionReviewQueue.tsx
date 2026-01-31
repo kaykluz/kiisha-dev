@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,8 +33,8 @@ interface Extraction {
   extractedAt: Date;
 }
 
-// Note: Mock data kept for reference - component uses API data when available
-const sampleExtractions: Extraction[] = [
+// Mock data for demonstration
+const mockExtractions: Extraction[] = [
   {
     id: 1,
     artifactId: 101,
@@ -187,44 +187,7 @@ interface ExtractionReviewQueueProps {
 }
 
 export function ExtractionReviewQueue({ organizationId = 1 }: ExtractionReviewQueueProps) {
-  // Fetch unverified extractions from API
-  const { data: apiExtractions = [], isLoading, refetch } = trpc.artifactExtractions.getUnverified.useQuery({
-    organizationId: 1,
-    limit: 100,
-  });
-
-  // Mutations
-  const verifyMutation = trpc.artifactExtractions.verify.useMutation({
-    onSuccess: () => {
-      refetch();
-    },
-  });
-
-  const correctMutation = trpc.artifactExtractions.correct.useMutation({
-    onSuccess: () => {
-      refetch();
-    },
-  });
-
-  // Transform API data or use sample data if empty
-  const extractions: Extraction[] = useMemo(() => {
-    if ((apiExtractions as any[]).length === 0) return sampleExtractions;
-    return (apiExtractions as any[]).map((e: any) => ({
-      id: e.id,
-      artifactId: e.artifactId,
-      artifactName: e.artifactName || 'Unknown Artifact',
-      artifactCode: e.artifactCode || '',
-      fieldKey: e.fieldKey,
-      fieldLabel: e.fieldLabel || e.fieldKey,
-      category: e.fieldCategory || 'general',
-      extractedValue: e.extractedValueText || e.extractedValueNumeric || e.extractedValueBoolean || null,
-      valueType: e.extractedValueNumeric ? 'numeric' : e.extractedValueBoolean !== null ? 'boolean' : e.extractedValueDate ? 'date' : 'text',
-      confidence: parseFloat(e.confidence || '0'),
-      sourceLocation: e.sourcePage ? `Page ${e.sourcePage}` : undefined,
-      verificationStatus: e.verificationStatus || 'unverified',
-      extractedAt: new Date(e.createdAt || Date.now()),
-    }));
-  }, [apiExtractions]);
+  const [extractions, setExtractions] = useState<Extraction[]>(mockExtractions);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterConfidence, setFilterConfidence] = useState<string>('all');

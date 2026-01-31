@@ -6,7 +6,7 @@
 
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -549,7 +549,7 @@ export default function SchedulesPage() {
   const filteredObligations = obligations || [];
   
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -686,6 +686,6 @@ export default function SchedulesPage() {
           </>
         )}
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

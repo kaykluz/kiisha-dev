@@ -468,25 +468,15 @@ export const multiAuthRouter = router({
       
       // Send verification email using notification system
       try {
-        const { ENV } = await import('../_core/env');
-        console.log(`[Registration] APP_URL env: ${process.env.APP_URL}`);
-        console.log(`[Registration] VITE_APP_URL env: ${process.env.VITE_APP_URL}`);
-        console.log(`[Registration] ENV.appUrl: ${ENV.appUrl}`);
-        const verifyUrl = `${ENV.appUrl}/auth/verify-email?token=${verificationToken}`;
-        console.log(`[Registration] Verify URL: ${verifyUrl}`);
-        
-        console.log(`[Registration] Sending verification email to ${input.email}`);
-        console.log(`[Registration] RESEND_API_KEY configured: ${!!process.env.RESEND_API_KEY}`);
+        const verifyUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${verificationToken}`;
         
         // Use the notification provider to send email
         const { getNotifyAdapter } = await import('../providers/factory');
         // Use org 0 for system-level notifications
         const notifyProvider = await getNotifyAdapter(0);
         
-        console.log(`[Registration] Notify provider obtained: ${!!notifyProvider}`);
-        
         if (notifyProvider) {
-          const emailResult = await notifyProvider.sendEmail({
+          await notifyProvider.sendEmail({
             to: input.email,
             subject: 'Verify your KIISHA account',
             html: `
@@ -499,17 +489,9 @@ export const multiAuthRouter = router({
             `,
             text: `Welcome to KIISHA! Please verify your email by visiting: ${verifyUrl}. This link expires in 24 hours.`
           });
-          
-          console.log(`[Registration] Email send result:`, JSON.stringify(emailResult));
-          
-          if (!emailResult.success) {
-            console.error(`[Registration] Email failed: ${emailResult.error}`);
-          }
-        } else {
-          console.error('[Registration] No notify provider available');
         }
       } catch (emailError) {
-        console.error('[Registration] Failed to send verification email:', emailError);
+        console.error('Failed to send verification email:', emailError);
         // Don't fail registration if email fails
       }
       
@@ -698,12 +680,6 @@ export const multiAuthRouter = router({
         emailVerifiedAt: new Date()
       });
       
-      // Check for pre-approved organization memberships and activate them
-      const preApproved = await db.getPreApprovedMembershipByEmail(tokenRecord.email);
-      if (preApproved) {
-        await db.activatePreApprovedMembership(preApproved.id, tokenRecord.userId);
-      }
-      
       return {
         success: true,
         message: "Email verified successfully. You can now log in."
@@ -746,8 +722,7 @@ export const multiAuthRouter = router({
       
       // Send verification email
       try {
-        const { ENV } = await import('../_core/env');
-        const verifyUrl = `${ENV.appUrl}/auth/verify-email?token=${verificationToken}`;
+        const verifyUrl = `${process.env.VITE_APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${verificationToken}`;
         
         const { getNotifyAdapter } = await import('../providers/factory');
         const notifyProvider = await getNotifyAdapter(0);

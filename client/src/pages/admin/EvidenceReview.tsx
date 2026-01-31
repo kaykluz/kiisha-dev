@@ -1,4 +1,4 @@
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ export default function EvidenceReview() {
   
   if (isLoading) {
     return (
-      <AppLayout>
+      <DashboardLayout>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -50,7 +50,7 @@ export default function EvidenceReview() {
             ))}
           </div>
         </div>
-      </AppLayout>
+      </DashboardLayout>
     );
   }
   
@@ -67,7 +67,7 @@ export default function EvidenceReview() {
   };
   
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -204,6 +204,6 @@ export default function EvidenceReview() {
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

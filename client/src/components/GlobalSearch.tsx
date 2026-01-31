@@ -12,10 +12,28 @@ import {
   ArrowRight,
   X,
   Command,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
+
+// Mock data for search results
+const mockDocuments = [
+  { id: 1, name: "PPA Agreement - MA Gillette", project: "MA - Gillette BTM", type: "contract", status: "verified" },
+  { id: 2, name: "Interconnection Agreement", project: "TX - Austin Solar", type: "permit", status: "pending" },
+  { id: 3, name: "Site Lease Agreement", project: "CA - Fresno Community", type: "contract", status: "verified" },
+  { id: 4, name: "Environmental Impact Assessment", project: "NY - Buffalo Wind", type: "report", status: "missing" },
+];
+
+const mockProjects = [
+  { id: 1, name: "MA - Gillette BTM", location: "Massachusetts", capacity: "12.5 MW", stage: "Development" },
+  { id: 2, name: "TX - Austin Solar Farm", location: "Texas", capacity: "25 MW", stage: "Construction" },
+  { id: 3, name: "CA - Fresno Community Solar", location: "California", capacity: "8 MW", stage: "Operations" },
+];
+
+const mockWorkspaceItems = [
+  { id: 1, title: "Missing interconnection study", project: "MA - Gillette BTM", type: "RFI", status: "Open" },
+  { id: 2, title: "Update site control documentation", project: "TX - Austin Solar", type: "Task", status: "In Progress" },
+  { id: 3, title: "Permit expiration warning", project: "CA - Fresno Community", type: "Risk", status: "Open" },
+];
 
 interface SearchResult {
   id: number;
@@ -32,18 +50,13 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    const saved = localStorage.getItem('recent-searches');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [recentSearches, setRecentSearches] = useState<string[]>([
+    "PPA Agreement",
+    "MA - Gillette",
+    "interconnection",
+  ]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Fetch data from API
-  // documents.list does not exist — listByProject requires projectId; fall back to empty
-  const { data: documents = [] } = (trpc as any).documents?.list?.useQuery?.({ projectId: undefined }) || { data: [] };
-  const { data: projects = [] } = trpc.projects.list.useQuery();
-  const { data: rfis = [] } = trpc.rfis.list.useQuery({ projectId: undefined });
 
   // Search function
   const performSearch = useCallback((searchQuery: string) => {
@@ -56,57 +69,54 @@ export function GlobalSearch() {
     const searchResults: SearchResult[] = [];
 
     // Search documents
-    (documents as any[])
+    mockDocuments
       .filter(
-        (doc: any) =>
-          doc.name?.toLowerCase().includes(lowerQuery) ||
-          doc.projectName?.toLowerCase().includes(lowerQuery)
+        (doc) =>
+          doc.name.toLowerCase().includes(lowerQuery) ||
+          doc.project.toLowerCase().includes(lowerQuery)
       )
-      .slice(0, 5)
-      .forEach((doc: any) => {
+      .forEach((doc) => {
         searchResults.push({
           id: doc.id,
           type: "document",
           title: doc.name,
-          subtitle: doc.projectName || 'No project',
+          subtitle: doc.project,
           status: doc.status,
           url: "/documents",
         });
       });
 
     // Search projects
-    (projects as any[])
+    mockProjects
       .filter(
-        (proj: any) =>
-          proj.name?.toLowerCase().includes(lowerQuery) ||
-          proj.location?.toLowerCase().includes(lowerQuery)
+        (proj) =>
+          proj.name.toLowerCase().includes(lowerQuery) ||
+          proj.location.toLowerCase().includes(lowerQuery)
       )
-      .slice(0, 5)
-      .forEach((proj: any) => {
+      .forEach((proj) => {
         searchResults.push({
-          id: proj.id + 100000,
+          id: proj.id + 100,
           type: "project",
           title: proj.name,
-          subtitle: `${proj.location || 'Unknown'} • ${proj.capacity || 'N/A'}`,
+          subtitle: `${proj.location} • ${proj.capacity}`,
           status: proj.stage,
-          url: "/dashboard",
+          url: "/",
         });
       });
 
-    // Search workspace items (RFIs)
-    (rfis as any[])
+    // Search workspace items
+    mockWorkspaceItems
       .filter(
-        (item: any) =>
-          item.title?.toLowerCase().includes(lowerQuery) ||
-          item.projectName?.toLowerCase().includes(lowerQuery)
+        (item) =>
+          item.title.toLowerCase().includes(lowerQuery) ||
+          item.project.toLowerCase().includes(lowerQuery)
       )
-      .slice(0, 5)
-      .forEach((item: any) => {
+      .forEach((item) => {
         searchResults.push({
-          id: item.id + 200000,
+          id: item.id + 200,
           type: "workspace",
           title: item.title,
-          subtitle: `RFI • ${item.projectName || 'No project'}`,
+          subtitle: `${item.type} • ${item.project}`,
           status: item.status,
           url: "/workspace",
         });
@@ -114,7 +124,7 @@ export function GlobalSearch() {
 
     setResults(searchResults);
     setSelectedIndex(0);
-  }, [documents, projects, rfis]);
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -123,11 +133,6 @@ export function GlobalSearch() {
     }, 150);
     return () => clearTimeout(timer);
   }, [query, performSearch]);
-
-  // Save recent searches to localStorage
-  useEffect(() => {
-    localStorage.setItem('recent-searches', JSON.stringify(recentSearches));
-  }, [recentSearches]);
 
   // Keyboard shortcut to open search
   useEffect(() => {
@@ -304,23 +309,20 @@ export function GlobalSearch() {
                                     {getTypeIcon(result.type)}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                                    <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
                                       {result.title}
-                                    </div>
-                                    <div className="text-xs text-[var(--color-text-tertiary)] truncate">
+                                    </p>
+                                    <p className="text-xs text-[var(--color-text-tertiary)] truncate">
                                       {result.subtitle}
-                                    </div>
+                                    </p>
                                   </div>
                                   {result.status && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs shrink-0"
-                                      style={{ color: getStatusColor(result.status) }}
-                                    >
-                                      {result.status}
-                                    </Badge>
+                                    <div
+                                      className="w-2 h-2 rounded-full"
+                                      style={{ backgroundColor: getStatusColor(result.status) }}
+                                    />
                                   )}
-                                  <ArrowRight className="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" />
+                                  <ArrowRight className="w-4 h-4 text-[var(--color-text-tertiary)]" />
                                 </button>
                               );
                             })}
@@ -329,15 +331,21 @@ export function GlobalSearch() {
                       })}
                     </div>
                   ) : (
-                    <div className="py-8 text-center text-[var(--color-text-tertiary)]">
-                      <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No results found for "{query}"</p>
+                    <div className="py-12 text-center">
+                      <Search className="w-10 h-10 text-[var(--color-text-tertiary)] mx-auto mb-3" />
+                      <p className="text-sm text-[var(--color-text-secondary)]">
+                        No results found for "{query}"
+                      </p>
+                      <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                        Try a different search term
+                      </p>
                     </div>
                   )
                 ) : (
                   <div className="py-4">
+                    {/* Recent Searches */}
                     {recentSearches.length > 0 && (
-                      <div>
+                      <div className="mb-4">
                         <div className="px-4 py-1.5 text-xs font-medium text-[var(--color-text-tertiary)] uppercase flex items-center gap-2">
                           <Clock className="w-3 h-3" />
                           Recent Searches
@@ -356,33 +364,60 @@ export function GlobalSearch() {
                         ))}
                       </div>
                     )}
-                    {recentSearches.length === 0 && (
-                      <div className="py-8 text-center text-[var(--color-text-tertiary)]">
-                        <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">Start typing to search</p>
+
+                    {/* Quick Actions */}
+                    <div>
+                      <div className="px-4 py-1.5 text-xs font-medium text-[var(--color-text-tertiary)] uppercase">
+                        Quick Actions
                       </div>
-                    )}
+                      <button
+                        onClick={() => {
+                          setLocation("/documents");
+                          setIsOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-bg-surface-hover)] transition-colors"
+                      >
+                        <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <span className="text-sm text-[var(--color-text-secondary)]">
+                          Browse all documents
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLocation("/workspace");
+                          setIsOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-bg-surface-hover)] transition-colors"
+                      >
+                        <ClipboardList className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <span className="text-sm text-[var(--color-text-secondary)]">
+                          View workspace items
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </ScrollArea>
 
               {/* Footer */}
-              <div className="px-4 py-2 border-t border-[var(--color-border-subtle)] flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
-                <div className="flex items-center gap-3">
+              <div className="px-4 py-2 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-hover)]">
+                <div className="flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)]">↑</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)]">↓</kbd>
+                      to navigate
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)]">↵</kbd>
+                      to select
+                    </span>
+                  </div>
                   <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface-hover)]">↑</kbd>
-                    <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface-hover)]">↓</kbd>
-                    to navigate
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface-hover)]">↵</kbd>
-                    to select
+                    <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-subtle)]">esc</kbd>
+                    to close
                   </span>
                 </div>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-bg-surface-hover)]">esc</kbd>
-                  to close
-                </span>
               </div>
             </div>
           </div>

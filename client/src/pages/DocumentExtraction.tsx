@@ -1,5 +1,4 @@
-import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { useState } from "react";
 import { useParams } from "wouter";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +43,7 @@ interface VerificationInfo {
   verificationNotes: string | null;
 }
 
-// Extracted field interface with full traceability
+// Mock extracted fields with full traceability
 interface ExtractedField {
   id: string;
   category: string;
@@ -59,8 +58,7 @@ interface ExtractedField {
   verification: VerificationInfo;
 }
 
-// Sample extractions (used when API returns empty)
-const sampleExtractions: ExtractedField[] = [
+const mockExtractions: ExtractedField[] = [
   // Interconnection / Overview
   { 
     id: "1", 
@@ -288,8 +286,8 @@ const sampleExtractions: ExtractedField[] = [
   },
 ];
 
-// Sample extraction history (used when API returns empty)
-const sampleExtractionHistory = [
+// Mock extraction history
+const mockExtractionHistory = [
   { id: "h1", action: "extracted", user: "AI System", timestamp: "2026-01-14T10:30:00Z", details: "Initial extraction from Interconnection_Agreement.pdf" },
   { id: "h2", action: "verified", user: "Sarah Chen", timestamp: "2026-01-14T14:22:00Z", details: "Verified Application Date field" },
   { id: "h3", action: "verified", user: "Mike Johnson", timestamp: "2026-01-14T15:10:00Z", details: "Verified Utility field" },
@@ -397,18 +395,7 @@ function TraceabilityPanel({ field, onClose }: { field: ExtractedField; onClose:
 
 function DocumentExtractionContent() {
   const params = useParams();
-  const documentId = params.id ? parseInt(params.id) : 0;
-
-  // Fetch extractions from API
-  const { data: apiExtractions = [] } = trpc.extractions.listByDocument?.useQuery?.({ documentId }) || { data: [] };
-
-  // Transform API data or use sample data
-  const initialExtractions: ExtractedField[] = useMemo(() => {
-    if ((apiExtractions as any[]).length === 0) return sampleExtractions;
-    return apiExtractions as ExtractedField[];
-  }, [apiExtractions]);
-
-  const [extractions, setExtractions] = useState(initialExtractions);
+  const [extractions, setExtractions] = useState(mockExtractions);
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedField, setSelectedField] = useState<string | null>(null);
@@ -685,7 +672,7 @@ function DocumentExtractionContent() {
           <TabsContent value="history" className="flex-1 m-0">
             <ScrollArea className="h-[calc(100vh-16rem)]">
               <div className="p-4 space-y-3">
-                {sampleExtractionHistory.map((entry) => (
+                {mockExtractionHistory.map((entry) => (
                   <div key={entry.id} className="flex items-start gap-3 p-3 bg-secondary/30 rounded-lg">
                     <div className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",

@@ -28,16 +28,14 @@ export default function OAuthCallback() {
           const session = await utils.authSession.getSession.fetch();
 
           if (session.authenticated) {
-            // Always redirect to workspace selection after fresh login
-            // AuthProvider will handle further routing based on workspace state
-            setLocation("/select-workspace");
+            setLocation("/dashboard");
           } else {
             // Retry with longer delay and re-invalidate
             await new Promise(resolve => setTimeout(resolve, 1500));
             await utils.authSession.getSession.invalidate();
             const retrySession = await utils.authSession.getSession.fetch();
             if (retrySession.authenticated) {
-              setLocation("/select-workspace");
+              setLocation("/dashboard");
             } else {
               setStatus("error");
               setErrorMessage("Failed to establish session after authentication.");

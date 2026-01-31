@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { trpc } from "@/lib/trpc";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,8 +44,8 @@ interface LifecycleStage {
   requiredAttributes: RequiredAttribute[];
 }
 
-// Sample lifecycle stages data (used when API returns empty)
-const sampleStages: LifecycleStage[] = [
+// Mock lifecycle stages data
+const mockStages: LifecycleStage[] = [
   {
     key: 'origination',
     name: 'Origination',
@@ -166,14 +165,7 @@ interface LifecycleWizardProps {
 }
 
 export function LifecycleWizard({ projectId = 1, currentStageKey = 'development' }: LifecycleWizardProps) {
-  // Fetch lifecycle stages from API
-  const { data: apiStages = [] } = trpc.lifecycle.getStages?.useQuery?.() || { data: [] };
-
-  // Transform API data or use sample data
-  const stages = useMemo(() => {
-    if ((apiStages as any[]).length === 0) return sampleStages;
-    return apiStages as LifecycleStage[];
-  }, [apiStages]);
+  const [stages] = useState<LifecycleStage[]>(mockStages);
   const [selectedStageKey, setSelectedStageKey] = useState<string>(currentStageKey);
   const [showTransitionDialog, setShowTransitionDialog] = useState(false);
   const [transitionNotes, setTransitionNotes] = useState('');

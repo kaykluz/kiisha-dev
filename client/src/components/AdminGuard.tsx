@@ -30,10 +30,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     return null; // DashboardLayout will handle unauthenticated state
   }
 
-  // Allow admin, superuser_admin roles, or users with isSuperuser flag
-  const isAuthorized = user.role === 'admin' || user.role === 'superuser_admin' || user.isSuperuser;
-  
-  if (!isAuthorized) {
+  if (user.role !== 'admin') {
     // Show "Not authorized" page instead of redirect (per security spec)
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">

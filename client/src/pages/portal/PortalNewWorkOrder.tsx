@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { usePortalReadOnly } from './PortalLayout';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,18 +69,12 @@ export default function PortalNewWorkOrder() {
   // Get token from localStorage (matches the key used in PortalLogin)
   const token = typeof window !== 'undefined' ? localStorage.getItem('customer_token') : null;
   
-  const { isReadOnly } = usePortalReadOnly();
-  
-  // Redirect if not authenticated or if company user (read-only)
+  // Redirect if not authenticated
   useEffect(() => {
     if (!token) {
       navigate('/portal/login');
     }
-    // Company users cannot create work orders
-    if (isReadOnly) {
-      navigate('/portal/work-orders');
-    }
-  }, [token, navigate, isReadOnly]);
+  }, [token, navigate]);
   
   // Cleanup file previews on unmount
   useEffect(() => {
