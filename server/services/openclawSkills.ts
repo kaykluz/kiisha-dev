@@ -921,3 +921,140 @@ export async function getComplianceStatus(
     return { success: false, error: "Failed to get compliance status" };
   }
 }
+
+// ============================================================================
+// PHASE 3: USER INVITE SKILL
+// ============================================================================
+
+export async function inviteUser(
+  ctx: SkillContext,
+  email: string,
+  role: string = "editor",
+  message?: string,
+): Promise<SkillResult> {
+  try {
+    const access = await checkCapabilityAccess(
+      ctx.organizationId, ctx.userId, "kiisha.user.invite"
+    );
+    if (!access.allowed) return { success: false, error: access.reason || "Not authorized" };
+
+    const { sendEmail } = await import("./email");
+    const crypto = await import("crypto");
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Create invite token
+    await db.createInviteToken({
+      organizationId: ctx.organizationId,
+      createdByUserId: ctx.userId,
+      tokenHash,
+      email,
+      role,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      maxUses: 1,
+    });
+
+    // Send invite email
+    const appUrl = process.env.APP_URL || process.env.VITE_APP_URL || "https://app.kiisha.io";
+    await sendEmail({
+      to: email,
+      subject: "You've been invited to KIISHA",
+      html: `
+        <h2>You've been invited to join KIISHA</h2>
+        <p>${message || "You have been invited to join a KIISHA organization."}</p>
+        <p><a href="${appUrl}/invite/${token}" style="display:inline-block;padding:12px 24px;background:#f97316;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Accept Invitation</a></p>
+        <p>This invitation expires in 7 days.</p>
+      `,
+    });
+
+    await incrementCapabilityUsage(ctx.organizationId, "kiisha.user.invite");
+
+    return {
+      success: true,
+      data: { email, role },
+      message: `✉️ Invitation sent to **${email}** with role **${role}**. The link expires in 7 days.`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error inviting user:", error);
+    return { success: false, error: "Failed to send invitation" };
+  }
+}
+
+// ============================================================================
+// PHASE 3: DATA EXPORT SKILL
+// ============================================================================
+
+export async function exportData(
+  ctx: SkillContext,
+  entityType: string,
+  format: string = "csv",
+  filters?: Record<string, unknown>,
+): Promise<SkillResult> {
+  try {
+    const access = await checkCapabilityAccess(
+      ctx.organizationId, ctx.userId, "kiisha.data.export"
+    );
+    if (!access.allowed) return { success: false, error: access.reason || "Not authorized" };
+
+    // Enqueue export job
+    const { enqueueJob } = await import("./jobQueue");
+    const jobId = await enqueueJob("data_export", {
+      exportType: "user_requested",
+      entityType,
+      format,
+      filters,
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+    });
+
+    await incrementCapabilityUsage(ctx.organizationId, "kiisha.data.export");
+
+    return {
+      success: true,
+      data: { jobId, entityType, format },
+      message: `📦 Export job queued for **${entityType}** data in **${format.toUpperCase()}** format. You'll be notified when it's ready.`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error exporting data:", error);
+    return { success: false, error: "Failed to initiate data export" };
+  }
+}
+
+// ============================================================================
+// PHASE 3: PAYMENT INITIATE SKILL
+// ============================================================================
+
+export async function initiatePayment(
+  ctx: SkillContext,
+  invoiceId: number,
+  customerId: number,
+): Promise<SkillResult> {
+  try {
+    const access = await checkCapabilityAccess(
+      ctx.organizationId, ctx.userId, "kiisha.payment.initiate"
+    );
+    if (!access.allowed) return { success: false, error: access.reason || "Not authorized" };
+
+    const { createInvoiceCheckoutSession } = await import("../stripe/webhook");
+    const appUrl = process.env.APP_URL || process.env.VITE_APP_URL || "https://app.kiisha.io";
+
+    const session = await createInvoiceCheckoutSession(
+      invoiceId,
+      customerId,
+      ctx.userId,
+      `${appUrl}/portal/invoices/${invoiceId}`,
+      `${appUrl}/portal/invoices/${invoiceId}`,
+    );
+
+    await incrementCapabilityUsage(ctx.organizationId, "kiisha.payment.initiate");
+
+    return {
+      success: true,
+      data: { paymentUrl: session.url, sessionId: session.sessionId, invoiceId },
+      message: `💳 Payment session created for invoice #${invoiceId}.\n\n[Click here to pay](${session.url})`,
+    };
+  } catch (error) {
+    console.error("[OpenClaw Skills] Error initiating payment:", error);
+    return { success: false, error: "Failed to create payment session" };
+  }
+}

@@ -13,8 +13,10 @@
  */
 
 import type { OrgContext } from "./orgContext";
-import { db } from "../db";
+import { getDb } from "../db";
 import { eq, and } from "drizzle-orm";
+import { templateFieldMappings, autofillDecisions } from "../../drizzle/schema";
+import { createHash } from "crypto";
 
 // Sensitivity categories that NEVER auto-fill
 export const NEVER_AUTOFILL_CATEGORIES = [
@@ -312,15 +314,33 @@ export async function saveFieldMapping(
   predicateId: string,
   confidenceThreshold?: number
 ): Promise<void> {
-  // TODO: Save to templateFieldMappings table
-  console.log("[AUDIT] Field mapping saved:", {
-    userId: ctx.user.id,
-    orgId: ctx.organizationId,
-    templateId,
-    fieldId,
-    predicateId,
-    confidenceThreshold,
-  });
+  const db = await getDb();
+  if (!db) return;
+
+  // Upsert: check if mapping already exists
+  const existing = await db.select().from(templateFieldMappings)
+    .where(and(
+      eq(templateFieldMappings.organizationId, ctx.organizationId),
+      eq(templateFieldMappings.templateId, templateId),
+      eq(templateFieldMappings.fieldId, fieldId),
+    )).limit(1);
+
+  if (existing.length > 0) {
+    await db.update(templateFieldMappings)
+      .set({ predicateId, confidenceThreshold: (confidenceThreshold ?? 0.8).toString() })
+      .where(eq(templateFieldMappings.id, existing[0].id));
+  } else {
+    await db.insert(templateFieldMappings).values({
+      organizationId: ctx.organizationId,
+      templateId,
+      fieldId,
+      predicateId,
+      confidenceThreshold: (confidenceThreshold ?? 0.8).toString(),
+      createdBy: ctx.user.id,
+    });
+  }
+
+  console.log("[AUDIT] Field mapping saved:", { userId: ctx.user.id, orgId: ctx.organizationId, templateId, fieldId, predicateId });
 }
 
 /**
@@ -332,14 +352,26 @@ export async function recordAutofillDecision(
   projectId: number,
   decision: AutofillDecisionRecord
 ): Promise<void> {
-  // TODO: Insert into autofillDecisions table
-  console.log("[AUDIT] Autofill decision recorded:", {
-    userId: ctx.user.id,
-    orgId: ctx.organizationId,
-    templateId,
+  const db = await getDb();
+  if (!db) return;
+
+  const finalValueHash = decision.finalValue != null
+    ? createHash('sha256').update(String(decision.finalValue)).digest('hex')
+    : null;
+
+  await db.insert(autofillDecisions).values({
+    organizationId: ctx.organizationId,
     projectId,
-    ...decision,
+    templateId,
+    fieldId: decision.fieldId,
+    decision: decision.decision as any,
+    selectedPredicateId: (decision as any).selectedPredicateId || null,
+    confidence: (decision as any).confidence?.toString() || null,
+    finalValueHash,
+    userId: ctx.user.id,
   });
+
+  console.log("[AUDIT] Autofill decision recorded:", { userId: ctx.user.id, orgId: ctx.organizationId, templateId, projectId, fieldId: decision.fieldId });
 }
 
 /**
@@ -354,7 +386,19 @@ export async function getFieldMappings(
   confidenceThreshold: number;
   isSensitive: boolean;
 }>> {
-  // TODO: Query from templateFieldMappings table with org scope
-  console.log(`Getting field mappings for org ${ctx.organizationId}`);
-  return [];
+  const db = await getDb();
+  if (!db) return [];
+
+  const mappings = await db.select().from(templateFieldMappings)
+    .where(and(
+      eq(templateFieldMappings.organizationId, ctx.organizationId),
+      eq(templateFieldMappings.templateId, _templateId),
+    ));
+
+  return mappings.map(m => ({
+    fieldId: m.fieldId,
+    predicateId: m.predicateId,
+    confidenceThreshold: parseFloat(m.confidenceThreshold?.toString() || '0.8'),
+    isSensitive: m.isSensitive,
+  }));
 }

@@ -29,6 +29,9 @@ import {
   addObligationToView,
   removeObligationFromView
 } from "../db";
+import { getDb } from "../db";
+import { reminderPolicies } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 
 // Validation schemas
 const obligationTypeSchema = z.enum([
@@ -788,17 +791,22 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
-      return [] as Array<{
-        id: number;
-        name: string;
-        obligationType: string | null;
-        isDefault: boolean;
-        isActive: boolean;
-        reminderOffsets: number[];
-        escalationOffsets: number[];
-        channels: string[];
-      }>;
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const policies = await db.select().from(reminderPolicies)
+        .where(eq(reminderPolicies.organizationId, organizationId));
+
+      return policies.map(p => ({
+        id: p.id,
+        name: p.name,
+        obligationType: null as string | null,
+        isDefault: p.isDefault ?? false,
+        isActive: p.isActive ?? true,
+        reminderOffsets: (p.rules?.beforeDue || []).map((r: { days: number }) => r.days),
+        escalationOffsets: (p.rules?.afterDue || []).map((r: { days: number }) => r.days),
+        channels: Object.entries(p.channels || {}).filter(([, v]) => v).map(([k]) => k.toUpperCase()),
+      }));
     }),
 
   /**
@@ -821,8 +829,30 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
-      return { id: 1 };
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const channelsObj = {
+        inApp: input.channels.includes("IN_APP"),
+        email: input.channels.includes("EMAIL"),
+        whatsapp: input.channels.includes("WHATSAPP"),
+        sms: false,
+      };
+      const rules = {
+        beforeDue: input.reminderOffsets.map(d => ({ days: d })),
+        onDue: true,
+        afterDue: input.escalationOffsets.map(d => ({ days: d })),
+      };
+
+      const [result] = await db.insert(reminderPolicies).values({
+        organizationId,
+        name: input.name,
+        isDefault: input.isDefault,
+        channels: channelsObj,
+        rules,
+      });
+
+      return { id: Number(result.insertId) };
     }),
 
   /**
@@ -841,7 +871,13 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      await db.update(reminderPolicies)
+        .set({ isActive: input.isActive })
+        .where(and(eq(reminderPolicies.id, input.id), eq(reminderPolicies.organizationId, organizationId)));
+
       return { success: true };
     }),
 
@@ -860,7 +896,12 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      await db.delete(reminderPolicies)
+        .where(and(eq(reminderPolicies.id, input.id), eq(reminderPolicies.organizationId, organizationId)));
+
       return { success: true };
     }),
 
@@ -878,7 +919,8 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
+      // Calendar integrations are created when a user connects via OAuth (Google Calendar / Outlook)
+      // No integrations table yet — return empty until OAuth calendar flow is implemented
       return [] as Array<{
         id: number;
         calendarName: string | null;
@@ -905,7 +947,8 @@ export const obligationsRouter = router({
           message: "No active organization selected"
         });
       }
-      // TODO: Implement db function
+      // Calendar integration toggle — no-op until calendar OAuth integration is implemented
+      console.log(`[Obligations] Calendar integration ${input.id} sync set to ${input.syncEnabled} (pending OAuth implementation)`);
       return { success: true };
     }),
 

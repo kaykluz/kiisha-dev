@@ -251,8 +251,23 @@ export const customerPortalRouter = router({
         invitedBy: ctx.user.id,
       });
       
-      // TODO: Send invitation email with verification link
-      
+      // Send invitation email with verification link
+      const portalUrl = ENV.appUrl || 'https://app.kiisha.io';
+      const verifyUrl = `${portalUrl}/portal/verify?token=${verificationToken}`;
+      const { sendEmail } = await import('../services/email');
+      await sendEmail({
+        to: input.email,
+        subject: 'You\'ve been invited to KIISHA Portal',
+        html: `
+          <h2>Welcome to KIISHA Portal</h2>
+          <p>Hi ${input.name},</p>
+          <p>You've been invited to access the KIISHA customer portal. Click the link below to verify your email and set up your account:</p>
+          <p><a href="${verifyUrl}" style="display:inline-block;padding:12px 24px;background:#f97316;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Verify Email & Get Started</a></p>
+          <p>This link expires in 7 days.</p>
+          <p>- The KIISHA Team</p>
+        `,
+      }).catch(err => console.error('[CustomerPortal] Failed to send invite email:', err));
+
       return { id: Number(result.insertId), verificationToken, success: true };
     }),
   
@@ -903,12 +918,21 @@ export const customerPortalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
+      const [invoice] = await db.select().from(invoices).where(eq(invoices.id, input.invoiceId)).limit(1);
+      if (!invoice) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+
       await db.update(invoices)
         .set({ status: "sent" })
         .where(eq(invoices.id, input.invoiceId));
-      
-      // TODO: Send email notification to customer
-      
+
+      // Send email notification to customer
+      if (invoice.customerId) {
+        sendNewInvoiceEmail({
+          invoiceId: input.invoiceId,
+          customerId: invoice.customerId,
+        }).catch(err => console.error('[CustomerPortal] Failed to send invoice email:', err));
+      }
+
       return { success: true };
     }),
   
@@ -3023,8 +3047,22 @@ export const customerPortalRouter = router({
         })
         .where(eq(customerUsers.id, input.userId));
       
-      // TODO: Send approval notification email to user
-      
+      // Send approval notification email to user
+      if (user.email) {
+        const { sendEmail } = await import('../services/email');
+        sendEmail({
+          to: user.email,
+          subject: 'Your KIISHA Portal Access Has Been Approved',
+          html: `
+            <h2>Access Approved</h2>
+            <p>Hi ${user.name || 'there'},</p>
+            <p>Your request to access the KIISHA customer portal has been approved. You now have access to ${customer.name}'s portal.</p>
+            <p><a href="${ENV.appUrl || 'https://app.kiisha.io'}/portal" style="display:inline-block;padding:12px 24px;background:#f97316;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Go to Portal</a></p>
+            <p>- The KIISHA Team</p>
+          `,
+        }).catch(err => console.error('[CustomerPortal] Failed to send approval email:', err));
+      }
+
       return {
         success: true,
         message: `User ${user.email} has been approved and assigned to ${customer.name}`,
@@ -3050,8 +3088,22 @@ export const customerPortalRouter = router({
       // Delete the user
       await db.delete(customerUsers).where(eq(customerUsers.id, input.userId));
       
-      // TODO: Send rejection notification email to user
-      
+      // Send rejection notification email to user
+      if (user.email) {
+        const { sendEmail } = await import('../services/email');
+        sendEmail({
+          to: user.email,
+          subject: 'KIISHA Portal Access Update',
+          html: `
+            <h2>Access Request Update</h2>
+            <p>Hi ${user.name || 'there'},</p>
+            <p>Your request to access the KIISHA customer portal was not approved${input.reason ? `: ${input.reason}` : '.'}.</p>
+            <p>If you believe this was a mistake, please contact the account administrator.</p>
+            <p>- The KIISHA Team</p>
+          `,
+        }).catch(err => console.error('[CustomerPortal] Failed to send rejection email:', err));
+      }
+
       return {
         success: true,
         message: `User ${user.email} has been rejected and removed`,

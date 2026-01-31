@@ -38,6 +38,9 @@ import {
   acknowledgeAlert,
   uploadDocument,
   respondToRfi,
+  inviteUser,
+  exportData,
+  initiatePayment,
   type SkillContext,
 } from "../services/openclawSkills";
 
@@ -509,6 +512,52 @@ export const openclawRouter = router({
             },
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "invite_user",
+            description: "Send an invitation email to a new user to join the organization. Requires approval.",
+            parameters: {
+              type: "object",
+              properties: {
+                email: { type: "string", description: "Email address to invite" },
+                role: { type: "string", enum: ["viewer", "editor", "admin"], description: "Role to assign" },
+                message: { type: "string", description: "Optional personal message to include in the invitation" },
+              },
+              required: ["email"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "export_data",
+            description: "Export data (projects, documents, invoices, etc.) in CSV or JSON format.",
+            parameters: {
+              type: "object",
+              properties: {
+                entityType: { type: "string", enum: ["projects", "documents", "invoices", "work_orders", "obligations", "alerts"], description: "Type of data to export" },
+                format: { type: "string", enum: ["csv", "json", "xlsx"], description: "Export format" },
+              },
+              required: ["entityType"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "initiate_payment",
+            description: "Create a Stripe checkout session for invoice payment. Returns a payment link.",
+            parameters: {
+              type: "object",
+              properties: {
+                invoiceId: { type: "number", description: "Invoice ID to pay" },
+                customerId: { type: "number", description: "Customer ID making the payment" },
+              },
+              required: ["invoiceId", "customerId"],
+            },
+          },
+        },
       ];
 
       // Build conversation messages for the AI gateway
@@ -612,6 +661,18 @@ Channel: ${input.channel.type}`;
               case "respond_to_rfi":
                 skillResult = await respondToRfi(skillContext, args);
                 dataAccessed.push({ entityType: "rfis", entityId: args.rfiId, accessType: "write" });
+                break;
+              case "invite_user":
+                skillResult = await inviteUser(skillContext, args.email, args.role, args.message);
+                dataAccessed.push({ entityType: "users", entityId: 0, accessType: "write" });
+                break;
+              case "export_data":
+                skillResult = await exportData(skillContext, args.entityType, args.format, args.filters);
+                dataAccessed.push({ entityType: args.entityType, entityId: 0, accessType: "read" });
+                break;
+              case "initiate_payment":
+                skillResult = await initiatePayment(skillContext, args.invoiceId, args.customerId);
+                dataAccessed.push({ entityType: "invoices", entityId: args.invoiceId, accessType: "write" });
                 break;
               default:
                 skillResult = { success: false, error: "Unknown tool" };
@@ -1176,6 +1237,9 @@ Channel: ${input.channel.type}`;
         { id: "kiisha.alert.acknowledge", name: "Acknowledge Alert", category: "operation", risk: "medium", description: "Acknowledge alerts" },
         { id: "kiisha.ticket.create", name: "Create Work Order", category: "operation", risk: "medium", description: "Create work orders" },
         { id: "kiisha.rfi.respond", name: "Respond to RFI", category: "operation", risk: "medium", description: "Respond to RFIs" },
+        { id: "kiisha.user.invite", name: "Invite User", category: "operation", risk: "high", description: "Send organization invitations" },
+        { id: "kiisha.data.export", name: "Export Data", category: "operation", risk: "medium", description: "Export data to CSV/JSON" },
+        { id: "kiisha.payment.initiate", name: "Initiate Payment", category: "payment", risk: "critical", description: "Create Stripe payment sessions" },
         { id: "channel.whatsapp", name: "WhatsApp Channel", category: "channel", risk: "low", description: "Access via WhatsApp" },
         { id: "channel.telegram", name: "Telegram Channel", category: "channel", risk: "low", description: "Access via Telegram" },
         { id: "channel.slack", name: "Slack Channel", category: "channel", risk: "low", description: "Access via Slack" },
