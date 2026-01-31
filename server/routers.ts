@@ -917,6 +917,69 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return db.getUserProjectRole(ctx.user.id, input.projectId);
       }),
+
+    create: protectedProcedure
+      .input(z.object({
+        portfolioId: z.number(),
+        organizationId: z.number(),
+        name: z.string().min(1),
+        code: z.string().optional(),
+        country: z.string().optional(),
+        state: z.string().optional(),
+        city: z.string().optional(),
+        latitude: z.string().optional(),
+        longitude: z.string().optional(),
+        address: z.string().optional(),
+        timezone: z.string().optional(),
+        technology: z.enum(["PV", "BESS", "PV+BESS", "Wind", "Minigrid", "C&I"]).optional(),
+        capacityMw: z.string().optional(),
+        capacityMwh: z.string().optional(),
+        status: z.enum(["prospecting", "development", "construction", "operational", "decommissioned"]).optional(),
+        stage: z.enum(["origination", "feasibility", "development", "due_diligence", "ntp", "construction", "commissioning", "cod", "operations"]).optional(),
+        assetClassification: z.enum(["residential", "small_commercial", "large_commercial", "industrial", "mini_grid", "mesh_grid", "interconnected_mini_grids", "grid_connected"]).optional(),
+        gridConnectionType: z.enum(["grid_tied", "islanded", "islandable", "weak_grid", "no_grid"]).optional(),
+        configurationProfile: z.enum(["solar_only", "solar_bess", "solar_genset", "solar_bess_genset", "bess_only", "genset_only", "hybrid"]).optional(),
+        couplingTopology: z.enum(["AC_COUPLED", "DC_COUPLED", "HYBRID_COUPLED", "UNKNOWN", "NOT_APPLICABLE"]).optional(),
+        offtakerName: z.string().optional(),
+        offtakerType: z.enum(["industrial", "commercial", "utility", "community", "residential_aggregate"]).optional(),
+        contractType: z.enum(["ppa", "lease", "esco", "direct_sale", "captive"]).optional(),
+        projectValueUsd: z.string().optional(),
+        codDate: z.string().optional(),
+        copyFromProjectId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.copyFromProjectId) {
+          const projectId = await db.duplicateProject(input.copyFromProjectId, input.name, ctx.user.id);
+          return { projectId };
+        }
+        const projectId = await db.createProject({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+        return { projectId };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        name: z.string().optional(),
+        code: z.string().optional(),
+        country: z.string().optional(),
+        state: z.string().optional(),
+        city: z.string().optional(),
+        technology: z.enum(["PV", "BESS", "PV+BESS", "Wind", "Minigrid", "C&I"]).optional(),
+        capacityMw: z.string().optional(),
+        capacityMwh: z.string().optional(),
+        status: z.enum(["prospecting", "development", "construction", "operational", "decommissioned"]).optional(),
+        stage: z.enum(["origination", "feasibility", "development", "due_diligence", "ntp", "construction", "commissioning", "cod", "operations"]).optional(),
+        offtakerName: z.string().optional(),
+        projectValueUsd: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { projectId, ...data } = input;
+        await db.updateProject(projectId, data);
+        return { success: true };
+      }),
   }),
 
   // Portfolio Views - for view-scoping assets
@@ -1659,6 +1722,117 @@ export const appRouter = router({
     getTypes: publicProcedure.query(async () => {
       return db.getDocumentTypes();
     }),
+
+    // Cross-project document matrix
+    getMatrix: protectedProcedure
+      .input(z.object({
+        portfolioId: z.number().optional(),
+        organizationId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        if (input.portfolioId) {
+          return db.getDocumentMatrixByPortfolio(input.portfolioId);
+        }
+        // Return all projects matrix if no portfolio filter
+        const allProjects = await db.getAllProjects();
+        const projectIds = allProjects.map(p => p.id);
+        if (projectIds.length === 0) return { projects: [], categories: [], types: [], documents: [] };
+        const cats = await db.getDocumentCategories(input.organizationId);
+        const types = await db.getDocumentTypes();
+        const allDocs: any[] = [];
+        for (const pid of projectIds) {
+          const docs = await db.getDocumentsByProject(pid);
+          allDocs.push(...docs);
+        }
+        return { projects: allProjects, categories: cats, types, documents: allDocs };
+      }),
+
+    // Portfolio diligence progress
+    getDiligenceProgress: protectedProcedure
+      .input(z.object({
+        portfolioId: z.number().optional(),
+        organizationId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        if (input.portfolioId) {
+          return db.getPortfolioDiligenceProgress(input.portfolioId);
+        }
+        // Compute across all projects
+        const allProjects = await db.getAllProjects();
+        if (allProjects.length === 0) return { total: 0, verified: 0, pending: 0, missing: 0, byCategory: [] };
+        const allDocs: any[] = [];
+        for (const p of allProjects) {
+          const docs = await db.getDocumentsByProject(p.id);
+          allDocs.push(...docs);
+        }
+        const total = allDocs.length;
+        const verified = allDocs.filter(d => d.status === 'verified').length;
+        const pending = allDocs.filter(d => d.status === 'pending' || d.status === 'unverified').length;
+        const missing = allDocs.filter(d => d.status === 'missing').length;
+        return { total, verified, pending, missing, byCategory: [] };
+    }),
+
+    // AI document categorization - suggest category for uploaded file
+    aiCategorize: protectedProcedure
+      .input(z.object({
+        fileName: z.string(),
+        mimeType: z.string().optional(),
+        firstPageText: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const categories = await db.getDocumentCategories();
+        const types = await db.getDocumentTypes();
+
+        // Use LLM to classify document
+        const prompt = `You are a document classification assistant for renewable energy projects.
+Given the following document information, suggest the top 3 most likely document categories.
+
+File name: ${input.fileName}
+${input.firstPageText ? `First page text excerpt: ${input.firstPageText.slice(0, 500)}` : ''}
+
+Available categories:
+${categories.map((c: any) => `- ${c.code}: ${c.name}`).join('\n')}
+
+Available document types:
+${types.map((t: any) => `- ${t.code}: ${t.name} (category: ${t.categoryId})`).join('\n')}
+
+Respond with a JSON array of suggestions, each with:
+- documentTypeId (number)
+- documentTypeName (string)
+- categoryName (string)
+- confidence (number 0-1)
+
+Only return the JSON array, nothing else.`;
+
+        try {
+          const result = await invokeLLM([
+            { role: 'system', content: 'You are a document classification assistant for renewable energy projects. Always respond with valid JSON.' },
+            { role: 'user', content: prompt },
+          ], { maxTokens: 500 });
+
+          const text = typeof result === 'string' ? result : result?.content || '[]';
+          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          return { suggestions: suggestions.slice(0, 3) };
+        } catch (err) {
+          // Fallback: simple keyword matching
+          const name = input.fileName.toLowerCase();
+          const matched = types.filter((t: any) => {
+            const tName = t.name.toLowerCase();
+            return name.includes(tName.split(' ')[0]) || tName.includes(name.split('.')[0]);
+          }).slice(0, 3);
+
+          return {
+            suggestions: matched.map((t: any, i: number) => ({
+              documentTypeId: t.id,
+              documentTypeName: t.name,
+              categoryName: categories.find((c: any) => c.id === t.categoryId)?.name || 'Unknown',
+              confidence: 0.5 - (i * 0.1),
+            })),
+          };
+        }
+      }),
+
     upload: withProjectEdit
       .input(z.object({
         projectId: z.number(),
@@ -2975,6 +3149,79 @@ Respond with JSON array of extractions.`;
           });
         }
         return { success: true };
+      }),
+  }),
+
+  // Reviewer Groups - multi-party review configuration
+  reviewerGroups: router({
+    list: protectedProcedure
+      .input(z.object({ organizationId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getReviewerGroups(input.organizationId);
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        organizationId: z.number(),
+        name: z.string(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.createReviewerGroup(input);
+        return { id };
+      }),
+  }),
+
+  // Document Reviews - per-document per-reviewer-group status
+  documentReviews: router({
+    getByDocument: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getDocumentReviewsByDocument(input.documentId);
+      }),
+    upsert: protectedProcedure
+      .input(z.object({
+        documentId: z.number(),
+        reviewerGroupId: z.number(),
+        status: z.enum(["pending", "approved", "rejected", "needs_revision"]),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.upsertDocumentReview({
+          ...input,
+          reviewerId: ctx.user.id,
+        });
+        return { id };
+      }),
+  }),
+
+  // Portfolio management
+  portfolios: router({
+    list: protectedProcedure
+      .input(z.object({ organizationId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getPortfolios(input.organizationId);
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        organizationId: z.number(),
+        name: z.string(),
+        description: z.string().optional(),
+        region: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.createPortfolio(input);
+        return { id };
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getPortfolioById(input.id);
+      }),
+    getProjects: protectedProcedure
+      .input(z.object({ portfolioId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getProjectsByPortfolio(input.portfolioId);
       }),
   }),
 

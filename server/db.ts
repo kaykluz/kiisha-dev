@@ -583,6 +583,204 @@ export async function getAllProjects() {
   return db.select().from(projects).orderBy(projects.name);
 }
 
+export async function createProject(data: {
+  portfolioId: number;
+  organizationId: number;
+  name: string;
+  code?: string;
+  state?: string;
+  country?: string;
+  city?: string;
+  latitude?: string;
+  longitude?: string;
+  address?: string;
+  timezone?: string;
+  technology?: "PV" | "BESS" | "PV+BESS" | "Wind" | "Minigrid" | "C&I";
+  capacityMw?: string;
+  capacityMwh?: string;
+  status?: "prospecting" | "development" | "construction" | "operational" | "decommissioned";
+  stage?: "origination" | "feasibility" | "development" | "due_diligence" | "ntp" | "construction" | "commissioning" | "cod" | "operations";
+  assetClassification?: "residential" | "small_commercial" | "large_commercial" | "industrial" | "mini_grid" | "mesh_grid" | "interconnected_mini_grids" | "grid_connected";
+  gridConnectionType?: "grid_tied" | "islanded" | "islandable" | "weak_grid" | "no_grid";
+  configurationProfile?: "solar_only" | "solar_bess" | "solar_genset" | "solar_bess_genset" | "bess_only" | "genset_only" | "hybrid";
+  couplingTopology?: "AC_COUPLED" | "DC_COUPLED" | "HYBRID_COUPLED" | "UNKNOWN" | "NOT_APPLICABLE";
+  offtakerName?: string;
+  offtakerType?: "industrial" | "commercial" | "utility" | "community" | "residential_aggregate";
+  contractType?: "ppa" | "lease" | "esco" | "direct_sale" | "captive";
+  projectValueUsd?: string;
+  codDate?: string;
+  createdBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(projects).values(data);
+  return result[0].insertId;
+}
+
+export async function duplicateProject(sourceProjectId: number, newName: string, createdBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const source = await getProjectById(sourceProjectId);
+  if (!source) throw new Error("Source project not found");
+  const { id, createdAt, updatedAt, ...rest } = source;
+  const result = await db.insert(projects).values({
+    ...rest,
+    name: newName,
+    code: null,
+    createdBy,
+  });
+  return result[0].insertId;
+}
+
+export async function getPortfolios(organizationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(portfolios).where(eq(portfolios.organizationId, organizationId)).orderBy(portfolios.name);
+}
+
+export async function createPortfolio(data: { organizationId: number; name: string; description?: string; region?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(portfolios).values(data);
+  return result[0].insertId;
+}
+
+export async function getPortfolioById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(portfolios).where(eq(portfolios.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getProjectsByPortfolio(portfolioId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projects).where(eq(projects.portfolioId, portfolioId)).orderBy(projects.name);
+}
+
+export async function getDocumentMatrixByPortfolio(portfolioId: number) {
+  const db = await getDb();
+  if (!db) return { projects: [], categories: [], types: [], documents: [] };
+  const portfolioProjects = await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
+  if (portfolioProjects.length === 0) return { projects: [], categories: [], types: [], documents: [] };
+  const projectIds = portfolioProjects.map(p => p.id);
+  const cats = await db.select().from(documentCategories).orderBy(documentCategories.sortOrder);
+  const types = await db.select().from(documentTypes).orderBy(documentTypes.sortOrder);
+  const docs = await db.select().from(documents).where(inArray(documents.projectId, projectIds));
+  return { projects: portfolioProjects, categories: cats, types, documents: docs };
+}
+
+export async function getPortfolioDiligenceProgress(portfolioId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, verified: 0, pending: 0, missing: 0, byCategory: [] };
+  const portfolioProjects = await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
+  if (portfolioProjects.length === 0) return { total: 0, verified: 0, pending: 0, missing: 0, byCategory: [] };
+  const projectIds = portfolioProjects.map(p => p.id);
+  const docs = await db.select().from(documents).where(inArray(documents.projectId, projectIds));
+  const total = docs.length;
+  const verified = docs.filter(d => d.status === 'verified').length;
+  const pending = docs.filter(d => d.status === 'pending' || d.status === 'unverified').length;
+  const missing = docs.filter(d => d.status === 'missing').length;
+
+  // Group by document type category
+  const typeIds = [...new Set(docs.map(d => d.documentTypeId))];
+  const types = typeIds.length > 0 ? await db.select().from(documentTypes).where(inArray(documentTypes.id, typeIds)) : [];
+  const catIds = [...new Set(types.map(t => t.categoryId))];
+  const cats = catIds.length > 0 ? await db.select().from(documentCategories).where(inArray(documentCategories.id, catIds)) : [];
+
+  const byCategory = cats.map(cat => {
+    const catTypeIds = types.filter(t => t.categoryId === cat.id).map(t => t.id);
+    const catDocs = docs.filter(d => catTypeIds.includes(d.documentTypeId));
+    return {
+      categoryId: cat.id,
+      categoryName: cat.name,
+      total: catDocs.length,
+      verified: catDocs.filter(d => d.status === 'verified').length,
+      pending: catDocs.filter(d => d.status === 'pending' || d.status === 'unverified').length,
+      missing: catDocs.filter(d => d.status === 'missing').length,
+    };
+  });
+
+  return { total, verified, pending, missing, byCategory };
+}
+
+export async function getDocumentCategories(organizationId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  if (organizationId) {
+    return db.select().from(documentCategories).where(
+      or(eq(documentCategories.organizationId, organizationId), isNull(documentCategories.organizationId))
+    ).orderBy(documentCategories.sortOrder);
+  }
+  return db.select().from(documentCategories).orderBy(documentCategories.sortOrder);
+}
+
+export async function getDocumentTypes(organizationId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentTypes).orderBy(documentTypes.sortOrder);
+}
+
+export async function getDocumentTypesByCategory(categoryId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentTypes).where(eq(documentTypes.categoryId, categoryId)).orderBy(documentTypes.sortOrder);
+}
+
+export async function getDocumentReviewsByDocument(documentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(documentReviews).where(eq(documentReviews.documentId, documentId));
+}
+
+export async function upsertDocumentReview(data: {
+  documentId: number;
+  reviewerGroupId: number;
+  reviewerId: number;
+  status: "pending" | "approved" | "rejected" | "needs_revision";
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if review already exists
+  const existing = await db.select().from(documentReviews).where(
+    and(eq(documentReviews.documentId, data.documentId), eq(documentReviews.reviewerGroupId, data.reviewerGroupId))
+  ).limit(1);
+  if (existing.length > 0) {
+    await db.update(documentReviews).set({
+      reviewerId: data.reviewerId,
+      status: data.status,
+      notes: data.notes,
+      reviewedAt: new Date(),
+    }).where(eq(documentReviews.id, existing[0].id));
+    return existing[0].id;
+  }
+  const result = await db.insert(documentReviews).values({
+    ...data,
+    reviewedAt: data.status !== 'pending' ? new Date() : undefined,
+  });
+  return result[0].insertId;
+}
+
+export async function getReviewerGroups(organizationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(reviewerGroups).where(eq(reviewerGroups.organizationId, organizationId)).orderBy(reviewerGroups.sortOrder);
+}
+
+export async function createReviewerGroup(data: { organizationId: number; name: string; description?: string; sortOrder?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(reviewerGroups).values(data);
+  return result[0].insertId;
+}
+
+export async function updateProject(id: number, data: Partial<typeof projects.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(projects).set(data).where(eq(projects.id, id));
+}
+
 // ============ DOCUMENTS ============
 export async function getDocumentsByProject(projectId: number, isInvestorViewer: boolean = false) {
   const db = await getDb();

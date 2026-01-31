@@ -54,6 +54,12 @@ import {
   Plug,
   Briefcase,
   Send,
+  GitBranch,
+  Grid3X3,
+  FileSignature,
+  Columns3,
+  ShieldCheck,
+  Target,
 } from "lucide-react";
 import { mockProjects, mockPortfolio, mockAlerts } from "@shared/mockData";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
@@ -89,6 +95,8 @@ const navTabs = [
   { label: "Operations", path: "/operations" },
   { label: "Financial Models", path: "/financial-models" },
   { label: "Portfolio", path: "/portfolio-comparison" },
+  { label: "Pipeline", path: "/pipeline" },
+  { label: "Matrix", path: "/document-matrix" },
 ];
 
 // Navigation item type with optional children
@@ -110,6 +118,13 @@ const sidebarNav: NavItem[] = [
   { label: "Operations", path: "/operations", icon: Activity },
   { label: "Financial Models", path: "/financial-models", icon: Calculator },
   { label: "Portfolio", path: "/portfolio-comparison", icon: BarChart3 },
+  { label: "Pipeline", path: "/pipeline", icon: GitBranch },
+  { label: "Doc Matrix", path: "/document-matrix", icon: Grid3X3 },
+  { label: "Data Comparison", path: "/data-comparison", icon: Columns3 },
+  { label: "Risk Register", path: "/risk-register", icon: Shield },
+  { label: "Contracts", path: "/contracts", icon: FileSignature },
+  { label: "Permits", path: "/permits", icon: FileCheck },
+  { label: "Compliance", path: "/compliance-matrix", icon: ShieldCheck },
 ];
 
 // Compliance navigation with children

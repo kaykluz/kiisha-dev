@@ -68,6 +68,15 @@ import CustomViews from "./pages/CustomViews";
 import ResponsesList from "./pages/ResponsesList";
 import DataRoom from "./pages/DataRoom";
 import ComplianceDashboard from "./pages/ComplianceDashboard";
+import ProjectWizard from "./pages/ProjectWizard";
+import DocumentMatrix from "./pages/DocumentMatrix";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
+import PipelineManagement from "./pages/PipelineManagement";
+import RiskRegister from "./pages/RiskRegister";
+import ContractTracker from "./pages/ContractTracker";
+import PermitMatrix from "./pages/PermitMatrix";
+import ComplianceMatrix from "./pages/ComplianceMatrix";
+import DataComparison from "./pages/DataComparison";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalInvoices, { PortalInvoiceDetail } from "./pages/portal/PortalInvoices";
@@ -137,6 +146,15 @@ function Router() {
       <Route path="/artifacts" component={ArtifactHub} />
       <Route path="/financial-models" component={FinancialModels} />
       <Route path="/portfolio-comparison" component={PortfolioComparison} />
+      <Route path="/projects/new" component={ProjectWizard} />
+      <Route path="/document-matrix" component={DocumentMatrix} />
+      <Route path="/portfolio-dashboard" component={PortfolioDashboard} />
+      <Route path="/pipeline" component={PipelineManagement} />
+      <Route path="/risk-register" component={RiskRegister} />
+      <Route path="/contracts" component={ContractTracker} />
+      <Route path="/permits" component={PermitMatrix} />
+      <Route path="/compliance-matrix" component={ComplianceMatrix} />
+      <Route path="/data-comparison" component={DataComparison} />
       <Route path="/settings/categories" component={CategoryManagement} />
       <Route path="/profile" component={Profile} />
       <Route path="/requests" component={RequestsDashboard} />
