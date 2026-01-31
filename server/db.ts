@@ -118,14 +118,7 @@ import {
   InsertOAuthAccount, InsertOAuthProviderConfig, InsertEmailVerificationToken,
   OAuthAccount, OAuthProviderConfig, EmailVerificationToken,
   // Login Activity
-  loginActivity, InsertLoginActivity, LoginActivity,
-  // OpenClaw Integration
-  channelIdentities, capabilityRegistry, orgCapabilities, approvalRequests,
-  openclawSecurityPolicies, conversationVatrs, openclawTasks, openclawScheduledTasks,
-  InsertChannelIdentity, InsertCapabilityRegistry, InsertOrgCapability, InsertApprovalRequest,
-  InsertOpenclawSecurityPolicy, InsertConversationVatr, InsertOpenclawTask, InsertOpenclawScheduledTask,
-  ChannelIdentity, CapabilityRegistry, OrgCapability, ApprovalRequest,
-  OpenclawSecurityPolicy, ConversationVatr, OpenclawTask, OpenclawScheduledTask
+  loginActivity, InsertLoginActivity, LoginActivity
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -540,19 +533,6 @@ export async function getOrganizationMemberships(userId: number) {
 }
 
 // ============ PROJECTS ============
-
-// Get all organization IDs a user belongs to
-export async function getUserOrganizationIds(userId: number): Promise<number[]> {
-  const db = await getDb();
-  if (!db) return [];
-  
-  const memberships = await db.select({ organizationId: organizationMembers.organizationId })
-    .from(organizationMembers)
-    .where(eq(organizationMembers.userId, userId));
-  
-  return memberships.map(m => m.organizationId);
-}
-
 export async function getProjectsForUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -4670,7 +4650,6 @@ export interface ProjectClassificationFilters {
   gridConnectionType?: string;
   configurationProfile?: string;
   networkTopology?: string;
-  userOrgIds?: number[]; // For filtering by user's organizations (non-superusers)
 }
 
 export async function getProjectClassificationStats(filters?: ProjectClassificationFilters) {
@@ -4839,14 +4818,7 @@ export async function getProjectsWithFilters(filters?: ProjectClassificationFilt
   const db = await getDb();
   if (!db) return [];
   
-  const conditions: (ReturnType<typeof eq> | ReturnType<typeof inArray>)[] = [];
-  
-  // CRITICAL: If userOrgIds is provided, filter by user's organizations
-  // This ensures non-superusers only see projects in their organizations
-  if (filters?.userOrgIds && filters.userOrgIds.length > 0) {
-    conditions.push(inArray(projects.organizationId, filters.userOrgIds));
-  }
-  
+  const conditions: ReturnType<typeof eq>[] = [];
   if (filters?.portfolioId) conditions.push(eq(projects.portfolioId, filters.portfolioId));
   if (filters?.organizationId) conditions.push(eq(projects.organizationId, filters.organizationId));
   if (filters?.country) conditions.push(eq(projects.country, filters.country));
@@ -11107,22 +11079,6 @@ export async function updateSessionActiveOrg(sessionId: string, organizationId: 
     .update(serverSessions)
     .set({ 
       activeOrganizationId: organizationId,
-      lastSeenAt: new Date()
-    })
-    .where(eq(serverSessions.id, sessionId));
-}
-
-/**
- * Clear workspace selection required flag after user explicitly selects a workspace
- */
-export async function clearWorkspaceSelectionRequired(sessionId: string): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-  
-  await db
-    .update(serverSessions)
-    .set({ 
-      workspaceSelectionRequired: false,
       lastSeenAt: new Date()
     })
     .where(eq(serverSessions.id, sessionId));

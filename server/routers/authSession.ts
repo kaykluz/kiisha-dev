@@ -19,14 +19,12 @@ export interface SessionState {
   mfaRequired: boolean;
   mfaSatisfied: boolean;
   workspaceRequired: boolean;
-  workspaceSelectionRequired: boolean; // True on fresh login until user explicitly selects workspace
   user: {
     id: number;
     openId: string;
     name: string | null;
     email: string | null;
     role: string;
-    isSuperuser?: boolean;
   } | null;
   activeOrganizationId: number | null;
   activeOrganization: {
@@ -68,7 +66,6 @@ export const authSessionRouter = router({
       mfaRequired: false,
       mfaSatisfied: false,
       workspaceRequired: false,
-      workspaceSelectionRequired: false,
       user: null,
       activeOrganizationId: null,
       activeOrganization: null,
@@ -100,20 +97,13 @@ export const authSessionRouter = router({
     const mfaRequired = await sessionManager.sessionRequiresMfa(session);
     const mfaSatisfied = !!session.mfaSatisfiedAt;
 
-    // Get workspace count - superusers see all orgs
-    let workspaceCount: number;
-    if (user.isSuperuser) {
-      const allOrgs = await db.getAllOrganizations();
-      workspaceCount = allOrgs.length;
-    } else {
-      const memberships = await db.getUserOrganizationMemberships(user.id);
-      const activeMembers = memberships.filter(m => m.status === "active");
-      workspaceCount = activeMembers.length;
-    }
+    // Get workspace count
+    const memberships = await db.getUserOrganizationMemberships(user.id);
+    const activeMembers = memberships.filter(m => m.status === "active");
+    const workspaceCount = activeMembers.length;
 
-    // Workspace selection is ALWAYS required if no active org is set
-    // This creates the "wall" that forces users to select a company
-    const workspaceRequired = !session.activeOrganizationId && workspaceCount > 0;
+    // Determine if workspace selection is required
+    const workspaceRequired = !session.activeOrganizationId && workspaceCount > 1;
 
     // Get active organization if set
     let activeOrganization = null;
@@ -129,23 +119,17 @@ export const authSessionRouter = router({
       }
     }
 
-    // Check if workspace selection is required (fresh login flag)
-    // This is set to true on login and cleared when user explicitly selects a workspace
-    const workspaceSelectionRequired = session.workspaceSelectionRequired ?? true;
-
     return {
       authenticated: true,
       mfaRequired,
       mfaSatisfied: mfaRequired ? mfaSatisfied : true,
       workspaceRequired,
-      workspaceSelectionRequired: workspaceSelectionRequired && workspaceCount > 0,
       user: {
         id: user.id,
         openId: user.openId,
         name: user.name,
         email: user.email,
         role: user.role,
-        isSuperuser: user.isSuperuser || false,
       },
       activeOrganizationId: session.activeOrganizationId,
       activeOrganization,
@@ -159,19 +143,6 @@ export const authSessionRouter = router({
    * Only returns minimal info - no sensitive org data until selected
    */
   listWorkspaces: protectedProcedure.query(async ({ ctx }) => {
-    // Superusers see all organizations
-    if (ctx.user.isSuperuser) {
-      const allOrgs = await db.getAllOrganizations();
-      return allOrgs.map(org => ({
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        logoUrl: org.logoUrl,
-        role: 'superuser' as const,
-      }));
-    }
-
-    // Regular users only see their memberships
     const memberships = await db.getUserOrganizationMemberships(ctx.user.id);
     const activeMembers = memberships.filter(m => m.status === "active");
 
@@ -199,17 +170,14 @@ export const authSessionRouter = router({
       organizationId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Superusers can select any organization
-      if (!ctx.user.isSuperuser) {
-        // Verify user has membership in this org
-        const memberships = await db.getOrganizationMemberships(ctx.user.id);
-        const membership = memberships.find(m => m.organizationId === input.organizationId);
-        if (!membership || membership.status !== "active") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "You do not have access to this workspace",
-          });
-        }
+      // Verify user has membership in this org
+      const memberships = await db.getOrganizationMemberships(ctx.user.id);
+      const membership = memberships.find(m => m.organizationId === input.organizationId);
+      if (!membership || membership.status !== "active") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to this workspace",
+        });
       }
 
       // Get session ID from cookie
@@ -333,88 +301,6 @@ export const authSessionRouter = router({
         createdAt: e.createdAt,
         // Don't expose IP/UA hashes to user
       }));
-    }),
-
-  /**
-   * Create a new organization (for users without any workspace)
-   * Creates the org and adds the user as admin/owner
-   */
-  createOrganization: protectedProcedure
-    .input(z.object({
-      name: z.string().min(2).max(100),
-      description: z.string().max(500).optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      // Check if user already has workspaces - they should use the regular flow
-      const existingMemberships = await db.getOrganizationMemberships(ctx.user.id);
-      const activeMemberships = existingMemberships.filter(m => m.status === "active");
-      
-      // Allow creating org even if they have memberships (they might want multiple orgs)
-      // But limit to prevent abuse
-      if (activeMemberships.length >= 5) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You have reached the maximum number of organizations",
-        });
-      }
-
-      // Generate a unique code and slug from the name
-      const baseSlug = input.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .substring(0, 40);
-      
-      const baseCode = input.name
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "")
-        .substring(0, 6) || "ORG";
-      
-      // Add random suffix to ensure uniqueness
-      const suffix = Math.random().toString(36).substring(2, 6);
-      const slug = `${baseSlug}-${suffix}`;
-      const code = `${baseCode}${suffix.toUpperCase()}`.substring(0, 10);
-
-      // Create organization
-      const orgId = await db.createOrganization({
-        name: input.name,
-        code,
-        slug,
-        description: input.description,
-        signupMode: "invite_only",
-        status: "active",
-        createdBy: ctx.user.id,
-      });
-
-      if (!orgId) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create organization",
-        });
-      }
-
-      // Add user as admin of the new organization
-      await db.createOrganizationMembership({
-        userId: ctx.user.id,
-        organizationId: orgId,
-        role: "admin",
-        status: "active",
-        invitedBy: ctx.user.id, // Self-invited
-      });
-
-      // Get session ID and update active org
-      const sessionId = ctx.req?.cookies?.[COOKIE_NAME];
-      if (sessionId) {
-        await sessionManager.setActiveOrganization(sessionId, ctx.user.id, orgId);
-      }
-
-      return {
-        success: true,
-        organizationId: orgId,
-        name: input.name,
-        slug,
-        message: `Organization "${input.name}" created successfully`,
-      };
     }),
 });
 

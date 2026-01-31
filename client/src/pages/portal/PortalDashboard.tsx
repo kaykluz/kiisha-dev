@@ -3,49 +3,22 @@
  * 
  * Overview page showing customer's projects, invoices,
  * payments, and quick actions.
- * 
- * For company users: Shows customer selector and consolidated view
- * For customer users: Shows their own data only
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
   FileText, CreditCard, FolderOpen, DollarSign, 
   AlertCircle, CheckCircle, Clock, ArrowRight,
-  Zap, LogOut, User, Bell, Building2, Users, Eye
+  Zap, LogOut, User, Bell
 } from 'lucide-react';
 import { EnergyProductionChart } from '@/components/EnergyProductionChart';
 import { NotificationBell } from '@/components/NotificationBell';
 import { trpc } from '@/lib/trpc';
-
-interface TokenPayload {
-  type: 'customer' | 'company';
-  userId: number;
-  email: string;
-  customerId?: number;
-  isCompanyUser?: boolean;
-  isSuperuser?: boolean;
-  allowedCustomerIds?: number[];
-}
-
-interface CustomerOption {
-  id: number;
-  name: string;
-  companyName: string | null;
-  organizationId: number;
-}
 
 function formatCurrency(amount: number, currency = 'USD') {
   return new Intl.NumberFormat('en-US', {
@@ -90,33 +63,11 @@ function getPaymentStatusBadge(status: string) {
   return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
 }
 
-// Parse and store token data
-function parseToken(token: string): TokenPayload | null {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-// Get stored customers from localStorage (set during login)
-function getStoredCustomers(): CustomerOption[] {
-  try {
-    const stored = localStorage.getItem('portal_customers');
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
 export default function PortalDashboard() {
   const [, setLocation] = useLocation();
-  const [tokenData, setTokenData] = useState<TokenPayload | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | 'all' | null>(null);
-  const [availableCustomers, setAvailableCustomers] = useState<CustomerOption[]>([]);
+  const [customerId, setCustomerId] = useState<number | null>(null);
   
-  // Check authentication and parse token
+  // Check authentication and get customer ID from token
   useEffect(() => {
     const token = localStorage.getItem('customer_token');
     if (!token) {
@@ -124,59 +75,32 @@ export default function PortalDashboard() {
       return;
     }
     
-    const payload = parseToken(token);
-    if (!payload) {
-      setLocation('/portal/login');
-      return;
-    }
-    
-    setTokenData(payload);
-    
-    // For company users, get available customers
-    if (payload.isCompanyUser) {
-      const customers = getStoredCustomers();
-      setAvailableCustomers(customers);
-      // Default to "all" for company users
-      setSelectedCustomerId('all');
-    } else if (payload.customerId) {
-      // For customer users, set their customer ID
-      setSelectedCustomerId(payload.customerId);
-    } else {
+    try {
+      // Decode JWT to get customer ID (simple base64 decode of payload)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.customerId) {
+        setCustomerId(payload.customerId);
+      } else {
+        setLocation('/portal/login');
+      }
+    } catch {
       setLocation('/portal/login');
     }
   }, [setLocation]);
   
-  const isCompanyUser = tokenData?.isCompanyUser || false;
-  const effectiveCustomerId = selectedCustomerId === 'all' ? null : selectedCustomerId;
-  
-  // Fetch dashboard data - for company users viewing "all", we'll aggregate
+  // Fetch real dashboard data
   const { data: dashboardData, isLoading, error } = trpc.customerPortal.getMyDashboard.useQuery(
-    { customerId: effectiveCustomerId! },
-    { enabled: !!effectiveCustomerId && effectiveCustomerId !== null }
-  );
-  
-  // For company users viewing all customers, fetch consolidated data
-  const { data: consolidatedData, isLoading: consolidatedLoading } = trpc.customerPortal.getConsolidatedDashboard.useQuery(
-    { customerIds: availableCustomers.map(c => c.id) },
-    { enabled: isCompanyUser && selectedCustomerId === 'all' && availableCustomers.length > 0 }
+    { customerId: customerId! },
+    { enabled: !!customerId }
   );
   
   const handleLogout = () => {
     localStorage.removeItem('customer_token');
-    localStorage.removeItem('portal_customers');
     setLocation('/portal/login');
   };
   
-  const handleCustomerChange = (value: string) => {
-    if (value === 'all') {
-      setSelectedCustomerId('all');
-    } else {
-      setSelectedCustomerId(parseInt(value, 10));
-    }
-  };
-  
   // Loading state
-  if (!tokenData || (isLoading && selectedCustomerId !== 'all') || (consolidatedLoading && selectedCustomerId === 'all')) {
+  if (isLoading || !customerId) {
     return (
       <div className="min-h-screen bg-slate-900">
         <header className="bg-slate-800 border-b border-slate-700">
@@ -207,7 +131,7 @@ export default function PortalDashboard() {
   }
   
   // Error state
-  if (error && selectedCustomerId !== 'all') {
+  if (error) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <Card className="bg-slate-800 border-slate-700 max-w-md">
@@ -222,13 +146,8 @@ export default function PortalDashboard() {
     );
   }
   
-  // Use consolidated data for "all" view, otherwise use single customer data
-  const displayData = selectedCustomerId === 'all' && consolidatedData 
-    ? consolidatedData 
-    : dashboardData;
-  
-  const { customer, summary, recentInvoices, recentPayments, projects } = displayData || {
-    customer: { name: isCompanyUser ? 'All Customers' : 'Customer', companyName: isCompanyUser ? `${availableCustomers.length} customers` : null },
+  const { customer, summary, recentInvoices, recentPayments, projects } = dashboardData || {
+    customer: { name: 'Customer' },
     summary: { totalInvoiced: 0, totalPaid: 0, totalOutstanding: 0, overdueCount: 0 },
     recentInvoices: [],
     recentPayments: [],
@@ -246,54 +165,16 @@ export default function PortalDashboard() {
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-white">
-                  {isCompanyUser ? 'Company Portal' : 'Customer Portal'}
-                </h1>
-                <p className="text-sm text-slate-400">
-                  {isCompanyUser ? (
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      Read-only view
-                    </span>
-                  ) : (
-                    customer?.companyName || customer?.name
-                  )}
-                </p>
+                <h1 className="text-lg font-semibold text-white">Customer Portal</h1>
+                <p className="text-sm text-slate-400">{customer?.companyName || customer?.name}</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Customer Selector for Company Users */}
-              {isCompanyUser && availableCustomers.length > 0 && (
-                <Select value={selectedCustomerId?.toString() || 'all'} onValueChange={handleCustomerChange}>
-                  <SelectTrigger className="w-[250px] bg-slate-700 border-slate-600 text-white">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-slate-400" />
-                      <SelectValue placeholder="Select customer" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    <SelectItem value="all" className="text-white hover:bg-slate-700">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4" />
-                        All Customers ({availableCustomers.length})
-                      </div>
-                    </SelectItem>
-                    {availableCustomers.map((c) => (
-                      <SelectItem key={c.id} value={c.id.toString()} className="text-white hover:bg-slate-700">
-                        {c.companyName || c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              
-              {!isCompanyUser && typeof selectedCustomerId === 'number' && (
-                <NotificationBell customerId={selectedCustomerId} />
-              )}
+              <NotificationBell customerId={customerId} />
               <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                 <User className="w-4 h-4 mr-2" />
-                {tokenData?.email}
+                Profile
               </Button>
               <Button 
                 variant="ghost" 
@@ -308,18 +189,6 @@ export default function PortalDashboard() {
           </div>
         </div>
       </header>
-      
-      {/* Company User Banner */}
-      {isCompanyUser && (
-        <div className="bg-blue-900/30 border-b border-blue-800/50">
-          <div className="container mx-auto px-4 py-2">
-            <div className="flex items-center gap-2 text-blue-300 text-sm">
-              <Eye className="w-4 h-4" />
-              <span>You are viewing as a company user. This is a read-only view of customer data.</span>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Navigation */}
       <nav className="bg-slate-800/50 border-b border-slate-700">
@@ -351,16 +220,6 @@ export default function PortalDashboard() {
       
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Consolidated View Header for Company Users */}
-        {isCompanyUser && selectedCustomerId === 'all' && (
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white mb-2">Consolidated Customer View</h2>
-            <p className="text-slate-400">
-              Viewing aggregated data across {availableCustomers.length} customer{availableCustomers.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-        )}
-        
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="bg-slate-800 border-slate-700">
@@ -417,7 +276,7 @@ export default function PortalDashboard() {
                 <div>
                   <p className="text-sm text-slate-400">Overdue</p>
                   <p className="text-2xl font-bold text-red-400">
-                    {summary.overdueCount}
+                    {summary.overdueCount} invoice{summary.overdueCount !== 1 ? 's' : ''}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center">
@@ -428,132 +287,161 @@ export default function PortalDashboard() {
           </Card>
         </div>
         
-        {/* Recent Activity Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Invoices & Payments */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Recent Invoices */}
           <Card className="bg-slate-800 border-slate-700">
-            <CardHeader>
-              <div className="flex items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
                 <CardTitle className="text-white">Recent Invoices</CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-orange-400 hover:text-orange-300"
-                  onClick={() => setLocation('/portal/invoices')}
-                >
-                  View All <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
+                <CardDescription className="text-slate-400">Your latest invoices</CardDescription>
               </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-orange-400 hover:text-orange-300"
+                onClick={() => setLocation('/portal/invoices')}
+              >
+                View All
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
             </CardHeader>
             <CardContent>
-              {recentInvoices.length === 0 ? (
-                <p className="text-slate-400 text-center py-4">No invoices yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {recentInvoices.map((invoice: any) => (
+              <div className="space-y-4">
+                {recentInvoices.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-400">No invoices yet</p>
+                  </div>
+                ) : (
+                  recentInvoices.map((invoice) => (
                     <div 
-                      key={invoice.id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors cursor-pointer"
+                      key={invoice.id}
+                      className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg hover:bg-slate-900 transition-colors cursor-pointer"
                       onClick={() => setLocation(`/portal/invoices/${invoice.id}`)}
                     >
-                      <div>
-                        <p className="font-medium text-white">{invoice.invoiceNumber}</p>
-                        <p className="text-sm text-slate-400">{formatDate(invoice.issueDate)}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-slate-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{invoice.invoiceNumber}</p>
+                          <p className="text-sm text-slate-400">Due {formatDate(invoice.dueDate)}</p>
+                        </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-white">{formatCurrency(invoice.totalAmount)}</p>
+                        <p className="font-medium text-white">{formatCurrency(invoice.totalAmount, invoice.currency || 'USD')}</p>
                         {getStatusBadge(invoice.status)}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
           
           {/* Recent Payments */}
           <Card className="bg-slate-800 border-slate-700">
-            <CardHeader>
-              <div className="flex items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
                 <CardTitle className="text-white">Recent Payments</CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-orange-400 hover:text-orange-300"
-                  onClick={() => setLocation('/portal/payments')}
-                >
-                  View All <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
+                <CardDescription className="text-slate-400">Your payment history</CardDescription>
               </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-orange-400 hover:text-orange-300"
+                onClick={() => setLocation('/portal/payments')}
+              >
+                View All
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
             </CardHeader>
             <CardContent>
-              {recentPayments.length === 0 ? (
-                <p className="text-slate-400 text-center py-4">No payments yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {recentPayments.map((payment: any) => (
+              <div className="space-y-4">
+                {recentPayments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CreditCard className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-400">No payments yet</p>
+                  </div>
+                ) : (
+                  recentPayments.map((payment) => (
                     <div 
-                      key={payment.id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50"
+                      key={payment.id}
+                      className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg"
                     >
-                      <div>
-                        <p className="font-medium text-white">{payment.referenceNumber || `Payment #${payment.id}`}</p>
-                        <p className="text-sm text-slate-400">{formatDate(payment.paymentDate)}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{formatCurrency(payment.amount, payment.currency || 'USD')}</p>
+                          <p className="text-sm text-slate-400">{formatDate(payment.paymentDate)}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-green-400">{formatCurrency(payment.amount)}</p>
-                        {getPaymentStatusBadge(payment.status)}
-                      </div>
+                      {getPaymentStatusBadge(payment.status)}
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
         
-        {/* Customer List for Company Users viewing "All" */}
-        {isCompanyUser && selectedCustomerId === 'all' && availableCustomers.length > 0 && (
-          <Card className="bg-slate-800 border-slate-700 mt-6">
-            <CardHeader>
-              <CardTitle className="text-white">Customer Overview</CardTitle>
-              <CardDescription className="text-slate-400">
-                Click on a customer to view their detailed portal
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {availableCustomers.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCustomerId(c.id)}
-                    className="p-4 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors text-left"
+        {/* Energy Production Chart */}
+        <div className="mb-8">
+          <EnergyProductionChart />
+        </div>
+        
+        {/* Projects */}
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-white">Your Projects</CardTitle>
+              <CardDescription className="text-slate-400">Projects you have access to</CardDescription>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-orange-400 hover:text-orange-300"
+              onClick={() => setLocation('/portal/projects')}
+            >
+              View All
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {projects.length === 0 ? (
+              <div className="text-center py-8">
+                <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <p className="text-slate-400">No projects assigned yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {projects.map((project) => (
+                  <div 
+                    key={project.id}
+                    className="p-4 bg-slate-900/50 rounded-lg hover:bg-slate-900 transition-colors cursor-pointer"
+                    onClick={() => setLocation(`/portal/projects/${project.projectId}`)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                        <Building2 className="w-5 h-5 text-orange-400" />
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                        <FolderOpen className="w-5 h-5 text-orange-400" />
                       </div>
                       <div>
-                        <p className="font-medium text-white">{c.companyName || c.name}</p>
-                        <p className="text-sm text-slate-400">{c.name}</p>
+                        <p className="font-medium text-white">Project #{project.projectId}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {project.accessLevel}
+                        </Badge>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </main>
-      
-      {/* Footer */}
-      <footer className="border-t border-slate-800 py-6 mt-auto">
-        <div className="container mx-auto px-4">
-          <p className="text-center text-sm text-slate-500">
-            Powered by KIISHA • {isCompanyUser ? 'Company Portal' : 'Customer Portal'}
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

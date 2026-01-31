@@ -28,16 +28,12 @@ import { SupabaseStorageAdapter } from './adapters/storage/supabase';
 import { ManusLLMAdapter } from './adapters/llm/manus';
 import { OpenAILLMAdapter } from './adapters/llm/openai';
 import { AnthropicLLMAdapter } from './adapters/llm/anthropic';
-import { GeminiLLMAdapter } from './adapters/llm/gemini';
-import { DeepSeekLLMAdapter } from './adapters/llm/deepseek';
-import { GrokLLMAdapter } from './adapters/llm/grok';
-import { LlamaLLMAdapter } from './adapters/llm/llama';
 import { SendGridEmailAdapter } from './adapters/email/sendgrid';
 import { MailgunEmailAdapter } from './adapters/email/mailgun';
 import { PostmarkEmailAdapter } from './adapters/email/postmark';
 import { MetaWhatsAppAdapter } from './adapters/whatsapp/meta';
+import { ManusNotifyAdapter } from './adapters/notify/manus';
 import { SendGridNotifyAdapter } from './adapters/notify/sendgrid';
-import { ResendNotifyAdapter } from './adapters/notify/resend';
 import { SentryObservabilityAdapter } from './adapters/observability/sentry';
 import { CustomObservabilityAdapter } from './adapters/observability/custom';
 
@@ -91,120 +87,43 @@ export async function getStorageAdapter(orgId: number): Promise<StorageProviderA
   return adapter;
 }
 
-// Platform-wide LLM configuration ID (superuser-controlled)
-const PLATFORM_LLM_ORG_ID = 0;
-
-// Track Manus fallback for alerting
-let lastManusFallbackAlert: number = 0;
-const MANUS_FALLBACK_ALERT_INTERVAL = 60 * 60 * 1000; // 1 hour between alerts
-
 /**
- * Log alert to superusers when Manus fallback is triggered.
+ * Get or create an LLM provider adapter for an organization.
  */
-async function logManusFallbackAlert(reason: string): Promise<void> {
-  const now = Date.now();
-  if (now - lastManusFallbackAlert < MANUS_FALLBACK_ALERT_INTERVAL) {
-    return; // Don't spam alerts
-  }
-  lastManusFallbackAlert = now;
-  
-  console.error(`[LLM FALLBACK ALERT] Using Manus fallback LLM. Reason: ${reason}`);
-  console.error('[LLM FALLBACK ALERT] Superusers should configure a primary LLM provider (OpenAI, Anthropic, Gemini, DeepSeek, Grok, or Llama)');
-  
-  // Log to database for superuser visibility
-  try {
-    const db = await getDb();
-    if (db) {
-      await db.insert(integrationEvents).values({
-        integrationId: 0, // Platform-level event
-        eventType: 'llm_fallback',
-        eventData: {
-          reason,
-          timestamp: new Date().toISOString(),
-          message: 'Platform fell back to Manus LLM. Configure a primary LLM provider.',
-        },
-        createdAt: new Date(),
-      } as InsertIntegrationEvent);
-    }
-  } catch (err) {
-    console.error('[LLM FALLBACK ALERT] Failed to log to database:', err);
-  }
-}
-
-/**
- * Create an LLM adapter instance for a given provider.
- */
-function createLLMAdapter(provider: string): LLMProviderAdapter {
-  switch (provider) {
-    case 'openai':
-      return new OpenAILLMAdapter();
-    case 'anthropic':
-      return new AnthropicLLMAdapter();
-    case 'gemini':
-      return new GeminiLLMAdapter();
-    case 'deepseek':
-      return new DeepSeekLLMAdapter();
-    case 'grok':
-      return new GrokLLMAdapter();
-    case 'llama':
-      return new LlamaLLMAdapter();
-    default:
-      return new ManusLLMAdapter();
-  }
-}
-
-/**
- * Get the platform-wide LLM adapter (superuser-configured).
- * This is used by all organizations across the platform.
- * 
- * Priority:
- * 1. Platform-configured LLM (orgId=0)
- * 2. Manus (absolute last resort, with superuser alert)
- */
-export async function getPlatformLLMAdapter(): Promise<LLMProviderAdapter> {
-  const cacheKey = getCacheKey(PLATFORM_LLM_ORG_ID, 'llm');
+export async function getLLMAdapter(orgId: number): Promise<LLMProviderAdapter> {
+  const cacheKey = getCacheKey(orgId, 'llm');
   
   if (adapterCache.has(cacheKey)) {
     return adapterCache.get(cacheKey) as LLMProviderAdapter;
   }
   
-  // Check for platform-wide LLM configuration (orgId=0)
-  const integration = await getActiveIntegration(PLATFORM_LLM_ORG_ID, 'llm');
+  const integration = await getActiveIntegration(orgId, 'llm');
   
   let adapter: LLMProviderAdapter;
   
-  if (integration && integration.provider !== 'manus') {
-    // Use the platform-configured LLM
+  if (!integration || integration.provider === 'manus') {
+    adapter = new ManusLLMAdapter();
+    await adapter.initialize({});
+  } else {
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
     
-    adapter = createLLMAdapter(integration.provider);
+    switch (integration.provider) {
+      case 'openai':
+        adapter = new OpenAILLMAdapter();
+        break;
+      case 'anthropic':
+        adapter = new AnthropicLLMAdapter();
+        break;
+      default:
+        adapter = new ManusLLMAdapter();
+    }
+    
     await adapter.initialize(config, secrets);
-    
-    console.log(`[LLM] Using platform-configured provider: ${integration.provider}`);
-  } else {
-    // No platform LLM configured - fall back to Manus with alert
-    await logManusFallbackAlert('No platform LLM integration configured');
-    
-    adapter = new ManusLLMAdapter();
-    await adapter.initialize({});
   }
   
   adapterCache.set(cacheKey, adapter);
   return adapter;
-}
-
-/**
- * Get or create an LLM provider adapter.
- * 
- * This function now uses the platform-wide LLM configuration (orgId=0)
- * which is controlled by superusers only. All organizations share the same LLM.
- * 
- * @param _orgId - Deprecated, kept for backwards compatibility. Ignored.
- */
-export async function getLLMAdapter(_orgId?: number): Promise<LLMProviderAdapter> {
-  // Always use platform-wide LLM configuration
-  return getPlatformLLMAdapter();
 }
 
 /**
@@ -287,13 +206,9 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
   
   let adapter: NotifyProviderAdapter;
   
-  // Always use Resend as the default email provider
-  const { ENV } = await import('../_core/env');
-  
-  if (!integration) {
-    // No integration configured - use Resend from environment
-    adapter = new ResendNotifyAdapter();
-    await adapter.initialize({}, { apiKey: ENV.resendApiKey });
+  if (!integration || integration.provider === 'manus') {
+    adapter = new ManusNotifyAdapter();
+    await adapter.initialize({});
   } else {
     const secrets = await getAllSecrets(integration.id);
     const config = integration.config || {};
@@ -302,16 +217,11 @@ export async function getNotifyAdapter(orgId: number): Promise<NotifyProviderAda
       case 'sendgrid':
         adapter = new SendGridNotifyAdapter();
         break;
-      case 'resend':
       default:
-        // Default to Resend for all cases
-        adapter = new ResendNotifyAdapter();
-        break;
+        adapter = new ManusNotifyAdapter();
     }
     
-    // Use secrets from integration if available, otherwise fall back to ENV
-    const apiKey = secrets?.apiKey || ENV.resendApiKey;
-    await adapter.initialize(config, { ...secrets, apiKey });
+    await adapter.initialize(config, secrets);
   }
   
   adapterCache.set(cacheKey, adapter);

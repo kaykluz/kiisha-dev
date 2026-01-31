@@ -25,6 +25,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
+import { mockDocumentCategories, mockDocumentTypes } from "@shared/mockData";
 
 interface UploadedFile {
   id: string;
@@ -47,10 +48,6 @@ function DocumentCategorizationContent() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch document categories and types from API
-  const { data: documentCategories = [] } = trpc.documents.getCategories.useQuery();
-  const { data: documentTypes = [] } = trpc.documents.getTypes.useQuery();
 
   const categorizeMutation = trpc.documents.categorizeWithAI.useMutation();
   const uploadMutation = trpc.documents.upload.useMutation();
@@ -215,13 +212,13 @@ function DocumentCategorizationContent() {
 
   // Find matching document type from AI suggestion
   const findMatchingType = (suggestion: { category: string; documentType: string }) => {
-    const category = (documentCategories as any[]).find((c: any) => 
+    const category = mockDocumentCategories.find(c => 
       c.name.toLowerCase().includes(suggestion.category.toLowerCase()) ||
       suggestion.category.toLowerCase().includes(c.name.toLowerCase())
     );
     
     if (category) {
-      const docType = (documentTypes as any[]).find((t: any) => 
+      const docType = mockDocumentTypes.find(t => 
         t.categoryId === category.id && (
           t.name.toLowerCase().includes(suggestion.documentType.toLowerCase()) ||
           suggestion.documentType.toLowerCase().includes(t.name.toLowerCase())
@@ -468,14 +465,14 @@ function DocumentCategorizationContent() {
                           <SelectValue placeholder="Choose a document type..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {(documentCategories as any[]).map((category: any) => (
+                          {mockDocumentCategories.map((category) => (
                             <div key={category.id}>
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                                 {category.name}
                               </div>
-                              {(documentTypes as any[])
-                                .filter((t: any) => t.categoryId === category.id)
-                                .map((docType: any) => (
+                              {mockDocumentTypes
+                                .filter((t) => t.categoryId === category.id)
+                                .map((docType) => (
                                   <SelectItem key={docType.id} value={docType.id.toString()}>
                                     {docType.name}
                                   </SelectItem>

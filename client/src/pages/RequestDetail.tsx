@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,19 +123,19 @@ export default function RequestDetail() {
 
   if (isLoading) {
     return (
-      <AppLayout>
+      <DashboardLayout>
         <div className="space-y-6">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
-      </AppLayout>
+      </DashboardLayout>
     );
   }
 
   if (!request) {
     return (
-      <AppLayout>
+      <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-12">
           <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
           <h2 className="text-xl font-medium mb-2">Request not found</h2>
@@ -146,12 +146,12 @@ export default function RequestDetail() {
             </Link>
           </Button>
         </div>
-      </AppLayout>
+      </DashboardLayout>
     );
   }
 
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -552,6 +552,6 @@ export default function RequestDetail() {
           )}
         </Tabs>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

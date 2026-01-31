@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import AppLayout from "@/components/AppLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -150,7 +150,7 @@ export default function RolloutManagement() {
   };
   
   return (
-    <AppLayout>
+    <DashboardLayout>
       <div className="container py-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -453,6 +453,6 @@ export default function RolloutManagement() {
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 }

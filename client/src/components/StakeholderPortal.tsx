@@ -1,5 +1,4 @@
-import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,8 +45,8 @@ import {
   Shield,
 } from "lucide-react";
 
-// Sample stakeholder portals (used when API returns empty)
-const samplePortals = [
+// Mock stakeholder portals
+const mockPortals = [
   {
     id: 1,
     name: "Investor Dashboard - Fund A",
@@ -104,8 +103,8 @@ const samplePortals = [
   },
 ];
 
-// Sample access logs (used when API returns empty)
-const sampleAccessLogs = [
+// Mock access logs
+const mockAccessLogs = [
   { id: 1, portalId: 1, userEmail: "investor1@fund-a.com", action: "view_dashboard", timestamp: new Date("2026-01-15T09:30:00"), ipAddress: "192.168.1.100" },
   { id: 2, portalId: 1, userEmail: "investor2@fund-a.com", action: "download_report", timestamp: new Date("2026-01-15T08:45:00"), ipAddress: "10.0.0.50" },
   { id: 3, portalId: 2, userEmail: "john@abc-corp.com", action: "view_dashboard", timestamp: new Date("2026-01-14T16:45:00"), ipAddress: "172.16.0.25" },
@@ -132,41 +131,7 @@ interface Portal {
 }
 
 export function StakeholderPortalManager() {
-  // Fetch portals from API
-  const { data: apiPortals = [], refetch: refetchPortals } = trpc.operations.getStakeholderPortals.useQuery({
-    organizationId: 1,
-  });
-
-  // Create portal mutation
-  const createPortalMutation = trpc.operations.createStakeholderPortal.useMutation({
-    onSuccess: () => {
-      toast.success("Portal created successfully");
-      refetchPortals();
-      setShowCreateDialog(false);
-    },
-    onError: (error) => {
-      toast.error(`Failed to create portal: ${error.message}`);
-    },
-  });
-
-  // Transform API data or use sample data
-  const portals: Portal[] = useMemo(() => {
-    if ((apiPortals as any[]).length === 0) return samplePortals;
-    return (apiPortals as any[]).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      brandingConfig: p.brandingConfig || { logo: null, primaryColor: '#E87722', companyName: '' },
-      allowedSiteIds: p.allowedSiteIds || [],
-      allowedMetrics: p.allowedMetrics || [],
-      accessType: p.accessType || 'password',
-      expiresAt: p.expiresAt ? new Date(p.expiresAt) : null,
-      createdAt: new Date(p.createdAt || Date.now()),
-      lastAccessedAt: p.lastAccessedAt ? new Date(p.lastAccessedAt) : null,
-      accessCount: p.accessCount || 0,
-      activeUsers: p.activeUsers || 0,
-    }));
-  }, [apiPortals]);
+  const [portals, setPortals] = useState<Portal[]>(mockPortals);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedPortal, setSelectedPortal] = useState<Portal | null>(null);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
@@ -378,7 +343,7 @@ export function StakeholderPortalManager() {
                 </tr>
               </thead>
               <tbody>
-                {sampleAccessLogs.map((log) => {
+                {mockAccessLogs.map((log) => {
                   const portal = portals.find((p) => p.id === log.portalId);
                   return (
                     <tr key={log.id} className="border-b border-border/50 hover:bg-muted/20">

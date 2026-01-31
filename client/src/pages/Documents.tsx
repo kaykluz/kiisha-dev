@@ -37,7 +37,6 @@ import {
   ChevronRight,
   FolderPlus,
   Sparkles,
-  Loader2,
 } from "lucide-react";
 import { PDFViewer } from "@/components/PDFViewer";
 import { Drawer } from "@/components/Drawer";
@@ -46,12 +45,17 @@ import { SkeletonTable } from "@/components/Skeleton";
 import { CommentsSection, CommentsCount } from "@/components/CommentsSection";
 import { DocumentUploadDialog } from "@/components/DocumentUploadDialog";
 import { CreateCategoryDialog } from "@/components/CreateCategoryDialog";
-import { trpc } from "@/lib/trpc";
+import {
+  mockProjects,
+  mockDocumentCategories,
+  mockDocumentTypes,
+  getDocumentStatus,
+  type DocumentStatus,
+} from "@shared/mockData";
 
 // Reviewer groups
 type ReviewerGroup = "legal" | "technical" | "finance";
 type ReviewStatus = "pending" | "approved" | "rejected" | "not_required";
-type DocumentStatus = "verified" | "pending" | "missing" | "na";
 
 interface ReviewerApproval {
   group: ReviewerGroup;
@@ -60,6 +64,25 @@ interface ReviewerApproval {
   reviewedAt: string | null;
   notes: string | null;
 }
+
+// Mock reviewer approvals data
+const mockReviewerApprovals: Record<string, ReviewerApproval[]> = {
+  "1-1": [
+    { group: "legal", status: "approved", reviewedBy: "Sarah Chen", reviewedAt: "2026-01-10", notes: "All terms verified" },
+    { group: "technical", status: "approved", reviewedBy: "Mike Johnson", reviewedAt: "2026-01-09", notes: null },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+  "1-2": [
+    { group: "legal", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "technical", status: "not_required", reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+  "2-1": [
+    { group: "legal", status: "approved", reviewedBy: "Sarah Chen", reviewedAt: "2026-01-08", notes: null },
+    { group: "technical", status: "rejected", reviewedBy: "Emily Watson", reviewedAt: "2026-01-11", notes: "Missing exhibit B" },
+    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  ],
+};
 
 const reviewerGroupConfig: Record<ReviewerGroup, { label: string; icon: typeof Scale; color: string }> = {
   legal: { label: "Legal", icon: Scale, color: "text-[var(--color-semantic-info)]" },
@@ -119,30 +142,38 @@ function ReviewerStatusDots({ approvals }: { approvals: ReviewerApproval[] }) {
 interface DocumentDrawerProps {
   projectId: number;
   docTypeId: number;
-  project: any;
-  docType: any;
-  category: any;
   onClose: () => void;
   userRole?: "admin" | "editor" | "reviewer" | "investor_viewer";
   onUpload?: () => void;
 }
 
-function DocumentDrawer({ projectId, docTypeId, project, docType, category, onClose, userRole = "admin", onUpload }: DocumentDrawerProps) {
+function DocumentDrawer({ projectId, docTypeId, onClose, userRole = "admin", onUpload }: DocumentDrawerProps) {
   const [activeTab, setActiveTab] = useState<"details" | "preview" | "extractions" | "history" | "comments">("details");
+  const project = mockProjects.find((p) => p.id === projectId);
+  const docType = mockDocumentTypes.find((d) => d.id === docTypeId);
+  const category = mockDocumentCategories.find((c) => c.id === docType?.categoryId);
+  const baseStatus = getDocumentStatus(projectId, docTypeId);
   
-  // Default approvals (will be replaced with real data when available)
-  const approvals: ReviewerApproval[] = [
-    { group: "legal", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
-    { group: "technical", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
-    { group: "finance", status: "pending", reviewedBy: null, reviewedAt: null, notes: null },
+  const approvalKey = `${projectId}-${docTypeId}`;
+  const approvals = mockReviewerApprovals[approvalKey] || [
+    { group: "legal" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "technical" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
+    { group: "finance" as ReviewerGroup, status: "pending" as ReviewStatus, reviewedBy: null, reviewedAt: null, notes: null },
   ];
   
   const aggregateStatus = getAggregateStatus(approvals);
   const isInvestorViewer = userRole === "investor_viewer";
-  const documentPreviewUrl = null; // Document URL loaded from API when available
+  const mockDocumentUrl = baseStatus !== "missing" ? "https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.pdf" : null;
 
-  const versions: any[] = [];
-  const internalComments: any[] = [];
+  const versions = [
+    { version: 2, date: "Jan 10, 2026", uploader: "Sarah Chen", notes: "Updated with corrections" },
+    { version: 1, date: "Dec 15, 2025", uploader: "Mike Johnson", notes: "Initial upload" },
+  ];
+
+  const internalComments = [
+    { id: 1, user: "Sarah Chen", date: "2 days ago", text: "Waiting for updated signature page from landowner.", isInternal: true },
+    { id: 2, user: "Mike Johnson", date: "3 days ago", text: "Document received and under review.", isInternal: false },
+  ];
 
   const handleApprovalAction = (group: ReviewerGroup, action: "approve" | "reject") => {
     toast.success(`${reviewerGroupConfig[group].label} review ${action === "approve" ? "approved" : "rejected"}`);
@@ -161,13 +192,13 @@ function DocumentDrawer({ projectId, docTypeId, project, docType, category, onCl
       open={true}
       onClose={onClose}
       title={docType?.name || "Document"}
-      subtitle={`${category?.name || 'Uncategorized'} · ${project?.name || 'Unknown Project'}`}
+      subtitle={`${category?.name} · ${project?.name}`}
       size="md"
       footer={
         <div className="flex gap-3 w-full">
           <Button variant="outline" className="flex-1">Download</Button>
           {!isInvestorViewer && (
-            <Button className="btn-primary flex-1" onClick={onUpload}>
+            <Button className="btn-primary flex-1">
               <Upload className="w-4 h-4 mr-2" />
               Upload New Version
             </Button>
@@ -240,7 +271,7 @@ function DocumentDrawer({ projectId, docTypeId, project, docType, category, onCl
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Category</p>
-                <p className="text-sm">{category?.name || 'Uncategorized'}</p>
+                <p className="text-sm">{category?.name}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Required</p>
@@ -248,12 +279,52 @@ function DocumentDrawer({ projectId, docTypeId, project, docType, category, onCl
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Last Updated</p>
-                <p className="text-sm">-</p>
+                <p className="text-sm">Jan 10, 2026</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Version</p>
-                <p className="text-sm">-</p>
+                <p className="text-sm">v2</p>
               </div>
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Comments</h3>
+              {isInvestorViewer && (
+                <Badge variant="outline" className="text-xs">
+                  <EyeOff className="w-3 h-3 mr-1" />
+                  Internal hidden
+                </Badge>
+              )}
+            </div>
+            <div className="space-y-3">
+              {internalComments
+                .filter(c => !isInvestorViewer || !c.isInternal)
+                .map((comment) => (
+                  <div key={comment.id} className="bg-[var(--color-bg-surface-hover)] rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-[var(--color-brand-primary-muted)] flex items-center justify-center">
+                        <User className="w-3 h-3 text-[var(--color-brand-primary)]" />
+                      </div>
+                      <span className="text-sm font-medium">{comment.user}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{comment.date}</span>
+                      {comment.isInternal && (
+                        <Badge variant="outline" className="text-[10px] ml-auto">Internal</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-[var(--color-text-secondary)]">{comment.text}</p>
+                  </div>
+                ))}
+              {!isInvestorViewer && (
+                <div className="flex gap-2">
+                  <Input placeholder="Add a comment..." className="carta-input flex-1" />
+                  <Button size="sm" className="btn-secondary">
+                    <MessageSquare className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -262,35 +333,84 @@ function DocumentDrawer({ projectId, docTypeId, project, docType, category, onCl
       {/* Preview Tab */}
       {activeTab === "preview" && (
         <div>
-          <EmptyState
-            type="documents"
-            title="No document uploaded"
-            description="Upload a document to preview it here"
-            actionLabel={!isInvestorViewer ? "Upload Document" : undefined}
-            onAction={!isInvestorViewer ? onUpload : undefined}
-          />
+          {mockDocumentUrl ? (
+            <PDFViewer
+              fileUrl={mockDocumentUrl}
+              fileName={docType?.name}
+              fileType="pdf"
+              height="500px"
+            />
+          ) : (
+            <EmptyState
+              type="documents"
+              title="No document uploaded"
+              description="Upload a document to preview it here"
+              actionLabel={!isInvestorViewer ? "Upload Document" : undefined}
+              onAction={!isInvestorViewer ? onUpload : undefined}
+            />
+          )}
         </div>
       )}
 
       {/* Extractions Tab */}
       {activeTab === "extractions" && (
         <div className="space-y-4">
-          <EmptyState
-            type="documents"
-            title="No extractions yet"
-            description="Upload a document to extract data using AI"
-          />
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            AI-extracted fields from this document
+          </p>
+          <div className="space-y-3">
+            {[
+              { field: "Contract Value", value: "$2,500,000", confidence: 95 },
+              { field: "Effective Date", value: "January 1, 2026", confidence: 98 },
+              { field: "Term Length", value: "25 years", confidence: 92 },
+              { field: "Counterparty", value: "SunPower Corp", confidence: 88 },
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between py-2 border-b border-[var(--color-border-subtle)]">
+                <div>
+                  <p className="text-sm font-medium">{item.field}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{item.value}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="confidence-dots">
+                    {[1, 2, 3, 4, 5].map((dot) => (
+                      <div
+                        key={dot}
+                        className={cn(
+                          "confidence-dot",
+                          dot <= Math.round(item.confidence / 20) ? "confidence-dot-filled" : "confidence-dot-empty"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">{item.confidence}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* History Tab */}
       {activeTab === "history" && (
         <div className="space-y-3">
-          <EmptyState
-            type="documents"
-            title="No version history"
-            description="Upload a document to start tracking versions"
-          />
+          {versions.map((version) => (
+            <div key={version.version} className="flex items-start gap-3 py-3 border-b border-[var(--color-border-subtle)]">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-bg-surface-hover)] flex items-center justify-center flex-shrink-0">
+                <History className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Version {version.version}</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">{version.date}</span>
+                </div>
+                <p className="text-sm text-[var(--color-text-secondary)]">{version.notes}</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">by {version.uploader}</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8">
+                <Eye className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -311,69 +431,36 @@ function DocumentsContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [selectedCell, setSelectedCell] = useState<{ projectId: number; docTypeId: number } | null>(null);
+  const [isLoading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
-  // Fetch real data from API
-  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
-  const { data: documentCategories = [], isLoading: categoriesLoading } = trpc.documents.getCategories.useQuery();
-  const { data: documentTypes = [], isLoading: typesLoading } = trpc.documents.getTypes.useQuery();
-
-  const isLoading = projectsLoading || categoriesLoading || typesLoading;
-
   const filteredProjects = selectedProjectId
-    ? projects.filter((p: any) => p.id === selectedProjectId)
-    : projects;
+    ? mockProjects.filter((p) => p.id === selectedProjectId)
+    : mockProjects;
 
   const filteredDocTypes =
     categoryFilter === "all"
-      ? documentTypes
-      : documentTypes.filter((d: any) => d.categoryId === parseInt(categoryFilter));
+      ? mockDocumentTypes
+      : mockDocumentTypes.filter((d) => d.categoryId === parseInt(categoryFilter));
 
-  const docTypesByCategory = documentCategories.map((cat: any) => ({
+  const docTypesByCategory = mockDocumentCategories.map((cat) => ({
     ...cat,
-    types: filteredDocTypes.filter((d: any) => d.categoryId === cat.id),
+    types: filteredDocTypes.filter((d) => d.categoryId === cat.id),
   }));
 
-  // Get document status (simplified - will be enhanced with real document data)
-  const getDocumentStatus = (projectId: number, docTypeId: number): DocumentStatus => {
-    // For now, return "missing" as default since we don't have documents yet
-    return "missing";
-  };
-
   const getStatusWithApprovals = (projectId: number, docTypeId: number) => {
+    const approvalKey = `${projectId}-${docTypeId}`;
+    const approvals = mockReviewerApprovals[approvalKey];
+    if (approvals) {
+      return { status: getAggregateStatus(approvals), approvals };
+    }
     return { status: getDocumentStatus(projectId, docTypeId), approvals: null };
   };
 
   if (isLoading) {
     return (
       <div className="page-container">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-primary)]" />
-            <p className="text-sm text-[var(--color-text-secondary)]">Loading documents...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Empty state when no projects
-  if (projects.length === 0) {
-    return (
-      <div className="page-container">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">Document Hub</h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-              Document status aggregated from Legal, Technical, and Finance reviewer approvals
-            </p>
-          </div>
-        </div>
-        <EmptyState
-          type="documents"
-          title="No projects yet"
-          description="Create a project first to start managing documents"
-        />
+        <SkeletonTable rows={10} />
       </div>
     );
   }
@@ -442,7 +529,7 @@ function DocumentsContent() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {documentCategories.map((cat: any) => (
+            {mockDocumentCategories.map((cat) => (
               <SelectItem key={cat.id} value={cat.id.toString()}>
                 {cat.name}
               </SelectItem>
@@ -478,147 +565,127 @@ function DocumentsContent() {
       {/* Matrix View */}
       {viewMode === "matrix" && (
         <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
-          {filteredProjects.length === 0 || documentTypes.length === 0 ? (
-            <div className="p-8">
-              <EmptyState
-                type="documents"
-                title={filteredProjects.length === 0 ? "No projects available" : "No document types defined"}
-                description={filteredProjects.length === 0 ? "Create a project to start tracking documents" : "Define document types to track"}
-              />
-            </div>
-          ) : (
-            <ScrollArea className="w-full">
-              <div className="min-w-max">
-                {/* Header Row */}
-                <div className="flex border-b border-[var(--color-border-subtle)]">
-                  <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">
-                    <span className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
-                      Document Type
+          <ScrollArea className="w-full">
+            <div className="min-w-max">
+              {/* Header Row */}
+              <div className="flex border-b border-[var(--color-border-subtle)]">
+                <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">
+                  <span className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                    Document Type
+                  </span>
+                </div>
+                {filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="w-32 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] text-center"
+                  >
+                    <span className="text-xs font-medium truncate block" title={project.name}>
+                      {project.code || project.name.split(" - ")[1] || project.name}
                     </span>
                   </div>
-                  {filteredProjects.map((project: any) => (
-                    <div
-                      key={project.id}
-                      className="w-32 shrink-0 p-4 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] text-center"
-                    >
-                      <span className="text-xs font-medium truncate block" title={project.name}>
-                        {project.code || project.name.split(" - ")[1] || project.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                ))}
+              </div>
 
-                {/* Document Type Rows grouped by Category */}
-                {docTypesByCategory
-                  .filter((cat: any) => cat.types.length > 0)
-                  .map((category: any) => (
-                    <div key={category.id}>
-                      {/* Category Header */}
-                      <div className="flex border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-hover)]">
-                        <div className="w-64 shrink-0 p-3 border-r border-[var(--color-border-subtle)]">
-                          <span className="text-xs font-semibold text-[var(--color-text-primary)]">
-                            {category.name}
-                          </span>
-                        </div>
-                        {filteredProjects.map((project: any) => (
-                          <div key={project.id} className="w-32 shrink-0 border-r border-[var(--color-border-subtle)]" />
-                        ))}
+              {/* Document Type Rows grouped by Category */}
+              {docTypesByCategory
+                .filter((cat) => cat.types.length > 0)
+                .map((category) => (
+                  <div key={category.id}>
+                    {/* Category Header */}
+                    <div className="flex border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-surface-hover)]">
+                      <div className="w-64 shrink-0 p-3 border-r border-[var(--color-border-subtle)]">
+                        <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                          {category.name}
+                        </span>
                       </div>
-
-                      {/* Document Type Rows */}
-                      {category.types.map((docType: any) => (
-                        <div key={docType.id} className="flex border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors">
-                          <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] flex items-center gap-3">
-                            <FileText className="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" />
-                            <span className="text-sm truncate">{docType.name}</span>
-                            {docType.required && (
-                              <span className="text-[10px] text-[var(--color-semantic-error)]">*</span>
-                            )}
-                          </div>
-                          {filteredProjects.map((project: any) => {
-                            const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
-                            return (
-                              <div
-                                key={project.id}
-                                className="w-32 shrink-0 p-3 border-r border-[var(--color-border-subtle)] cursor-pointer hover:bg-[var(--color-bg-surface-active)] transition-colors flex flex-col items-center justify-center"
-                                onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
-                              >
-                                <StatusBadge status={status} />
-                                {approvals && <ReviewerStatusDots approvals={approvals} />}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      {filteredProjects.map((project) => (
+                        <div key={project.id} className="w-32 shrink-0 border-r border-[var(--color-border-subtle)]" />
                       ))}
                     </div>
-                  ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          )}
+
+                    {/* Document Type Rows */}
+                    {category.types.map((docType) => (
+                      <div key={docType.id} className="flex border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors">
+                        <div className="w-64 shrink-0 p-4 border-r border-[var(--color-border-subtle)] flex items-center gap-3">
+                          <FileText className="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" />
+                          <span className="text-sm truncate">{docType.name}</span>
+                          {docType.required && (
+                            <span className="text-[10px] text-[var(--color-semantic-error)]">*</span>
+                          )}
+                        </div>
+                        {filteredProjects.map((project) => {
+                          const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
+                          return (
+                            <div
+                              key={project.id}
+                              className="w-32 shrink-0 p-3 border-r border-[var(--color-border-subtle)] cursor-pointer hover:bg-[var(--color-bg-surface-active)] transition-colors flex flex-col items-center justify-center"
+                              onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
+                            >
+                              <StatusBadge status={status} />
+                              {approvals && <ReviewerStatusDots approvals={approvals} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
         </div>
       )}
 
       {/* Table View */}
       {viewMode === "table" && (
         <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
-          {filteredProjects.length === 0 || filteredDocTypes.length === 0 ? (
-            <div className="p-8">
-              <EmptyState
-                type="documents"
-                title="No documents to display"
-                description="Create projects and define document types to get started"
-              />
-            </div>
-          ) : (
-            <ScrollArea className="h-[600px]">
-              <table className="data-table w-full">
-                <thead className="sticky top-0 bg-[var(--color-bg-surface)] z-10">
-                  <tr>
-                    <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Document Type</th>
-                    <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Category</th>
-                    <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Project</th>
-                    <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Status</th>
-                    <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Reviewers</th>
-                    <th className="text-right p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDocTypes.flatMap((docType: any) =>
-                    filteredProjects.map((project: any) => {
-                      const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
-                      const category = documentCategories.find((c: any) => c.id === docType.categoryId);
-                      return (
-                        <tr
-                          key={`${project.id}-${docType.id}`}
-                          className="border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors cursor-pointer"
-                          onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
-                        >
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                              <span className="text-sm">{docType.name}</span>
-                            </div>
-                          </td>
-                          <td className="p-4 text-sm text-[var(--color-text-secondary)]">{category?.name}</td>
-                          <td className="p-4 text-sm">{project.name}</td>
-                          <td className="p-4"><StatusBadge status={status} /></td>
-                          <td className="p-4">
-                            {approvals && <ReviewerStatusDots approvals={approvals} />}
-                          </td>
-                          <td className="p-4 text-right">
-                            <Button variant="ghost" size="sm" className="h-8">
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </ScrollArea>
-          )}
+          <ScrollArea className="h-[600px]">
+            <table className="data-table w-full">
+              <thead className="sticky top-0 bg-[var(--color-bg-surface)] z-10">
+                <tr>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Document Type</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Category</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Project</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Status</th>
+                  <th className="text-left p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Reviewers</th>
+                  <th className="text-right p-4 text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border-subtle)]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDocTypes.flatMap((docType) =>
+                  filteredProjects.map((project) => {
+                    const { status, approvals } = getStatusWithApprovals(project.id, docType.id);
+                    const category = mockDocumentCategories.find((c) => c.id === docType.categoryId);
+                    return (
+                      <tr
+                        key={`${project.id}-${docType.id}`}
+                        className="border-b border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-surface-hover)] transition-colors cursor-pointer"
+                        onClick={() => setSelectedCell({ projectId: project.id, docTypeId: docType.id })}
+                      >
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <FileText className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                            <span className="text-sm">{docType.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-[var(--color-text-secondary)]">{category?.name}</td>
+                        <td className="p-4 text-sm">{project.name}</td>
+                        <td className="p-4"><StatusBadge status={status} /></td>
+                        <td className="p-4">
+                          {approvals && <ReviewerStatusDots approvals={approvals} />}
+                        </td>
+                        <td className="p-4 text-right">
+                          <Button variant="ghost" size="sm" className="h-8">
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </ScrollArea>
         </div>
       )}
 
@@ -627,9 +694,6 @@ function DocumentsContent() {
         <DocumentDrawer
           projectId={selectedCell.projectId}
           docTypeId={selectedCell.docTypeId}
-          project={projects.find((p: any) => p.id === selectedCell.projectId)}
-          docType={documentTypes.find((d: any) => d.id === selectedCell.docTypeId)}
-          category={documentCategories.find((c: any) => c.id === documentTypes.find((d: any) => d.id === selectedCell.docTypeId)?.categoryId)}
           onClose={() => setSelectedCell(null)}
           onUpload={() => setShowUploadDialog(true)}
         />
