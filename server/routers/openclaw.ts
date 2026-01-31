@@ -14,8 +14,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import * as db from "../db";
+import { getDb } from "../db";
 import { sdk } from "../_core/sdk";
+import {
+  channelIdentities, capabilityRegistry, orgCapabilities, approvalRequests,
+  openclawSecurityPolicies, conversationVatrs, openclawTasks, openclawScheduledTasks,
+  users, organizationMembers, portfolios, projects
+} from "../../drizzle/schema";
 import { eq, and, desc, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
@@ -155,11 +160,16 @@ async function checkCapabilityAccess(
   capabilityId: string,
   userId: number
 ): Promise<{ allowed: boolean; requiresApproval: boolean; reason?: string }> {
+  const db = await getDb();
+  if (!db) {
+    return { allowed: false, requiresApproval: false, reason: "Database not available" };
+  }
+  
   // Get capability definition
-  const [capability] = await sdk.db
+  const [capability] = await db
     .select()
-    .from(db.capabilityRegistry)
-    .where(eq(db.capabilityRegistry.capabilityId, capabilityId))
+    .from(capabilityRegistry)
+    .where(eq(capabilityRegistry.capabilityId, capabilityId))
     .limit(1);
   
   if (!capability || !capability.isActive) {
@@ -167,12 +177,12 @@ async function checkCapabilityAccess(
   }
   
   // Get org capability settings
-  const [orgCapability] = await sdk.db
+  const [orgCapability] = await db
     .select()
-    .from(db.orgCapabilities)
+    .from(orgCapabilities)
     .where(and(
-      eq(db.orgCapabilities.organizationId, organizationId),
-      eq(db.orgCapabilities.capabilityId, capabilityId)
+      eq(orgCapabilities.organizationId, organizationId),
+      eq(orgCapabilities.capabilityId, capabilityId)
     ))
     .limit(1);
   
@@ -212,29 +222,33 @@ export const openclawRouter = router({
   handleEvent: publicProcedure
     .input(openClawEventSchema)
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
       const startTime = Date.now();
       
       // 1. Resolve channel identity to KIISHA user
-      const [channelIdentity] = await sdk.db
+      const [channelIdentity] = await db
         .select()
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.channelType, input.channel.type),
-          eq(db.channelIdentities.externalId, input.sender.id),
-          eq(db.channelIdentities.verificationStatus, "verified")
+          eq(channelIdentities.channelType, input.channel.type),
+          eq(channelIdentities.externalId, input.sender.id),
+          eq(channelIdentities.verificationStatus, "verified")
         ))
         .limit(1);
       
       // 2. If no verified identity, initiate verification flow
       if (!channelIdentity) {
         // Check if there's a pending verification
-        const [pendingIdentity] = await sdk.db
+        const [pendingIdentity] = await db
           .select()
-          .from(db.channelIdentities)
+          .from(channelIdentities)
           .where(and(
-            eq(db.channelIdentities.channelType, input.channel.type),
-            eq(db.channelIdentities.externalId, input.sender.id),
-            eq(db.channelIdentities.verificationStatus, "pending")
+            eq(channelIdentities.channelType, input.channel.type),
+            eq(channelIdentities.externalId, input.sender.id),
+            eq(channelIdentities.verificationStatus, "pending")
           ))
           .limit(1);
         
@@ -253,16 +267,16 @@ export const openclawRouter = router({
       }
       
       // 3. Update last used timestamp
-      await sdk.db
-        .update(db.channelIdentities)
+      await db
+        .update(channelIdentities)
         .set({ lastUsedAt: new Date() })
-        .where(eq(db.channelIdentities.id, channelIdentity.id));
+        .where(eq(channelIdentities.id, channelIdentity.id));
       
       // 4. Load user context
-      const [user] = await sdk.db
+      const [user] = await db
         .select()
-        .from(db.users)
-        .where(eq(db.users.id, channelIdentity.userId))
+        .from(users)
+        .where(eq(users.id, channelIdentity.userId))
         .limit(1);
       
       if (!user) {
@@ -273,13 +287,13 @@ export const openclawRouter = router({
       }
       
       // 5. Get organization context
-      const [membership] = await sdk.db
+      const [membership] = await db
         .select()
-        .from(db.organizationMembers)
+        .from(organizationMembers)
         .where(and(
-          eq(db.organizationMembers.userId, user.id),
-          eq(db.organizationMembers.organizationId, channelIdentity.organizationId),
-          eq(db.organizationMembers.status, "active")
+          eq(organizationMembers.userId, user.id),
+          eq(organizationMembers.organizationId, channelIdentity.organizationId),
+          eq(organizationMembers.status, "active")
         ))
         .limit(1);
       
@@ -300,15 +314,15 @@ export const openclawRouter = router({
       
       if (lowerMessage.includes("portfolio") || lowerMessage.includes("summary")) {
         // Get portfolio summary
-        const portfolios = await sdk.db
+        const portfolios = await db
           .select()
-          .from(db.portfolios)
-          .where(eq(db.portfolios.organizationId, channelIdentity.organizationId));
+          .from(portfolios)
+          .where(eq(portfolios.organizationId, channelIdentity.organizationId));
         
-        const projects = await sdk.db
+        const projects = await db
           .select()
-          .from(db.projects)
-          .where(eq(db.projects.organizationId, channelIdentity.organizationId));
+          .from(projects)
+          .where(eq(projects.organizationId, channelIdentity.organizationId));
         
         aiResponse = `📊 **Portfolio Summary**\n\n` +
           `📁 Portfolios: ${portfolios.length}\n` +
@@ -318,10 +332,10 @@ export const openclawRouter = router({
           `• "documents" - Check document status\n` +
           `• "alerts" - View active alerts`;
       } else if (lowerMessage.includes("projects") || lowerMessage.includes("list")) {
-        const projects = await sdk.db
+        const projects = await db
           .select()
-          .from(db.projects)
-          .where(eq(db.projects.organizationId, channelIdentity.organizationId))
+          .from(projects)
+          .where(eq(projects.organizationId, channelIdentity.organizationId))
           .limit(10);
         
         if (projects.length === 0) {
@@ -359,7 +373,7 @@ export const openclawRouter = router({
       });
       const contentHash = generateContentHash(contentForHash);
       
-      await sdk.db.insert(db.conversationVatrs).values({
+      await db.insert(conversationVatrs).values({
         vatrId,
         organizationId: channelIdentity.organizationId,
         userId: user.id,
@@ -394,9 +408,11 @@ export const openclawRouter = router({
   handleTaskResult: publicProcedure
     .input(taskResultSchema)
     .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Update task status
-      await sdk.db
-        .update(db.openclawTasks)
+      await db
+        .update(openclawTasks)
         .set({
           status: input.status,
           completedAt: new Date(input.completedAt),
@@ -409,7 +425,7 @@ export const openclawRouter = router({
             error: input.error,
           }),
         })
-        .where(eq(db.openclawTasks.taskId, input.taskId));
+        .where(eq(openclawTasks.taskId, input.taskId));
       
       return { success: true };
     }),
@@ -428,14 +444,16 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Verify user has access to the organization
-      const [membership] = await sdk.db
+      const [membership] = await db
         .select()
-        .from(db.organizationMembers)
+        .from(organizationMembers)
         .where(and(
-          eq(db.organizationMembers.userId, ctx.user.id),
-          eq(db.organizationMembers.organizationId, input.organizationId),
-          eq(db.organizationMembers.status, "active")
+          eq(organizationMembers.userId, ctx.user.id),
+          eq(organizationMembers.organizationId, input.organizationId),
+          eq(organizationMembers.status, "active")
         ))
         .limit(1);
       
@@ -447,13 +465,13 @@ export const openclawRouter = router({
       }
       
       // Check if already linked
-      const [existing] = await sdk.db
+      const [existing] = await db
         .select()
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.channelType, input.channelType),
-          eq(db.channelIdentities.externalId, input.externalId),
-          eq(db.channelIdentities.organizationId, input.organizationId)
+          eq(channelIdentities.channelType, input.channelType),
+          eq(channelIdentities.externalId, input.externalId),
+          eq(channelIdentities.organizationId, input.organizationId)
         ))
         .limit(1);
       
@@ -470,18 +488,18 @@ export const openclawRouter = router({
       
       if (existing) {
         // Update existing pending record
-        await sdk.db
-          .update(db.channelIdentities)
+        await db
+          .update(channelIdentities)
           .set({
             userId: ctx.user.id,
             verificationCode: otp,
             verificationExpires: expiresAt,
             verificationMethod: "otp",
           })
-          .where(eq(db.channelIdentities.id, existing.id));
+          .where(eq(channelIdentities.id, existing.id));
       } else {
         // Create new pending record
-        await sdk.db.insert(db.channelIdentities).values({
+        await db.insert(channelIdentities).values({
           userId: ctx.user.id,
           organizationId: input.organizationId,
           channelType: input.channelType,
@@ -511,15 +529,17 @@ export const openclawRouter = router({
       code: z.string().length(6),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [identity] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [identity] = await db
         .select()
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.channelType, input.channelType),
-          eq(db.channelIdentities.externalId, input.externalId),
-          eq(db.channelIdentities.organizationId, input.organizationId),
-          eq(db.channelIdentities.userId, ctx.user.id),
-          eq(db.channelIdentities.verificationStatus, "pending")
+          eq(channelIdentities.channelType, input.channelType),
+          eq(channelIdentities.externalId, input.externalId),
+          eq(channelIdentities.organizationId, input.organizationId),
+          eq(channelIdentities.userId, ctx.user.id),
+          eq(channelIdentities.verificationStatus, "pending")
         ))
         .limit(1);
       
@@ -545,15 +565,15 @@ export const openclawRouter = router({
       }
       
       // Mark as verified
-      await sdk.db
-        .update(db.channelIdentities)
+      await db
+        .update(channelIdentities)
         .set({
           verificationStatus: "verified",
           verifiedAt: new Date(),
           verificationCode: null,
           verificationExpires: null,
         })
-        .where(eq(db.channelIdentities.id, identity.id));
+        .where(eq(channelIdentities.id, identity.id));
       
       return {
         success: true,
@@ -569,24 +589,26 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input, ctx }) => {
-      const channels = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const channels = await db
         .select({
-          id: db.channelIdentities.id,
-          channelType: db.channelIdentities.channelType,
-          externalId: db.channelIdentities.externalId,
-          handle: db.channelIdentities.handle,
-          displayName: db.channelIdentities.displayName,
-          verificationStatus: db.channelIdentities.verificationStatus,
-          verifiedAt: db.channelIdentities.verifiedAt,
-          lastUsedAt: db.channelIdentities.lastUsedAt,
-          notificationsEnabled: db.channelIdentities.notificationsEnabled,
+          id: channelIdentities.id,
+          channelType: channelIdentities.channelType,
+          externalId: channelIdentities.externalId,
+          handle: channelIdentities.handle,
+          displayName: channelIdentities.displayName,
+          verificationStatus: channelIdentities.verificationStatus,
+          verifiedAt: channelIdentities.verifiedAt,
+          lastUsedAt: channelIdentities.lastUsedAt,
+          notificationsEnabled: channelIdentities.notificationsEnabled,
         })
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.userId, ctx.user.id),
-          eq(db.channelIdentities.organizationId, input.organizationId)
+          eq(channelIdentities.userId, ctx.user.id),
+          eq(channelIdentities.organizationId, input.organizationId)
         ))
-        .orderBy(desc(db.channelIdentities.lastUsedAt));
+        .orderBy(desc(channelIdentities.lastUsedAt));
       
       return channels;
     }),
@@ -600,12 +622,14 @@ export const openclawRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [channel] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [channel] = await db
         .select()
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.id, input.channelId),
-          eq(db.channelIdentities.userId, ctx.user.id)
+          eq(channelIdentities.id, input.channelId),
+          eq(channelIdentities.userId, ctx.user.id)
         ))
         .limit(1);
       
@@ -616,14 +640,14 @@ export const openclawRouter = router({
         });
       }
       
-      await sdk.db
-        .update(db.channelIdentities)
+      await db
+        .update(channelIdentities)
         .set({
           verificationStatus: "revoked",
           revokedAt: new Date(),
           revokedReason: input.reason || "Revoked by user",
         })
-        .where(eq(db.channelIdentities.id, input.channelId));
+        .where(eq(channelIdentities.id, input.channelId));
       
       return { success: true };
     }),
@@ -640,22 +664,24 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Get all capabilities with org-specific settings
-      const capabilities = await sdk.db
+      const capabilities = await db
         .select({
-          capability: db.capabilityRegistry,
-          orgSetting: db.orgCapabilities,
+          capability: capabilityRegistry,
+          orgSetting: orgCapabilities,
         })
-        .from(db.capabilityRegistry)
+        .from(capabilityRegistry)
         .leftJoin(
-          db.orgCapabilities,
+          orgCapabilities,
           and(
-            eq(db.orgCapabilities.capabilityId, db.capabilityRegistry.capabilityId),
-            eq(db.orgCapabilities.organizationId, input.organizationId)
+            eq(orgCapabilities.capabilityId, capabilityRegistry.capabilityId),
+            eq(orgCapabilities.organizationId, input.organizationId)
           )
         )
-        .where(eq(db.capabilityRegistry.isActive, true))
-        .orderBy(db.capabilityRegistry.category, db.capabilityRegistry.name);
+        .where(eq(capabilityRegistry.isActive, true))
+        .orderBy(capabilityRegistry.category, capabilityRegistry.name);
       
       return capabilities.map(({ capability, orgSetting }) => ({
         id: capability.capabilityId,
@@ -685,15 +711,17 @@ export const openclawRouter = router({
       enabled: z.boolean(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Check admin access
-      const [membership] = await sdk.db
+      const [membership] = await db
         .select()
-        .from(db.organizationMembers)
+        .from(organizationMembers)
         .where(and(
-          eq(db.organizationMembers.userId, ctx.user.id),
-          eq(db.organizationMembers.organizationId, input.organizationId),
-          eq(db.organizationMembers.status, "active"),
-          eq(db.organizationMembers.role, "admin")
+          eq(organizationMembers.userId, ctx.user.id),
+          eq(organizationMembers.organizationId, input.organizationId),
+          eq(organizationMembers.status, "active"),
+          eq(organizationMembers.role, "admin")
         ))
         .limit(1);
       
@@ -705,26 +733,26 @@ export const openclawRouter = router({
       }
       
       // Check if org capability exists
-      const [existing] = await sdk.db
+      const [existing] = await db
         .select()
-        .from(db.orgCapabilities)
+        .from(orgCapabilities)
         .where(and(
-          eq(db.orgCapabilities.organizationId, input.organizationId),
-          eq(db.orgCapabilities.capabilityId, input.capabilityId)
+          eq(orgCapabilities.organizationId, input.organizationId),
+          eq(orgCapabilities.capabilityId, input.capabilityId)
         ))
         .limit(1);
       
       if (existing) {
-        await sdk.db
-          .update(db.orgCapabilities)
+        await db
+          .update(orgCapabilities)
           .set({
             enabled: input.enabled,
             enabledBy: input.enabled ? ctx.user.id : null,
             enabledAt: input.enabled ? new Date() : null,
           })
-          .where(eq(db.orgCapabilities.id, existing.id));
+          .where(eq(orgCapabilities.id, existing.id));
       } else {
-        await sdk.db.insert(db.orgCapabilities).values({
+        await db.insert(orgCapabilities).values({
           organizationId: input.organizationId,
           capabilityId: input.capabilityId,
           enabled: input.enabled,
@@ -751,33 +779,35 @@ export const openclawRouter = router({
       cursor: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       const conditions = [
-        eq(db.conversationVatrs.userId, ctx.user.id),
-        eq(db.conversationVatrs.organizationId, input.organizationId),
+        eq(conversationVatrs.userId, ctx.user.id),
+        eq(conversationVatrs.organizationId, input.organizationId),
       ];
       
       if (input.channelType) {
-        conditions.push(eq(db.conversationVatrs.channelType, input.channelType));
+        conditions.push(eq(conversationVatrs.channelType, input.channelType));
       }
       
       if (input.cursor) {
-        conditions.push(sql`${db.conversationVatrs.id} < ${input.cursor}`);
+        conditions.push(sql`${conversationVatrs.id} < ${input.cursor}`);
       }
       
-      const conversations = await sdk.db
+      const conversations = await db
         .select({
-          id: db.conversationVatrs.id,
-          vatrId: db.conversationVatrs.vatrId,
-          channelType: db.conversationVatrs.channelType,
-          sessionId: db.conversationVatrs.sessionId,
-          userMessage: db.conversationVatrs.userMessage,
-          aiResponse: db.conversationVatrs.aiResponse,
-          messageReceivedAt: db.conversationVatrs.messageReceivedAt,
-          processingTimeMs: db.conversationVatrs.processingTimeMs,
+          id: conversationVatrs.id,
+          vatrId: conversationVatrs.vatrId,
+          channelType: conversationVatrs.channelType,
+          sessionId: conversationVatrs.sessionId,
+          userMessage: conversationVatrs.userMessage,
+          aiResponse: conversationVatrs.aiResponse,
+          messageReceivedAt: conversationVatrs.messageReceivedAt,
+          processingTimeMs: conversationVatrs.processingTimeMs,
         })
-        .from(db.conversationVatrs)
+        .from(conversationVatrs)
         .where(and(...conditions))
-        .orderBy(desc(db.conversationVatrs.id))
+        .orderBy(desc(conversationVatrs.id))
         .limit(input.limit + 1);
       
       const hasMore = conversations.length > input.limit;
@@ -801,15 +831,17 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input, ctx }) => {
-      const approvals = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const approvals = await db
         .select()
-        .from(db.approvalRequests)
+        .from(approvalRequests)
         .where(and(
-          eq(db.approvalRequests.organizationId, input.organizationId),
-          eq(db.approvalRequests.requestedBy, ctx.user.id),
-          eq(db.approvalRequests.status, "pending")
+          eq(approvalRequests.organizationId, input.organizationId),
+          eq(approvalRequests.requestedBy, ctx.user.id),
+          eq(approvalRequests.status, "pending")
         ))
-        .orderBy(desc(db.approvalRequests.requestedAt));
+        .orderBy(desc(approvalRequests.requestedAt));
       
       return approvals;
     }),
@@ -823,10 +855,12 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input }) => {
-      const capabilities = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const capabilities = await db
         .select()
-        .from(db.orgCapabilities)
-        .where(eq(db.orgCapabilities.organizationId, input.organizationId));
+        .from(orgCapabilities)
+        .where(eq(orgCapabilities.organizationId, input.organizationId));
       
       return capabilities;
     }),
@@ -837,6 +871,8 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Default capabilities to seed
       const defaultCapabilities = [
         { id: "kiisha.portfolio.summary", name: "Portfolio Summary", category: "query", risk: "low", description: "View portfolio overview" },
@@ -858,14 +894,14 @@ export const openclawRouter = router({
 
       // Insert into capability_registry if not exists
       for (const cap of defaultCapabilities) {
-        const [existing] = await sdk.db
+        const [existing] = await db
           .select()
-          .from(db.capabilityRegistry)
-          .where(eq(db.capabilityRegistry.capabilityId, cap.id))
+          .from(capabilityRegistry)
+          .where(eq(capabilityRegistry.capabilityId, cap.id))
           .limit(1);
         
         if (!existing) {
-          await sdk.db.insert(db.capabilityRegistry).values({
+          await db.insert(capabilityRegistry).values({
             capabilityId: cap.id,
             name: cap.name,
             description: cap.description,
@@ -879,17 +915,17 @@ export const openclawRouter = router({
 
       // Create org capabilities
       for (const cap of defaultCapabilities) {
-        const [existing] = await sdk.db
+        const [existing] = await db
           .select()
-          .from(db.orgCapabilities)
+          .from(orgCapabilities)
           .where(and(
-            eq(db.orgCapabilities.organizationId, input.organizationId),
-            eq(db.orgCapabilities.capabilityId, cap.id)
+            eq(orgCapabilities.organizationId, input.organizationId),
+            eq(orgCapabilities.capabilityId, cap.id)
           ))
           .limit(1);
         
         if (!existing) {
-          await sdk.db.insert(db.orgCapabilities).values({
+          await db.insert(orgCapabilities).values({
             organizationId: input.organizationId,
             capabilityId: cap.id,
             enabled: cap.risk === "low", // Enable low-risk by default
@@ -910,26 +946,28 @@ export const openclawRouter = router({
       enabled: z.boolean(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [existing] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [existing] = await db
         .select()
-        .from(db.orgCapabilities)
+        .from(orgCapabilities)
         .where(and(
-          eq(db.orgCapabilities.organizationId, input.organizationId),
-          eq(db.orgCapabilities.capabilityId, input.capabilityId)
+          eq(orgCapabilities.organizationId, input.organizationId),
+          eq(orgCapabilities.capabilityId, input.capabilityId)
         ))
         .limit(1);
       
       if (existing) {
-        await sdk.db
-          .update(db.orgCapabilities)
+        await db
+          .update(orgCapabilities)
           .set({
             enabled: input.enabled,
             enabledBy: input.enabled ? ctx.user.id : null,
             enabledAt: input.enabled ? new Date() : null,
           })
-          .where(eq(db.orgCapabilities.id, existing.id));
+          .where(eq(orgCapabilities.id, existing.id));
       } else {
-        await sdk.db.insert(db.orgCapabilities).values({
+        await db.insert(orgCapabilities).values({
           organizationId: input.organizationId,
           capabilityId: input.capabilityId,
           enabled: input.enabled,
@@ -947,10 +985,12 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input }) => {
-      const [policy] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [policy] = await db
         .select()
-        .from(db.openclawSecurityPolicies)
-        .where(eq(db.openclawSecurityPolicies.organizationId, input.organizationId))
+        .from(openclawSecurityPolicies)
+        .where(eq(openclawSecurityPolicies.organizationId, input.organizationId))
         .limit(1);
       
       return policy || {
@@ -979,21 +1019,23 @@ export const openclawRouter = router({
       retainConversationsForDays: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       const { organizationId, ...updates } = input;
       
-      const [existing] = await sdk.db
+      const [existing] = await db
         .select()
-        .from(db.openclawSecurityPolicies)
-        .where(eq(db.openclawSecurityPolicies.organizationId, organizationId))
+        .from(openclawSecurityPolicies)
+        .where(eq(openclawSecurityPolicies.organizationId, organizationId))
         .limit(1);
       
       if (existing) {
-        await sdk.db
-          .update(db.openclawSecurityPolicies)
+        await db
+          .update(openclawSecurityPolicies)
           .set(updates)
-          .where(eq(db.openclawSecurityPolicies.id, existing.id));
+          .where(eq(openclawSecurityPolicies.id, existing.id));
       } else {
-        await sdk.db.insert(db.openclawSecurityPolicies).values({
+        await db.insert(openclawSecurityPolicies).values({
           organizationId,
           ...updates,
         } as any);
@@ -1008,30 +1050,32 @@ export const openclawRouter = router({
       organizationId: z.number(),
     }))
     .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
       // Get total conversations in last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const [stats] = await sdk.db
+      const [stats] = await db
         .select({
           totalConversations: sql<number>`COUNT(*)`,
-          avgResponseTime: sql<number>`AVG(${db.conversationVatrs.latencyMs})`,
+          avgResponseTime: sql<number>`AVG(${conversationVatrs.latencyMs})`,
         })
-        .from(db.conversationVatrs)
+        .from(conversationVatrs)
         .where(and(
-          eq(db.conversationVatrs.organizationId, input.organizationId),
-          gte(db.conversationVatrs.messageReceivedAt, thirtyDaysAgo)
+          eq(conversationVatrs.organizationId, input.organizationId),
+          gte(conversationVatrs.messageReceivedAt, thirtyDaysAgo)
         ));
       
       // Get active users (linked channels)
-      const [userStats] = await sdk.db
+      const [userStats] = await db
         .select({
-          activeUsers: sql<number>`COUNT(DISTINCT ${db.channelIdentities.userId})`,
+          activeUsers: sql<number>`COUNT(DISTINCT ${channelIdentities.userId})`,
         })
-        .from(db.channelIdentities)
+        .from(channelIdentities)
         .where(and(
-          eq(db.channelIdentities.organizationId, input.organizationId),
-          eq(db.channelIdentities.verificationStatus, "verified")
+          eq(channelIdentities.organizationId, input.organizationId),
+          eq(channelIdentities.verificationStatus, "verified")
         ));
       
       return {
@@ -1049,10 +1093,12 @@ export const openclawRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [request] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [request] = await db
         .select()
-        .from(db.approvalRequests)
-        .where(eq(db.approvalRequests.requestId, input.requestId))
+        .from(approvalRequests)
+        .where(eq(approvalRequests.requestId, input.requestId))
         .limit(1);
       
       if (!request) {
@@ -1062,8 +1108,8 @@ export const openclawRouter = router({
         });
       }
       
-      await sdk.db
-        .update(db.approvalRequests)
+      await db
+        .update(approvalRequests)
         .set({
           status: input.action === "approve" ? "approved" : "rejected",
           approvedBy: ctx.user.id,
@@ -1071,7 +1117,7 @@ export const openclawRouter = router({
           approvalMethod: "web",
           rejectionReason: input.action === "reject" ? input.reason : null,
         })
-        .where(eq(db.approvalRequests.id, request.id));
+        .where(eq(approvalRequests.id, request.id));
       
       return { success: true };
     }),
@@ -1083,10 +1129,12 @@ export const openclawRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const [request] = await sdk.db
+      const db = await getDb();
+      if (!db) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" }); }
+      const [request] = await db
         .select()
-        .from(db.approvalRequests)
-        .where(eq(db.approvalRequests.requestId, input.requestId))
+        .from(approvalRequests)
+        .where(eq(approvalRequests.requestId, input.requestId))
         .limit(1);
       
       if (!request) {
@@ -1104,13 +1152,13 @@ export const openclawRouter = router({
       }
       
       // Verify user can approve (must be the requester or an admin)
-      const [membership] = await sdk.db
+      const [membership] = await db
         .select()
-        .from(db.organizationMembers)
+        .from(organizationMembers)
         .where(and(
-          eq(db.organizationMembers.userId, ctx.user.id),
-          eq(db.organizationMembers.organizationId, request.organizationId),
-          eq(db.organizationMembers.status, "active")
+          eq(organizationMembers.userId, ctx.user.id),
+          eq(organizationMembers.organizationId, request.organizationId),
+          eq(organizationMembers.status, "active")
         ))
         .limit(1);
       
@@ -1121,8 +1169,8 @@ export const openclawRouter = router({
         });
       }
       
-      await sdk.db
-        .update(db.approvalRequests)
+      await db
+        .update(approvalRequests)
         .set({
           status: input.action === "approve" ? "approved" : "rejected",
           approvedBy: ctx.user.id,
@@ -1130,7 +1178,7 @@ export const openclawRouter = router({
           approvalMethod: "web",
           rejectionReason: input.action === "reject" ? input.reason : null,
         })
-        .where(eq(db.approvalRequests.id, request.id));
+        .where(eq(approvalRequests.id, request.id));
       
       return { success: true };
     }),
