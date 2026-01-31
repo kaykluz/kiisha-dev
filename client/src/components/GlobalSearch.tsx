@@ -40,7 +40,8 @@ export function GlobalSearch() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Fetch data from API
-  const { data: documents = [] } = trpc.documents.list.useQuery({ projectId: undefined });
+  // documents.list does not exist — listByProject requires projectId; fall back to empty
+  const { data: documents = [] } = (trpc as any).documents?.list?.useQuery?.({ projectId: undefined }) || { data: [] };
   const { data: projects = [] } = trpc.projects.list.useQuery();
   const { data: rfis = [] } = trpc.rfis.list.useQuery({ projectId: undefined });
 

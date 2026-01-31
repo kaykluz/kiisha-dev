@@ -400,7 +400,7 @@ function DocumentExtractionContent() {
   const documentId = params.id ? parseInt(params.id) : 0;
 
   // Fetch extractions from API
-  const { data: apiExtractions = [] } = trpc.documents.getExtractions?.useQuery?.({ documentId }) || { data: [] };
+  const { data: apiExtractions = [] } = trpc.extractions.listByDocument?.useQuery?.({ documentId }) || { data: [] };
 
   // Transform API data or use sample data
   const initialExtractions: ExtractedField[] = useMemo(() => {

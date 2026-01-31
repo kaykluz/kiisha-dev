@@ -167,7 +167,7 @@ interface LifecycleWizardProps {
 
 export function LifecycleWizard({ projectId = 1, currentStageKey = 'development' }: LifecycleWizardProps) {
   // Fetch lifecycle stages from API
-  const { data: apiStages = [] } = trpc.projects.getLifecycleStages?.useQuery?.({ projectId }) || { data: [] };
+  const { data: apiStages = [] } = trpc.lifecycle.getStages?.useQuery?.() || { data: [] };
 
   // Transform API data or use sample data
   const stages = useMemo(() => {
