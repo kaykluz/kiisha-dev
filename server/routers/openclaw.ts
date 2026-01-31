@@ -15,14 +15,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { sdk } from "../_core/sdk";
 import {
   channelIdentities, capabilityRegistry, orgCapabilities, approvalRequests,
-  openclawSecurityPolicies, conversationVatrs, openclawTasks, openclawScheduledTasks,
-  users, organizationMembers, portfolios, projects
+  openclawSecurityPolicies, conversationVatrs, openclawTasks,
+  users, organizationMembers
 } from "../../drizzle/schema";
-import { eq, and, desc, sql, inArray, isNull, gte, lte } from "drizzle-orm";
-import { randomBytes, createHash } from "crypto";
+import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { chatResponse } from "../ai/gateway";
 import type { AIMessage, ToolDefinition } from "../ai/types";
@@ -537,7 +536,7 @@ Channel: ${input.channel.type}`;
       // Execute through the AI gateway with tool calling
       let aiResponse = "";
       const toolsInvoked: string[] = [];
-      const dataAccessed: string[] = [];
+      const dataAccessed: Array<{ entityType: string; entityId: number; accessType: string }> = [];
 
       try {
         const gatewayResponse = await chatResponse(
@@ -567,51 +566,52 @@ Channel: ${input.channel.type}`;
             switch (toolCall.function.name) {
               case "get_portfolio_summary":
                 skillResult = await getPortfolioSummary(skillContext);
-                dataAccessed.push("portfolios", "projects", "alerts");
+                dataAccessed.push({ entityType: "portfolios", entityId: 0, accessType: "read" });
+                dataAccessed.push({ entityType: "projects", entityId: 0, accessType: "read" });
                 break;
               case "list_projects":
                 skillResult = await listProjects(skillContext, args);
-                dataAccessed.push("projects");
+                dataAccessed.push({ entityType: "projects", entityId: 0, accessType: "read" });
                 break;
               case "get_project_details":
                 skillResult = await getProjectDetails(skillContext, args.projectId);
-                dataAccessed.push("projects", "documents", "alerts");
+                dataAccessed.push({ entityType: "projects", entityId: args.projectId, accessType: "read" });
                 break;
               case "get_document_status":
                 skillResult = await getDocumentStatus(skillContext, args.projectId);
-                dataAccessed.push("documents", "documentCategories");
+                dataAccessed.push({ entityType: "documents", entityId: args.projectId, accessType: "read" });
                 break;
               case "list_documents":
                 skillResult = await listDocuments(skillContext, args.projectId, args);
-                dataAccessed.push("documents");
+                dataAccessed.push({ entityType: "documents", entityId: args.projectId, accessType: "read" });
                 break;
               case "list_alerts":
                 skillResult = await listAlerts(skillContext, args);
-                dataAccessed.push("alerts");
+                dataAccessed.push({ entityType: "alerts", entityId: args.projectId || 0, accessType: "read" });
                 break;
               case "list_tickets":
                 skillResult = await listTickets(skillContext, args);
-                dataAccessed.push("workOrders");
+                dataAccessed.push({ entityType: "workOrders", entityId: 0, accessType: "read" });
                 break;
               case "get_compliance_status":
                 skillResult = await getComplianceStatus(skillContext, args.projectId);
-                dataAccessed.push("obligations");
+                dataAccessed.push({ entityType: "obligations", entityId: args.projectId || 0, accessType: "read" });
                 break;
               case "create_ticket":
                 skillResult = await createTicket(skillContext, args);
-                dataAccessed.push("workOrders");
+                dataAccessed.push({ entityType: "workOrders", entityId: args.projectId, accessType: "write" });
                 break;
               case "acknowledge_alert":
                 skillResult = await acknowledgeAlert(skillContext, args.alertId);
-                dataAccessed.push("alerts");
+                dataAccessed.push({ entityType: "alerts", entityId: args.alertId, accessType: "write" });
                 break;
               case "upload_document":
                 skillResult = await uploadDocument(skillContext, args);
-                dataAccessed.push("documents");
+                dataAccessed.push({ entityType: "documents", entityId: args.projectId, accessType: "write" });
                 break;
               case "respond_to_rfi":
                 skillResult = await respondToRfi(skillContext, args);
-                dataAccessed.push("rfis");
+                dataAccessed.push({ entityType: "rfis", entityId: args.rfiId, accessType: "write" });
                 break;
               default:
                 skillResult = { success: false, error: "Unknown tool" };
@@ -673,7 +673,7 @@ Channel: ${input.channel.type}`;
         aiResponse,
         attachments: input.attachments ? JSON.stringify(input.attachments) : null,
         toolsInvoked: JSON.stringify(toolsInvoked),
-        dataAccessed: JSON.stringify([...new Set(dataAccessed)]),
+        dataAccessed: JSON.stringify(dataAccessed),
         capabilitiesUsed: JSON.stringify(["channel." + input.channel.type, ...toolsInvoked.map(t => `skill.${t}`)]),
         contentHash,
         messageReceivedAt: new Date(input.timestamp),
@@ -1137,9 +1137,8 @@ Channel: ${input.channel.type}`;
     }),
   
   /**
-   * Approve or reject a request
+   * Get capabilities (alias for admin page)
    */
-  // Get capabilities (alias for admin page)
   getCapabilities: protectedProcedure
     .input(z.object({
       organizationId: z.number(),

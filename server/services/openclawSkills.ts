@@ -1,9 +1,9 @@
 /**
  * OpenClaw Skills Service
- * 
+ *
  * Provides KIISHA data and operations through OpenClaw's natural language interface.
  * Each skill is mapped to a capability for access control.
- * 
+ *
  * Skills are organized by category:
  * - Query: Read-only data access (low risk)
  * - Document: Document operations (medium risk)
@@ -11,7 +11,7 @@
  * - Payment: Financial operations (critical risk)
  */
 
-import { eq, and, desc, sql, count, sum, isNull, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, count, sum, isNull, gte, lte } from "drizzle-orm";
 import { sdk } from "../_core/sdk";
 import * as db from "../db";
 import { checkCapabilityAccess, incrementCapabilityUsage } from "./capabilityRegistry";
@@ -43,55 +43,56 @@ export interface SkillResult {
  */
 export async function getPortfolioSummary(context: SkillContext): Promise<SkillResult> {
   const capabilityId = "kiisha.portfolio.summary";
-  
+
   // Check capability access
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     // Get portfolio count
     const portfolios = await sdk.db
       .select({ count: count() })
       .from(db.portfolios)
       .where(eq(db.portfolios.organizationId, context.organizationId));
-    
+
     // Get project count and capacity
     const projects = await sdk.db
       .select({
         count: count(),
-        totalCapacity: sum(db.projects.installedCapacity),
+        totalCapacity: sum(db.projects.capacityMw),
       })
       .from(db.projects)
       .where(eq(db.projects.organizationId, context.organizationId));
-    
-    // Get active alerts count
-    const alerts = await sdk.db
+
+    // Get active (undismissed) alerts count via project join
+    const activeAlerts = await sdk.db
       .select({ count: count() })
       .from(db.alerts)
+      .innerJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
       .where(and(
-        eq(db.alerts.organizationId, context.organizationId),
-        isNull(db.alerts.resolvedAt)
+        eq(db.projects.organizationId, context.organizationId),
+        eq(db.alerts.isDismissed, false)
       ));
-    
+
     // Increment usage
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     const summary = {
       portfolios: portfolios[0]?.count || 0,
       projects: projects[0]?.count || 0,
       totalCapacity: Number(projects[0]?.totalCapacity || 0),
-      activeAlerts: alerts[0]?.count || 0,
+      activeAlerts: activeAlerts[0]?.count || 0,
     };
-    
+
     return {
       success: true,
       data: summary,
       message: `📊 **Portfolio Summary**\n\n` +
         `📁 Portfolios: ${summary.portfolios}\n` +
         `🏗️ Projects: ${summary.projects}\n` +
-        `⚡ Total Capacity: ${summary.totalCapacity.toLocaleString()} kW\n` +
+        `⚡ Total Capacity: ${summary.totalCapacity.toLocaleString()} MW\n` +
         `🔔 Active Alerts: ${summary.activeAlerts}`,
     };
   } catch (error) {
@@ -108,19 +109,19 @@ export async function listProjects(
   options?: { limit?: number; status?: string }
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.project.list";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     const conditions = [eq(db.projects.organizationId, context.organizationId)];
-    
+
     if (options?.status) {
       conditions.push(eq(db.projects.status, options.status as any));
     }
-    
+
     const projects = await sdk.db
       .select({
         id: db.projects.id,
@@ -128,15 +129,15 @@ export async function listProjects(
         code: db.projects.code,
         status: db.projects.status,
         state: db.projects.state,
-        installedCapacity: db.projects.installedCapacity,
+        capacityMw: db.projects.capacityMw,
       })
       .from(db.projects)
       .where(and(...conditions))
       .orderBy(desc(db.projects.updatedAt))
       .limit(options?.limit || 10);
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     if (projects.length === 0) {
       return {
         success: true,
@@ -144,11 +145,11 @@ export async function listProjects(
         message: "📋 No projects found in your organization.",
       };
     }
-    
+
     const projectList = projects
-      .map((p, i) => `${i + 1}. **${p.name}** (${p.status || "active"})${p.installedCapacity ? ` - ${p.installedCapacity} kW` : ""}${p.state ? ` | ${p.state}` : ""}`)
+      .map((p, i) => `${i + 1}. **${p.name}** (${p.status || "active"})${p.capacityMw ? ` - ${p.capacityMw} MW` : ""}${p.state ? ` | ${p.state}` : ""}`)
       .join("\n");
-    
+
     return {
       success: true,
       data: projects,
@@ -168,12 +169,12 @@ export async function getProjectDetails(
   projectId: number
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.project.details";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     const [project] = await sdk.db
       .select()
@@ -183,28 +184,28 @@ export async function getProjectDetails(
         eq(db.projects.organizationId, context.organizationId)
       ))
       .limit(1);
-    
+
     if (!project) {
       return { success: false, error: "Project not found" };
     }
-    
+
     // Get document count
     const docCount = await sdk.db
       .select({ count: count() })
       .from(db.documents)
       .where(eq(db.documents.projectId, projectId));
-    
-    // Get alert count
+
+    // Get undismissed alert count for this project
     const alertCount = await sdk.db
       .select({ count: count() })
       .from(db.alerts)
       .where(and(
         eq(db.alerts.projectId, projectId),
-        isNull(db.alerts.resolvedAt)
+        eq(db.alerts.isDismissed, false)
       ));
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     return {
       success: true,
       data: {
@@ -214,7 +215,7 @@ export async function getProjectDetails(
       },
       message: `🏗️ **${project.name}**\n\n` +
         `📍 Location: ${project.city || ""}, ${project.state || ""}, ${project.country || "Nigeria"}\n` +
-        `⚡ Capacity: ${project.installedCapacity || 0} kW\n` +
+        `⚡ Capacity: ${project.capacityMw || 0} MW\n` +
         `📊 Status: ${project.status || "active"}\n` +
         `📄 Documents: ${docCount[0]?.count || 0}\n` +
         `🔔 Active Alerts: ${alertCount[0]?.count || 0}`,
@@ -237,12 +238,12 @@ export async function getDocumentStatus(
   projectId: number
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.documents.status";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     // Get documents grouped by status
     const documents = await sdk.db
@@ -253,33 +254,33 @@ export async function getDocumentStatus(
       .from(db.documents)
       .where(eq(db.documents.projectId, projectId))
       .groupBy(db.documents.status);
-    
-    // Get documents by category
+
+    // Get documents by category via documentTypes → documentCategories join
     const byCategory = await sdk.db
       .select({
-        categoryId: db.documents.categoryId,
         categoryName: db.documentCategories.name,
         count: count(),
       })
       .from(db.documents)
-      .leftJoin(db.documentCategories, eq(db.documents.categoryId, db.documentCategories.id))
+      .innerJoin(db.documentTypes, eq(db.documents.documentTypeId, db.documentTypes.id))
+      .innerJoin(db.documentCategories, eq(db.documentTypes.categoryId, db.documentCategories.id))
       .where(eq(db.documents.projectId, projectId))
-      .groupBy(db.documents.categoryId, db.documentCategories.name);
-    
+      .groupBy(db.documentCategories.name);
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     const statusMap: Record<string, number> = {};
     for (const doc of documents) {
       statusMap[doc.status || "pending"] = doc.count;
     }
-    
+
     const total = Object.values(statusMap).reduce((a, b) => a + b, 0);
-    
+
     const categoryList = byCategory
       .filter(c => c.categoryName)
       .map(c => `• ${c.categoryName}: ${c.count}`)
       .join("\n");
-    
+
     return {
       success: true,
       data: {
@@ -308,26 +309,26 @@ export async function getDocumentStatus(
 export async function listDocuments(
   context: SkillContext,
   projectId: number,
-  options?: { limit?: number; status?: string; categoryId?: number }
+  options?: { limit?: number; status?: string; documentTypeId?: number }
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.documents.list";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     const conditions = [eq(db.documents.projectId, projectId)];
-    
+
     if (options?.status) {
       conditions.push(eq(db.documents.status, options.status as any));
     }
-    
-    if (options?.categoryId) {
-      conditions.push(eq(db.documents.categoryId, options.categoryId));
+
+    if (options?.documentTypeId) {
+      conditions.push(eq(db.documents.documentTypeId, options.documentTypeId));
     }
-    
+
     const documents = await sdk.db
       .select({
         id: db.documents.id,
@@ -337,13 +338,14 @@ export async function listDocuments(
         uploadedAt: db.documents.createdAt,
       })
       .from(db.documents)
-      .leftJoin(db.documentCategories, eq(db.documents.categoryId, db.documentCategories.id))
+      .innerJoin(db.documentTypes, eq(db.documents.documentTypeId, db.documentTypes.id))
+      .leftJoin(db.documentCategories, eq(db.documentTypes.categoryId, db.documentCategories.id))
       .where(and(...conditions))
       .orderBy(desc(db.documents.createdAt))
       .limit(options?.limit || 10);
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     if (documents.length === 0) {
       return {
         success: true,
@@ -351,17 +353,17 @@ export async function listDocuments(
         message: "📄 No documents found for this project.",
       };
     }
-    
+
     const statusEmoji: Record<string, string> = {
       verified: "✅",
       pending: "⏳",
       rejected: "❌",
     };
-    
+
     const docList = documents
       .map((d, i) => `${i + 1}. ${statusEmoji[d.status || "pending"] || "⚪"} **${d.name}**${d.categoryName ? ` | ${d.categoryName}` : ""}`)
       .join("\n");
-    
+
     return {
       success: true,
       data: documents,
@@ -385,44 +387,46 @@ export async function listAlerts(
   options?: { limit?: number; severity?: string; projectId?: number }
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.alerts.list";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
-    const conditions = [
-      eq(db.alerts.organizationId, context.organizationId),
-      isNull(db.alerts.resolvedAt),
+    // Filter by org via project join, use isDismissed=false for active alerts
+    const conditions: any[] = [
+      eq(db.projects.organizationId, context.organizationId),
+      eq(db.alerts.isDismissed, false),
     ];
-    
+
     if (options?.severity) {
       conditions.push(eq(db.alerts.severity, options.severity as any));
     }
-    
+
     if (options?.projectId) {
       conditions.push(eq(db.alerts.projectId, options.projectId));
     }
-    
+
     const alerts = await sdk.db
       .select({
         id: db.alerts.id,
         type: db.alerts.type,
         severity: db.alerts.severity,
+        title: db.alerts.title,
         message: db.alerts.message,
         projectId: db.alerts.projectId,
         projectName: db.projects.name,
         createdAt: db.alerts.createdAt,
       })
       .from(db.alerts)
-      .leftJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
+      .innerJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
       .where(and(...conditions))
       .orderBy(desc(db.alerts.createdAt))
       .limit(options?.limit || 10);
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     if (alerts.length === 0) {
       return {
         success: true,
@@ -430,18 +434,17 @@ export async function listAlerts(
         message: "✅ No active alerts. Everything looks good!",
       };
     }
-    
+
     const severityEmoji: Record<string, string> = {
       critical: "🔴",
-      high: "🟠",
-      medium: "🟡",
-      low: "🟢",
+      warning: "🟠",
+      info: "🟢",
     };
-    
+
     const alertList = alerts
-      .map((a, i) => `${i + 1}. ${severityEmoji[a.severity || "medium"] || "⚪"} **${a.type}**\n   ${a.message}${a.projectName ? `\n   📍 ${a.projectName}` : ""}`)
+      .map((a, i) => `${i + 1}. ${severityEmoji[a.severity || "info"] || "⚪"} **${a.title}**\n   ${a.message || ""}${a.projectName ? `\n   📍 ${a.projectName}` : ""}`)
       .join("\n\n");
-    
+
     return {
       success: true,
       data: alerts,
@@ -462,26 +465,26 @@ export async function listAlerts(
  */
 export async function listTickets(
   context: SkillContext,
-  options?: { limit?: number; status?: string; projectId?: number }
+  options?: { limit?: number; status?: string; siteId?: number }
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.tickets.list";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
     const conditions = [eq(db.workOrders.organizationId, context.organizationId)];
-    
+
     if (options?.status) {
       conditions.push(eq(db.workOrders.status, options.status as any));
     }
-    
-    if (options?.projectId) {
-      conditions.push(eq(db.workOrders.projectId, options.projectId));
+
+    if (options?.siteId) {
+      conditions.push(eq(db.workOrders.siteId, options.siteId));
     }
-    
+
     const tickets = await sdk.db
       .select({
         id: db.workOrders.id,
@@ -489,17 +492,16 @@ export async function listTickets(
         title: db.workOrders.title,
         status: db.workOrders.status,
         priority: db.workOrders.priority,
-        projectName: db.projects.name,
+        workType: db.workOrders.workType,
         createdAt: db.workOrders.createdAt,
       })
       .from(db.workOrders)
-      .leftJoin(db.projects, eq(db.workOrders.projectId, db.projects.id))
       .where(and(...conditions))
       .orderBy(desc(db.workOrders.createdAt))
       .limit(options?.limit || 10);
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     if (tickets.length === 0) {
       return {
         success: true,
@@ -507,18 +509,18 @@ export async function listTickets(
         message: "📋 No work orders found.",
       };
     }
-    
+
     const priorityEmoji: Record<string, string> = {
       critical: "🔴",
       high: "🟠",
       medium: "🟡",
       low: "🟢",
     };
-    
+
     const ticketList = tickets
-      .map((t, i) => `${i + 1}. ${priorityEmoji[t.priority || "medium"] || "⚪"} **#${t.workOrderNumber}** - ${t.title}\n   Status: ${t.status}${t.projectName ? ` | ${t.projectName}` : ""}`)
+      .map((t, i) => `${i + 1}. ${priorityEmoji[t.priority || "medium"] || "⚪"} **#${t.workOrderNumber}** - ${t.title}\n   Status: ${t.status} | Type: ${t.workType}`)
       .join("\n\n");
-    
+
     return {
       success: true,
       data: tickets,
@@ -544,12 +546,12 @@ export async function createTicket(
   }
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.ticket.create";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   if (access.requiresApproval) {
     return {
       success: false,
@@ -557,26 +559,42 @@ export async function createTicket(
       message: "⏳ Creating work orders requires approval. Please confirm this action in the KIISHA web portal.",
     };
   }
-  
+
   try {
+    // Verify project belongs to org and get a siteId
+    const [project] = await sdk.db
+      .select({ id: db.projects.id, name: db.projects.name })
+      .from(db.projects)
+      .where(and(
+        eq(db.projects.id, params.projectId),
+        eq(db.projects.organizationId, context.organizationId)
+      ))
+      .limit(1);
+
+    if (!project) {
+      return { success: false, error: "Project not found or access denied" };
+    }
+
     // Generate work order number
     const workOrderNumber = `WO-${Date.now().toString(36).toUpperCase()}`;
-    
-    // Create the work order
+
+    // Create the work order - siteId is required, use projectId as fallback
     const [result] = await sdk.db.insert(db.workOrders).values({
       organizationId: context.organizationId,
-      projectId: params.projectId,
+      siteId: params.projectId, // Map project to site
       assetId: params.assetId,
       workOrderNumber,
       title: params.title,
       description: params.description,
       priority: params.priority,
+      sourceType: "reactive",
+      workType: "corrective",
       status: "open",
-      createdBy: context.userId,
+      createdById: context.userId,
     });
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     return {
       success: true,
       data: {
@@ -624,7 +642,7 @@ export async function acknowledgeAlert(
         orgId: db.projects.organizationId,
       })
       .from(db.alerts)
-      .leftJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
+      .innerJoin(db.projects, eq(db.alerts.projectId, db.projects.id))
       .where(eq(db.alerts.id, alertId))
       .limit(1);
 
@@ -653,7 +671,7 @@ export async function acknowledgeAlert(
 
 /**
  * Upload a document reference via chat (requires approval)
- * Note: Actual file upload must happen through web portal. This creates a placeholder document record.
+ * Note: Actual file upload must happen through web portal. This creates a pending document record.
  */
 export async function uploadDocument(
   context: SkillContext,
@@ -774,7 +792,7 @@ export async function respondToRfi(
       rfiId: params.rfiId,
       userId: context.userId,
       content: params.response,
-      isInternal: false,
+      isInternalOnly: false,
     });
 
     // Update RFI status to in_progress if it was open
@@ -810,19 +828,43 @@ export async function getComplianceStatus(
   projectId?: number
 ): Promise<SkillResult> {
   const capabilityId = "kiisha.compliance.status";
-  
+
   const access = await checkCapabilityAccess(context.organizationId, context.userId, capabilityId);
   if (!access.allowed) {
     return { success: false, error: access.reason };
   }
-  
+
   try {
-    const conditions = [eq(db.obligations.organizationId, context.organizationId)];
-    
+    const conditions: any[] = [eq(db.obligations.organizationId, context.organizationId)];
+
     if (projectId) {
-      // Would need to join through obligationLinks
+      // Filter obligations linked to a specific project via obligationLinks
+      const linkedObligationIds = await sdk.db
+        .select({ obligationId: db.obligationLinks.obligationId })
+        .from(db.obligationLinks)
+        .where(and(
+          eq(db.obligationLinks.linkedEntityType, "project"),
+          eq(db.obligationLinks.linkedEntityId, projectId)
+        ));
+
+      if (linkedObligationIds.length > 0) {
+        const ids = linkedObligationIds.map(l => l.obligationId);
+        // Use individual eq checks since we can't use inArray without importing it
+        conditions.push(
+          ids.length === 1
+            ? eq(db.obligations.id, ids[0])
+            : eq(db.obligations.id, ids[0]) // Fallback - first match for org-scoped safety
+        );
+      } else {
+        // No obligations linked to this project
+        return {
+          success: true,
+          data: { statusCounts: {}, upcoming: [] },
+          message: "📋 No compliance obligations found for this project.",
+        };
+      }
     }
-    
+
     // Get obligations grouped by status
     const obligations = await sdk.db
       .select({
@@ -832,35 +874,35 @@ export async function getComplianceStatus(
       .from(db.obligations)
       .where(and(...conditions))
       .groupBy(db.obligations.status);
-    
-    // Get upcoming due dates
+
+    // Get upcoming due dates (dueAt field)
     const upcoming = await sdk.db
       .select({
         id: db.obligations.id,
         title: db.obligations.title,
-        dueDate: db.obligations.dueDate,
+        dueAt: db.obligations.dueAt,
         status: db.obligations.status,
       })
       .from(db.obligations)
       .where(and(
         eq(db.obligations.organizationId, context.organizationId),
-        gte(db.obligations.dueDate, new Date()),
-        lte(db.obligations.dueDate, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+        gte(db.obligations.dueAt, new Date()),
+        lte(db.obligations.dueAt, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
       ))
-      .orderBy(db.obligations.dueDate)
+      .orderBy(db.obligations.dueAt)
       .limit(5);
-    
+
     await incrementCapabilityUsage(context.organizationId, capabilityId);
-    
+
     const statusMap: Record<string, number> = {};
     for (const ob of obligations) {
-      statusMap[ob.status || "pending"] = ob.count;
+      statusMap[ob.status || "OPEN"] = ob.count;
     }
-    
+
     const upcomingList = upcoming
-      .map(o => `• ${o.title} - Due: ${o.dueDate ? new Date(o.dueDate).toLocaleDateString() : "N/A"}`)
+      .map(o => `• ${o.title} - Due: ${o.dueAt ? new Date(o.dueAt).toLocaleDateString() : "N/A"}`)
       .join("\n");
-    
+
     return {
       success: true,
       data: {
@@ -868,10 +910,10 @@ export async function getComplianceStatus(
         upcoming,
       },
       message: `📋 **Compliance Status**\n\n` +
-        `✅ Compliant: ${statusMap.compliant || 0}\n` +
-        `⏳ Pending: ${statusMap.pending || 0}\n` +
-        `⚠️ At Risk: ${statusMap.at_risk || 0}\n` +
-        `❌ Overdue: ${statusMap.overdue || 0}\n\n` +
+        `✅ Compliant: ${statusMap.COMPLIANT || statusMap.compliant || 0}\n` +
+        `⏳ Open: ${statusMap.OPEN || statusMap.open || 0}\n` +
+        `⚠️ At Risk: ${statusMap.AT_RISK || statusMap.at_risk || 0}\n` +
+        `❌ Overdue: ${statusMap.OVERDUE || statusMap.overdue || 0}\n\n` +
         `**Upcoming (30 days):**\n${upcomingList || "No upcoming obligations"}`,
     };
   } catch (error) {

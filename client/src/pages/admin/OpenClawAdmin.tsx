@@ -108,6 +108,7 @@ const defaultCapabilities = [
   { id: "kiisha.document.upload", name: "Upload Document", category: "document", risk: "medium", description: "Upload documents via chat channels" },
   { id: "kiisha.alert.acknowledge", name: "Acknowledge Alert", category: "operation", risk: "medium", description: "Acknowledge and resolve alerts" },
   { id: "kiisha.ticket.create", name: "Create Work Order", category: "operation", risk: "medium", description: "Create maintenance work orders" },
+  { id: "kiisha.rfi.respond", name: "Respond to RFI", category: "operation", risk: "medium", description: "Add responses to RFIs via chat" },
   { id: "channel.whatsapp", name: "WhatsApp Channel", category: "channel", risk: "low", description: "Access via WhatsApp messaging" },
   { id: "channel.telegram", name: "Telegram Channel", category: "channel", risk: "low", description: "Access via Telegram messaging" },
   { id: "channel.slack", name: "Slack Channel", category: "channel", risk: "low", description: "Access via Slack workspace" },
