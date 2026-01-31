@@ -1,0 +1,238 @@
+-- OpenClaw Integration Tables Migration
+-- Run this migration to create all tables required for OpenClaw AI assistant integration
+
+-- 1. Channel Identities - Maps external channel IDs to KIISHA users
+CREATE TABLE IF NOT EXISTS `channelIdentities` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `userId` int NOT NULL,
+  `organizationId` int NOT NULL,
+  `channelType` enum('whatsapp', 'telegram', 'slack', 'discord', 'msteams', 'signal', 'imessage', 'matrix', 'googlechat', 'webchat') NOT NULL,
+  `externalId` varchar(255) NOT NULL,
+  `handle` varchar(255),
+  `displayName` varchar(255),
+  `verificationStatus` enum('pending', 'verified', 'revoked') NOT NULL DEFAULT 'pending',
+  `verificationMethod` enum('otp', 'email', 'admin_approval', 'magic_link'),
+  `verificationCode` varchar(10),
+  `verificationExpires` timestamp NULL,
+  `verifiedAt` timestamp NULL,
+  `verifiedBy` int,
+  `lastUsedAt` timestamp NULL,
+  `revokedAt` timestamp NULL,
+  `revokedReason` varchar(500),
+  `preferredLanguage` varchar(10) DEFAULT 'en',
+  `timezone` varchar(50) DEFAULT 'Africa/Lagos',
+  `notificationsEnabled` boolean DEFAULT true,
+  `metadata` json,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `channel_identity_user_idx` (`userId`),
+  INDEX `channel_identity_org_idx` (`organizationId`),
+  INDEX `channel_identity_channel_idx` (`channelType`, `externalId`),
+  UNIQUE KEY `unique_channel_identity` (`channelType`, `externalId`, `organizationId`)
+);
+
+-- 2. Capability Registry - Define available OpenClaw capabilities
+CREATE TABLE IF NOT EXISTS `capabilityRegistry` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `capabilityId` varchar(100) NOT NULL UNIQUE,
+  `name` varchar(255) NOT NULL,
+  `description` text,
+  `category` enum('channel', 'query', 'document', 'operation', 'browser', 'skill', 'cron', 'payment') NOT NULL,
+  `riskLevel` enum('low', 'medium', 'high', 'critical') NOT NULL DEFAULT 'low',
+  `requiresApproval` boolean NOT NULL DEFAULT false,
+  `requires2FA` boolean NOT NULL DEFAULT false,
+  `requiresAdmin` boolean NOT NULL DEFAULT false,
+  `defaultConstraints` json,
+  `isActive` boolean NOT NULL DEFAULT true,
+  `isBuiltIn` boolean NOT NULL DEFAULT true,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `capability_category_idx` (`category`),
+  INDEX `capability_risk_idx` (`riskLevel`)
+);
+
+-- 3. Organization Capabilities - Per-org capability enablement
+CREATE TABLE IF NOT EXISTS `orgCapabilities` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `organizationId` int NOT NULL,
+  `capabilityId` varchar(100) NOT NULL,
+  `enabled` boolean NOT NULL DEFAULT false,
+  `customConstraints` json,
+  `approvalPolicy` enum('inherit', 'always', 'never', 'threshold') NOT NULL DEFAULT 'inherit',
+  `approvalThreshold` json,
+  `dailyLimit` int,
+  `monthlyLimit` int,
+  `currentDailyUsage` int DEFAULT 0,
+  `currentMonthlyUsage` int DEFAULT 0,
+  `usageResetAt` timestamp NULL,
+  `enabledBy` int,
+  `enabledAt` timestamp NULL,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `org_capability_org_idx` (`organizationId`),
+  INDEX `org_capability_cap_idx` (`capabilityId`),
+  UNIQUE KEY `unique_org_capability` (`organizationId`, `capabilityId`)
+);
+
+-- 4. Approval Requests - Unified approval workflow for sensitive operations
+CREATE TABLE IF NOT EXISTS `approvalRequests` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `requestId` varchar(100) NOT NULL UNIQUE,
+  `organizationId` int NOT NULL,
+  `requestedBy` int NOT NULL,
+  `requestedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `channelType` enum('whatsapp', 'telegram', 'slack', 'discord', 'msteams', 'signal', 'imessage', 'matrix', 'googlechat', 'webchat'),
+  `channelIdentityId` int,
+  `capabilityId` varchar(100) NOT NULL,
+  `taskSpec` json,
+  `summary` text,
+  `riskAssessment` json,
+  `status` enum('pending', 'approved', 'rejected', 'expired', 'cancelled') NOT NULL DEFAULT 'pending',
+  `approvedBy` int,
+  `approvedAt` timestamp NULL,
+  `approvalMethod` enum('web', 'chat', '2fa', 'auto'),
+  `rejectionReason` varchar(500),
+  `expiresAt` timestamp NULL,
+  `executedAt` timestamp NULL,
+  `executionResult` json,
+  `auditTrail` json,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `approval_org_idx` (`organizationId`),
+  INDEX `approval_status_idx` (`status`),
+  INDEX `approval_requested_by_idx` (`requestedBy`),
+  INDEX `approval_capability_idx` (`capabilityId`)
+);
+
+-- 5. Security Policies - Per-org security policies for OpenClaw
+CREATE TABLE IF NOT EXISTS `openclawSecurityPolicies` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `organizationId` int NOT NULL UNIQUE,
+  `allowedChannels` json,
+  `requirePairing` boolean NOT NULL DEFAULT true,
+  `requireAdminApprovalForNewChannels` boolean NOT NULL DEFAULT true,
+  `dataClassification` json,
+  `exportRequiresApproval` boolean NOT NULL DEFAULT true,
+  `browserAutomationAllowed` boolean NOT NULL DEFAULT false,
+  `shellExecutionAllowed` boolean NOT NULL DEFAULT false,
+  `fileUploadAllowed` boolean NOT NULL DEFAULT true,
+  `allowedHours` json,
+  `globalRateLimitPerMinute` int DEFAULT 60,
+  `globalRateLimitPerDay` int DEFAULT 1000,
+  `escalationPolicy` json,
+  `auditLevel` enum('minimal', 'standard', 'comprehensive') NOT NULL DEFAULT 'standard',
+  `retainConversationsForDays` int DEFAULT 365,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `security_policy_org_idx` (`organizationId`)
+);
+
+-- 6. Conversation VATRs - Audit trail for all OpenClaw conversations
+CREATE TABLE IF NOT EXISTS `conversationVatrs` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `vatrId` varchar(100) NOT NULL UNIQUE,
+  `organizationId` int NOT NULL,
+  `userId` int NOT NULL,
+  `channelIdentityId` int,
+  `projectId` int,
+  `channelType` enum('whatsapp', 'telegram', 'slack', 'discord', 'msteams', 'signal', 'imessage', 'matrix', 'googlechat', 'webchat') NOT NULL,
+  `externalMessageId` varchar(255),
+  `sessionId` varchar(100),
+  `userMessage` text NOT NULL,
+  `aiResponse` text NOT NULL,
+  `attachments` json,
+  `toolsInvoked` json,
+  `dataAccessed` json,
+  `capabilitiesUsed` json,
+  `approvalRequestId` int,
+  `contentHash` varchar(64) NOT NULL,
+  `previousVatrHash` varchar(64),
+  `signature` varchar(512),
+  `messageReceivedAt` timestamp NOT NULL,
+  `responseGeneratedAt` timestamp NOT NULL,
+  `processingTimeMs` int,
+  `metadata` json,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `conversation_vatr_org_idx` (`organizationId`),
+  INDEX `conversation_vatr_user_idx` (`userId`),
+  INDEX `conversation_vatr_channel_idx` (`channelType`),
+  INDEX `conversation_vatr_session_idx` (`sessionId`),
+  INDEX `conversation_vatr_project_idx` (`projectId`),
+  INDEX `conversation_vatr_hash_idx` (`contentHash`)
+);
+
+-- 7. OpenClaw Tasks - Track task execution from OpenClaw
+CREATE TABLE IF NOT EXISTS `openclawTasks` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `taskId` varchar(100) NOT NULL UNIQUE,
+  `organizationId` int NOT NULL,
+  `userId` int NOT NULL,
+  `channelIdentityId` int,
+  `conversationVatrId` int,
+  `approvalRequestId` int,
+  `taskType` enum('query', 'document', 'browser', 'skill', 'cron', 'api') NOT NULL,
+  `capabilityId` varchar(100) NOT NULL,
+  `taskSpec` json NOT NULL,
+  `authContext` json NOT NULL,
+  `status` enum('pending', 'sent', 'running', 'success', 'partial', 'failed', 'timeout', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sentAt` timestamp NULL,
+  `startedAt` timestamp NULL,
+  `completedAt` timestamp NULL,
+  `timeoutAt` timestamp NULL,
+  `result` json,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `openclaw_task_org_idx` (`organizationId`),
+  INDEX `openclaw_task_user_idx` (`userId`),
+  INDEX `openclaw_task_status_idx` (`status`),
+  INDEX `openclaw_task_capability_idx` (`capabilityId`)
+);
+
+-- 8. OpenClaw Scheduled Tasks - Cron-based task scheduling
+CREATE TABLE IF NOT EXISTS `openclawScheduledTasks` (
+  `id` int AUTO_INCREMENT PRIMARY KEY,
+  `scheduleId` varchar(100) NOT NULL UNIQUE,
+  `organizationId` int NOT NULL,
+  `createdBy` int NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text,
+  `cronExpression` varchar(100) NOT NULL,
+  `timezone` varchar(50) NOT NULL DEFAULT 'Africa/Lagos',
+  `capabilityId` varchar(100) NOT NULL,
+  `taskSpec` json NOT NULL,
+  `notifyOnSuccess` boolean NOT NULL DEFAULT false,
+  `notifyOnFailure` boolean NOT NULL DEFAULT true,
+  `notifyChannels` json,
+  `enabled` boolean NOT NULL DEFAULT true,
+  `lastRunAt` timestamp NULL,
+  `lastRunStatus` enum('success', 'partial', 'failed', 'timeout'),
+  `nextRunAt` timestamp NULL,
+  `runCount` int NOT NULL DEFAULT 0,
+  `failureCount` int NOT NULL DEFAULT 0,
+  `maxConsecutiveFailures` int DEFAULT 3,
+  `currentConsecutiveFailures` int DEFAULT 0,
+  `autoDisableOnFailure` boolean NOT NULL DEFAULT true,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `scheduled_task_org_idx` (`organizationId`),
+  INDEX `scheduled_task_enabled_idx` (`enabled`),
+  INDEX `scheduled_task_next_run_idx` (`nextRunAt`)
+);
+
+-- Seed default capabilities
+INSERT IGNORE INTO `capabilityRegistry` (`capabilityId`, `name`, `description`, `category`, `riskLevel`, `requiresApproval`, `isActive`, `isBuiltIn`) VALUES
+('kiisha.portfolio.summary', 'Portfolio Summary', 'View portfolio overview and statistics', 'query', 'low', false, true, true),
+('kiisha.project.list', 'List Projects', 'List all projects in the organization', 'query', 'low', false, true, true),
+('kiisha.project.details', 'Project Details', 'View detailed project information', 'query', 'low', false, true, true),
+('kiisha.documents.status', 'Document Status', 'Check document status and review progress', 'query', 'low', false, true, true),
+('kiisha.documents.list', 'List Documents', 'List documents in a project', 'query', 'low', false, true, true),
+('kiisha.alerts.list', 'List Alerts', 'View active alerts and notifications', 'query', 'low', false, true, true),
+('kiisha.tickets.list', 'List Work Orders', 'View work orders and maintenance tickets', 'query', 'low', false, true, true),
+('kiisha.compliance.status', 'Compliance Status', 'View compliance and regulatory status', 'query', 'low', false, true, true),
+('kiisha.document.upload', 'Upload Document', 'Upload documents to projects', 'document', 'medium', true, true, true),
+('kiisha.alert.acknowledge', 'Acknowledge Alert', 'Acknowledge and respond to alerts', 'operation', 'medium', false, true, true),
+('kiisha.ticket.create', 'Create Work Order', 'Create new work orders and tickets', 'operation', 'medium', true, true, true),
+('channel.whatsapp', 'WhatsApp Channel', 'Access KIISHA via WhatsApp', 'channel', 'low', false, true, true),
+('channel.telegram', 'Telegram Channel', 'Access KIISHA via Telegram', 'channel', 'low', false, true, true),
+('channel.slack', 'Slack Channel', 'Access KIISHA via Slack', 'channel', 'low', false, true, true),
+('channel.webchat', 'Web Chat', 'Access KIISHA via web chat interface', 'channel', 'low', false, true, true);
