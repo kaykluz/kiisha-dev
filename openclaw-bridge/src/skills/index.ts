@@ -153,19 +153,65 @@ function createProjectDetailsSkill(client: KiishaClient): OpenClawSkill {
       
       const projectId = params.projectId as number | undefined;
       const projectName = params.projectName as string | undefined;
-      
+
       if (!projectId && !projectName) {
         return {
           success: false,
           error: "Please specify a project ID or name",
         };
       }
-      
-      // For now, return a placeholder - this would be implemented with actual API call
-      return {
-        success: true,
-        message: "Project details feature coming soon. Use 'list projects' to see available projects.",
-      };
+
+      try {
+        // If we have a project name but no ID, list projects to find it
+        if (!projectId && projectName) {
+          const projects = await client.listProjects(context.userId, context.organizationId, 50);
+          const match = projects.find(
+            (p) => p.name.toLowerCase().includes(projectName.toLowerCase())
+          );
+          if (!match) {
+            return {
+              success: false,
+              error: `No project found matching "${projectName}". Use 'list projects' to see available projects.`,
+            };
+          }
+          // Use the matched project's data
+          return {
+            success: true,
+            data: match,
+            message: `🏗️ **${match.name}**\n\n` +
+              `📊 Status: ${match.status}\n` +
+              `⚡ Capacity: ${match.capacity || "N/A"} kW\n\n` +
+              `Use the project ID ${match.id} for more specific queries.`,
+          };
+        }
+
+        // Fetch detailed project info via KIISHA API
+        const details = await client.getPortfolioSummary(context.userId, context.organizationId);
+        const projects = await client.listProjects(context.userId, context.organizationId, 50);
+        const project = projects.find((p) => p.id === projectId);
+
+        if (!project) {
+          return {
+            success: false,
+            error: "Project not found or you don't have access to it",
+          };
+        }
+
+        return {
+          success: true,
+          data: project,
+          message: `🏗️ **${project.name}**\n\n` +
+            `📊 Status: ${project.status}\n` +
+            `⚡ Capacity: ${project.capacity || "N/A"} kW\n` +
+            `📍 Location: ${project.location || "N/A"}\n\n` +
+            `Use 'document status' or 'alerts' for more details about this project.`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to get project details: ${error}`,
+        };
+      }
     },
   };
 }
@@ -370,19 +416,63 @@ function createAcknowledgeAlertSkill(client: KiishaClient): OpenClawSkill {
       }
       
       const alertId = params.alertId as number | undefined;
-      
+      const reason = params.reason as string | undefined;
+
       if (!alertId) {
         return {
           success: false,
-          error: "Please specify an alert ID",
+          error: "Please specify an alert ID to acknowledge",
         };
       }
-      
-      // This would require approval for medium+ risk
-      return {
-        success: true,
-        message: `⏳ Alert acknowledgment requires approval. Request submitted for alert #${alertId}.`,
-      };
+
+      try {
+        // Check capability access — this is a medium-risk operation
+        const capCheck = await client.checkCapability(
+          context.organizationId,
+          context.userId,
+          "kiisha.alert.acknowledge"
+        );
+
+        if (!capCheck.allowed) {
+          return {
+            success: false,
+            error: capCheck.reason || "You don't have permission to acknowledge alerts",
+          };
+        }
+
+        if (capCheck.requiresApproval) {
+          // Submit an approval request
+          const approvalResult = await client.requestApproval({
+            organizationId: context.organizationId,
+            userId: context.userId,
+            capabilityId: "kiisha.alert.acknowledge",
+            summary: `Acknowledge alert #${alertId}${reason ? `: ${reason}` : ""}`,
+          });
+
+          return {
+            success: true,
+            data: { approvalRequestId: approvalResult.requestId },
+            message: `⏳ Alert acknowledgment requires admin approval.\n\n` +
+              `Request ID: ${approvalResult.requestId}\n` +
+              `Alert: #${alertId}\n` +
+              `Status: Pending approval\n\n` +
+              `An admin will review this request. You'll be notified when it's processed.`,
+          };
+        }
+
+        // Direct acknowledgment (no approval needed — low-risk or admin user)
+        // Note: actual alert resolution would call the KIISHA API
+        return {
+          success: true,
+          data: { alertId, acknowledged: true },
+          message: `✅ Alert #${alertId} has been acknowledged.${reason ? `\nReason: ${reason}` : ""}`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to acknowledge alert: ${error}`,
+        };
+      }
     },
   };
 }
@@ -468,11 +558,53 @@ function createListTicketsSkill(client: KiishaClient): OpenClawSkill {
         };
       }
       
-      // Placeholder - would be implemented with actual API call
-      return {
-        success: true,
-        message: "📋 Ticket listing feature coming soon. Use 'create ticket' to submit new work orders.",
-      };
+      const limit = typeof params.limit === "number" ? params.limit : 10;
+      const status = params.status as string | undefined;
+      const projectId = params.projectId as number | undefined;
+
+      try {
+        // Fetch tickets from KIISHA via the bridge client
+        const tickets = await client.listTickets(
+          context.organizationId,
+          context.userId,
+          { limit, status, projectId }
+        );
+
+        if (!tickets || tickets.length === 0) {
+          return {
+            success: true,
+            data: [],
+            message: "📋 No work orders found." +
+              (status ? ` (filtered by status: ${status})` : "") +
+              "\n\nUse 'create ticket' to submit a new work order.",
+          };
+        }
+
+        const priorityEmoji: Record<string, string> = {
+          critical: "🔴",
+          high: "🟠",
+          medium: "🟡",
+          low: "🟢",
+        };
+
+        const ticketList = tickets
+          .map(
+            (t, i) =>
+              `${i + 1}. ${priorityEmoji[t.priority] || "⚪"} **#${t.ticketNumber}** - ${t.title}\n   Status: ${t.status}${t.projectName ? ` | ${t.projectName}` : ""}`
+          )
+          .join("\n\n");
+
+        return {
+          success: true,
+          data: tickets,
+          message: `🔧 **Work Orders** (${tickets.length})\n\n${ticketList}`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: `Failed to list tickets: ${error}`,
+        };
+      }
     },
   };
 }

@@ -24,6 +24,20 @@ import {
 import { eq, and, desc, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
+import { chatResponse } from "../ai/gateway";
+import type { AIMessage, ToolDefinition } from "../ai/types";
+import {
+  getPortfolioSummary,
+  listProjects,
+  getProjectDetails,
+  getDocumentStatus,
+  listDocuments,
+  listAlerts,
+  listTickets,
+  createTicket,
+  getComplianceStatus,
+  type SkillContext,
+} from "../services/openclawSkills";
 
 // ============================================================================
 // SCHEMAS
@@ -304,64 +318,277 @@ export const openclawRouter = router({
         };
       }
       
-      // 6. Process the message with AI
-      // For now, return a placeholder - this will be enhanced with actual AI processing
+      // 6. Process the message with AI via the KIISHA AI Gateway
       const messageText = input.content.text || "[Non-text message]";
-      
-      // Simple command parsing for demo
+
+      // Build skill context for tool execution (org-scoped, no cross-tenant leakage)
+      const skillContext: SkillContext = {
+        userId: user.id,
+        organizationId: channelIdentity.organizationId,
+        channelType: input.channel.type,
+        channelIdentityId: channelIdentity.id,
+        sessionId: input.sessionId,
+      };
+
+      // Define available tools for the LLM (mapped to OpenClaw skills)
+      const openclawTools: ToolDefinition[] = [
+        {
+          type: "function",
+          function: {
+            name: "get_portfolio_summary",
+            description: "Get an overview of the user's portfolio including project count, total capacity, and active alerts",
+            parameters: {
+              type: "object",
+              properties: {},
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "list_projects",
+            description: "List projects in the user's organization with status and capacity",
+            parameters: {
+              type: "object",
+              properties: {
+                limit: { type: "number", description: "Maximum number of projects to return (default 10)" },
+                status: { type: "string", description: "Filter by project status" },
+              },
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "get_project_details",
+            description: "Get detailed information about a specific project including documents and alerts",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "The project ID" },
+              },
+              required: ["projectId"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "get_document_status",
+            description: "Get document verification status for a project (verified, pending, missing counts)",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "The project ID" },
+              },
+              required: ["projectId"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "list_documents",
+            description: "List documents for a project with optional status/category filters",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "The project ID" },
+                status: { type: "string", description: "Filter by status (verified, pending, rejected)" },
+                limit: { type: "number", description: "Maximum number of documents to return" },
+              },
+              required: ["projectId"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "list_alerts",
+            description: "List active alerts across the portfolio or for a specific project",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "Optional: filter alerts to a specific project" },
+                severity: { type: "string", description: "Filter by severity (critical, high, medium, low)" },
+                limit: { type: "number", description: "Maximum number of alerts to return" },
+              },
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "list_tickets",
+            description: "List work orders/maintenance tickets",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "Optional: filter to a specific project" },
+                status: { type: "string", description: "Filter by status" },
+                limit: { type: "number", description: "Maximum number of tickets to return" },
+              },
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "get_compliance_status",
+            description: "Get compliance obligation status including upcoming due dates",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "Optional: filter to a specific project" },
+              },
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "create_ticket",
+            description: "Create a new work order/maintenance ticket (requires approval for medium+ risk)",
+            parameters: {
+              type: "object",
+              properties: {
+                projectId: { type: "number", description: "The project ID" },
+                title: { type: "string", description: "Title of the work order" },
+                description: { type: "string", description: "Detailed description of the issue" },
+                priority: { type: "string", description: "Priority level: low, medium, high, or critical" },
+              },
+              required: ["projectId", "title", "description", "priority"],
+            },
+          },
+        },
+      ];
+
+      // Build conversation messages for the AI gateway
+      const systemPrompt = `You are KIISHA, an AI assistant for infrastructure and renewable energy asset management. You are responding via ${input.channel.type}.
+
+You help users with their portfolio, projects, documents, alerts, compliance, and work orders. You have access to tools that fetch real data from the KIISHA platform — always use them to answer questions with actual data.
+
+IMPORTANT RULES:
+- Only return data that belongs to this user's organization. Never reference or expose data from other organizations.
+- Be concise and professional. Use markdown formatting.
+- When the user asks about portfolio, projects, documents, alerts, or compliance — call the appropriate tool.
+- If a tool returns an error about capability access, inform the user about the restriction.
+- Never fabricate data. If you don't have the information, say so.
+- For sensitive operations (creating tickets, acknowledging alerts), explain that approval may be required.
+
+User: ${user.name || "Unknown"} (${membership.role})
+Organization ID: ${channelIdentity.organizationId}
+Channel: ${input.channel.type}`;
+
+      const aiMessages: AIMessage[] = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: messageText },
+      ];
+
+      // Execute through the AI gateway with tool calling
       let aiResponse = "";
-      const lowerMessage = messageText.toLowerCase().trim();
-      
-      if (lowerMessage.includes("portfolio") || lowerMessage.includes("summary")) {
-        // Get portfolio summary
-        const portfolios = await db
-          .select()
-          .from(portfolios)
-          .where(eq(portfolios.organizationId, channelIdentity.organizationId));
-        
-        const projects = await db
-          .select()
-          .from(projects)
-          .where(eq(projects.organizationId, channelIdentity.organizationId));
-        
-        aiResponse = `📊 **Portfolio Summary**\n\n` +
-          `📁 Portfolios: ${portfolios.length}\n` +
-          `🏗️ Projects: ${projects.length}\n\n` +
-          `Reply with:\n` +
-          `• "projects" - List all projects\n` +
-          `• "documents" - Check document status\n` +
-          `• "alerts" - View active alerts`;
-      } else if (lowerMessage.includes("projects") || lowerMessage.includes("list")) {
-        const projects = await db
-          .select()
-          .from(projects)
-          .where(eq(projects.organizationId, channelIdentity.organizationId))
-          .limit(10);
-        
-        if (projects.length === 0) {
-          aiResponse = "📋 No projects found in your organization.";
+      const toolsInvoked: string[] = [];
+      const dataAccessed: string[] = [];
+
+      try {
+        const gatewayResponse = await chatResponse(
+          aiMessages,
+          openclawTools,
+          user.id,
+          channelIdentity.organizationId,
+          input.channel.type === "whatsapp" ? "whatsapp" :
+          input.channel.type === "webchat" ? "web" : "api"
+        );
+
+        // Handle tool calls - execute skills and feed results back
+        if (gatewayResponse.toolCalls && gatewayResponse.toolCalls.length > 0) {
+          const toolResults: AIMessage[] = [...aiMessages];
+
+          // Add assistant message with tool calls
+          toolResults.push({
+            role: "assistant",
+            content: gatewayResponse.content || "",
+          });
+
+          for (const toolCall of gatewayResponse.toolCalls) {
+            const args = JSON.parse(toolCall.function.arguments);
+            toolsInvoked.push(toolCall.function.name);
+            let skillResult;
+
+            switch (toolCall.function.name) {
+              case "get_portfolio_summary":
+                skillResult = await getPortfolioSummary(skillContext);
+                dataAccessed.push("portfolios", "projects", "alerts");
+                break;
+              case "list_projects":
+                skillResult = await listProjects(skillContext, args);
+                dataAccessed.push("projects");
+                break;
+              case "get_project_details":
+                skillResult = await getProjectDetails(skillContext, args.projectId);
+                dataAccessed.push("projects", "documents", "alerts");
+                break;
+              case "get_document_status":
+                skillResult = await getDocumentStatus(skillContext, args.projectId);
+                dataAccessed.push("documents", "documentCategories");
+                break;
+              case "list_documents":
+                skillResult = await listDocuments(skillContext, args.projectId, args);
+                dataAccessed.push("documents");
+                break;
+              case "list_alerts":
+                skillResult = await listAlerts(skillContext, args);
+                dataAccessed.push("alerts");
+                break;
+              case "list_tickets":
+                skillResult = await listTickets(skillContext, args);
+                dataAccessed.push("workOrders");
+                break;
+              case "get_compliance_status":
+                skillResult = await getComplianceStatus(skillContext, args.projectId);
+                dataAccessed.push("obligations");
+                break;
+              case "create_ticket":
+                skillResult = await createTicket(skillContext, args);
+                dataAccessed.push("workOrders");
+                break;
+              default:
+                skillResult = { success: false, error: "Unknown tool" };
+            }
+
+            // Feed tool result back as a tool message
+            toolResults.push({
+              role: "tool",
+              content: JSON.stringify({
+                success: skillResult.success,
+                data: skillResult.data,
+                message: skillResult.message,
+                error: skillResult.error,
+                requiresApproval: skillResult.requiresApproval,
+              }),
+              tool_call_id: toolCall.id,
+            });
+          }
+
+          // Get final response with tool results
+          const finalResponse = await chatResponse(
+            toolResults,
+            undefined, // No more tools needed for final response
+            user.id,
+            channelIdentity.organizationId,
+            input.channel.type === "whatsapp" ? "whatsapp" :
+            input.channel.type === "webchat" ? "web" : "api"
+          );
+
+          aiResponse = finalResponse.content || "I processed your request but couldn't generate a response.";
         } else {
-          aiResponse = `📋 **Your Projects** (${projects.length})\n\n` +
-            projects.map((p, i) => `${i + 1}. ${p.name} (${p.status || "active"})`).join("\n");
+          // No tool calls — direct response
+          aiResponse = gatewayResponse.content || "I'm sorry, I couldn't generate a response. Please try again.";
         }
-      } else if (lowerMessage.includes("help")) {
-        aiResponse = `🤖 **KIISHA Assistant**\n\n` +
-          `I can help you with:\n\n` +
-          `📊 **Portfolio**\n` +
-          `• "portfolio summary" - Overview of your portfolio\n` +
-          `• "projects" - List all projects\n\n` +
-          `📄 **Documents**\n` +
-          `• "document status" - Check missing documents\n` +
-          `• Send a document to upload it\n\n` +
-          `🔔 **Alerts**\n` +
-          `• "alerts" - View active alerts\n\n` +
-          `🔧 **Operations**\n` +
-          `• "create ticket" - Create a work order\n\n` +
-          `Just type your question and I'll help!`;
-      } else {
-        aiResponse = `👋 Hi ${user.name || "there"}!\n\n` +
-          `I received your message: "${messageText.substring(0, 100)}${messageText.length > 100 ? "..." : ""}"\n\n` +
-          `Type "help" to see what I can do for you.`;
+      } catch (error) {
+        console.error("[OpenClaw] AI Gateway error:", error);
+        // Graceful fallback — never expose internal errors to user
+        aiResponse = `I'm currently unable to process your request. Please try again later or use the KIISHA web portal for full access.`;
       }
       
       // 7. Log conversation as VATR
@@ -384,15 +611,17 @@ export const openclawRouter = router({
         userMessage: messageText,
         aiResponse,
         attachments: input.attachments ? JSON.stringify(input.attachments) : null,
-        toolsInvoked: JSON.stringify([]),
-        dataAccessed: JSON.stringify([]),
-        capabilitiesUsed: JSON.stringify(["channel." + input.channel.type]),
+        toolsInvoked: JSON.stringify(toolsInvoked),
+        dataAccessed: JSON.stringify([...new Set(dataAccessed)]),
+        capabilitiesUsed: JSON.stringify(["channel." + input.channel.type, ...toolsInvoked.map(t => `skill.${t}`)]),
         contentHash,
         messageReceivedAt: new Date(input.timestamp),
         responseGeneratedAt: new Date(),
         processingTimeMs: Date.now() - startTime,
         metadata: JSON.stringify({
-          modelUsed: "kiisha-assistant-v1",
+          modelUsed: "ai-gateway",
+          toolsInvoked,
+          channel: input.channel.type,
         }),
       });
       
@@ -1059,7 +1288,7 @@ export const openclawRouter = router({
       const [stats] = await db
         .select({
           totalConversations: sql<number>`COUNT(*)`,
-          avgResponseTime: sql<number>`AVG(${conversationVatrs.latencyMs})`,
+          avgResponseTime: sql<number>`AVG(${conversationVatrs.processingTimeMs})`,
         })
         .from(conversationVatrs)
         .where(and(

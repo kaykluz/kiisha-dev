@@ -231,6 +231,35 @@ export class KiishaClient {
   }
   
   /**
+   * List work orders/tickets
+   */
+  async listTickets(
+    organizationId: number,
+    userId: number,
+    options?: { limit?: number; status?: string; projectId?: number }
+  ): Promise<Array<{
+    id: number;
+    ticketNumber: string;
+    title: string;
+    status: string;
+    priority: string;
+    projectName?: string;
+    createdAt: string;
+  }>> {
+    try {
+      const response = await this.client.get("/api/trpc/openclaw.listTickets", {
+        params: {
+          input: JSON.stringify({ organizationId, userId, ...options }),
+        },
+      });
+      return response.data.result.data;
+    } catch (error) {
+      console.error("[KIISHA Client] Error listing tickets:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Verify channel identity
    */
   async verifyIdentity(params: {
