@@ -83,7 +83,7 @@ export default function CalendarIntegration() {
                     Automatically sync new obligations to your calendar
                   </p>
                 </div>
-                <Badge variant="outline">Coming Soon</Badge>
+                <Badge variant="outline">Requires OAuth Setup</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -92,7 +92,7 @@ export default function CalendarIntegration() {
                     Receive calendar reminders for upcoming deadlines
                   </p>
                 </div>
-                <Badge variant="outline">Coming Soon</Badge>
+                <Badge variant="outline">Requires OAuth Setup</Badge>
               </div>
             </div>
           </CardContent>

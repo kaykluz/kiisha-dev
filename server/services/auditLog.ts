@@ -154,11 +154,37 @@ const SENSITIVE_FIELDS = [
 export async function logAuditEvent(event: AuditEvent): Promise<void> {
   // Redact sensitive fields
   const redactedEvent = redactSensitiveData(event);
-  
-  // TODO: Insert into audit log table
-  // For now, log to console
-  console.log("[AUDIT]", JSON.stringify(redactedEvent, null, 2));
-  
+
+  // Insert into audit log table
+  try {
+    const { getDb } = await import("../db");
+    const { auditLog } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (db) {
+      await db.insert(auditLog).values({
+        userId: event.userId ?? null,
+        action: `${event.eventType}:${event.action}`,
+        entityType: event.resourceType || event.eventType,
+        entityId: typeof event.resourceId === "number" ? event.resourceId : null,
+        oldValue: null,
+        newValue: {
+          severity: event.severity,
+          outcome: event.outcome,
+          organizationId: event.organizationId,
+          metadata: redactedEvent.metadata,
+          errorCode: event.errorCode,
+          errorMessage: event.errorMessage,
+        },
+        ipAddress: (event.metadata as any)?.ipAddress || null,
+        userAgent: (event.metadata as any)?.userAgent || null,
+      });
+    }
+  } catch (err) {
+    // Fallback to console if DB insert fails
+    console.error("[AUDIT] DB insert failed:", err);
+    console.log("[AUDIT]", JSON.stringify(redactedEvent, null, 2));
+  }
+
   // For critical events, also send to monitoring
   if (event.severity === "critical") {
     await sendCriticalAlert(redactedEvent);
@@ -375,8 +401,20 @@ function redactSensitiveData<T extends Record<string, unknown>>(obj: T): T {
  * Send critical alert to monitoring system
  */
 async function sendCriticalAlert(event: AuditEvent): Promise<void> {
-  // TODO: Integrate with monitoring/alerting system
   console.error("[CRITICAL AUDIT EVENT]", event);
+  // Send critical events as notifications to all org admins
+  try {
+    const { enqueueJob } = await import("./jobQueue");
+    await enqueueJob("notification_send", {
+      userId: event.userId || 0,
+      type: "critical_audit",
+      title: `Critical Security Event: ${event.action}`,
+      message: `${event.eventType}: ${event.action} - ${event.outcome}`,
+      data: { organizationId: event.organizationId, severity: "critical" },
+    });
+  } catch {
+    // Best-effort notification
+  }
 }
 
 /**
@@ -404,9 +442,63 @@ export async function queryAuditLogs(
     throw new Error("Organization context required to query audit logs");
   }
   
-  // TODO: Query from audit log table with filters
-  return {
-    events: [],
-    total: 0,
-  };
+  try {
+    const { getDb } = await import("../db");
+    const { auditLog } = await import("../../drizzle/schema");
+    const { eq, and, gte, lte, sql, desc } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return { events: [], total: 0 };
+
+    const conditions: any[] = [];
+
+    // Org scope: filter by organizationId in the newValue JSON
+    if (ctx.activeOrgId) {
+      conditions.push(sql`JSON_EXTRACT(${auditLog.newValue}, '$.organizationId') = ${ctx.activeOrgId}`);
+    }
+    if (filters.userId) conditions.push(eq(auditLog.userId, filters.userId));
+    if (filters.resourceType) conditions.push(eq(auditLog.entityType, filters.resourceType));
+    if (filters.resourceId && typeof filters.resourceId === "number") {
+      conditions.push(eq(auditLog.entityId, filters.resourceId));
+    }
+    if (filters.startDate) conditions.push(gte(auditLog.createdAt, filters.startDate));
+    if (filters.endDate) conditions.push(lte(auditLog.createdAt, filters.endDate));
+    if (filters.outcome) {
+      conditions.push(sql`JSON_EXTRACT(${auditLog.newValue}, '$.outcome') = ${filters.outcome}`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [rows, countResult] = await Promise.all([
+      db.select().from(auditLog)
+        .where(whereClause)
+        .orderBy(desc(auditLog.createdAt))
+        .limit(filters.limit || 50)
+        .offset(filters.offset || 0),
+      db.select({ count: sql<number>`count(*)` }).from(auditLog).where(whereClause),
+    ]);
+
+    const events: AuditEvent[] = rows.map(row => {
+      const meta = (row.newValue as any) || {};
+      const [eventType, ...actionParts] = (row.action || "").split(":");
+      return {
+        timestamp: row.createdAt,
+        eventType: eventType as AuditEventType,
+        severity: meta.severity || "info",
+        userId: row.userId ?? undefined,
+        organizationId: meta.organizationId,
+        action: actionParts.join(":") || row.action,
+        outcome: meta.outcome || "success",
+        resourceType: row.entityType,
+        resourceId: row.entityId ?? undefined,
+        metadata: meta.metadata,
+        errorCode: meta.errorCode,
+        errorMessage: meta.errorMessage,
+      };
+    });
+
+    return { events, total: Number(countResult[0]?.count || 0) };
+  } catch (err) {
+    console.error("[AUDIT] Query failed:", err);
+    return { events: [], total: 0 };
+  }
 }

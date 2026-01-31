@@ -209,39 +209,73 @@ async function proposeFieldAutofill(
  * Uses AI to map field labels to predicates with confidence scores
  */
 async function findVATRMatches(
-  _ctx: OrgContext,
+  ctx: OrgContext,
   field: TemplateField,
-  _projectId: number
+  projectId: number
 ): Promise<VATRMatch[]> {
-  // TODO: Implement actual VATR matching logic
-  // This would:
-  // 1. Query existing field mappings for this template
-  // 2. If no mapping, use AI to suggest matches based on field label
-  // 3. Query InfoItems and Facts for the project
-  // 4. Return matches with confidence scores
-  
   const matches: VATRMatch[] = [];
-  
-  // Example: If field is "Solar Capacity", might match both DC and AC
-  if (field.label.toLowerCase().includes("solar capacity")) {
+
+  // 1. Check existing field mappings first
+  const existingMappings = await getFieldMappings(ctx, 0); // 0 = any template
+  const existingMapping = existingMappings.find(m => m.fieldId === field.id);
+  if (existingMapping) {
     matches.push({
-      predicateId: "pv.capacity.dc",
-      predicateLabel: "Solar Capacity (DC)",
-      confidence: 0.85,
-      value: undefined, // Hidden until selected
-      sourceType: "infoItem",
-      sourceId: 1,
-    });
-    matches.push({
-      predicateId: "pv.capacity.ac",
-      predicateLabel: "Solar Capacity (AC)",
-      confidence: 0.82,
+      predicateId: existingMapping.predicateId,
+      predicateLabel: existingMapping.predicateId.replace(/\./g, ' ').replace(/([A-Z])/g, ' $1').trim(),
+      confidence: existingMapping.confidenceThreshold,
       value: undefined,
-      sourceType: "infoItem",
-      sourceId: 2,
+      sourceType: "mapping",
+      sourceId: 0,
     });
+    return matches;
   }
-  
+
+  // 2. Match field label against known VATR asset fields
+  const label = field.label.toLowerCase();
+  const vatrFieldMap: Record<string, { predicateId: string; predicateLabel: string }[]> = {
+    "capacity": [
+      { predicateId: "vatr.capacity.dc", predicateLabel: "DC Capacity (kWp)" },
+      { predicateId: "vatr.capacity.ac", predicateLabel: "AC Capacity (kW)" },
+    ],
+    "solar capacity": [
+      { predicateId: "vatr.capacity.dc", predicateLabel: "Solar DC Capacity" },
+      { predicateId: "vatr.capacity.ac", predicateLabel: "Solar AC Capacity" },
+    ],
+    "location": [
+      { predicateId: "vatr.site.latitude", predicateLabel: "Site Latitude" },
+      { predicateId: "vatr.site.longitude", predicateLabel: "Site Longitude" },
+    ],
+    "classification": [
+      { predicateId: "vatr.asset.classification", predicateLabel: "Asset Classification" },
+    ],
+    "grid": [
+      { predicateId: "vatr.grid.connectionType", predicateLabel: "Grid Connection Type" },
+    ],
+    "tariff": [
+      { predicateId: "vatr.tariff.rate", predicateLabel: "Tariff Rate" },
+    ],
+    "commissioning": [
+      { predicateId: "vatr.dates.commissioning", predicateLabel: "Commissioning Date" },
+    ],
+    "cod": [
+      { predicateId: "vatr.dates.cod", predicateLabel: "Commercial Operation Date" },
+    ],
+  };
+
+  for (const [keyword, fieldDefs] of Object.entries(vatrFieldMap)) {
+    if (label.includes(keyword)) {
+      for (const fd of fieldDefs) {
+        matches.push({
+          ...fd,
+          confidence: label === keyword ? 0.92 : 0.78,
+          value: undefined,
+          sourceType: "vatrAsset",
+          sourceId: projectId,
+        });
+      }
+    }
+  }
+
   return matches;
 }
 
@@ -258,18 +292,43 @@ export async function resolveSelection(
   value: unknown;
   source: VATRMatch;
 }> {
-  // TODO: Query the actual value from VATR
-  // This is called after user selects a header option
-  
+  // Query value from VATR asset for the given project
+  const { vatrAssets } = await import("../../drizzle/schema");
+  const db = await getDb();
+  let resolvedValue: unknown = null;
+
+  if (db) {
+    const { eq: eqOp } = await import("drizzle-orm");
+    const [asset] = await db.select().from(vatrAssets)
+      .where(eqOp(vatrAssets.projectId, _projectId))
+      .limit(1);
+
+    if (asset) {
+      // Map predicateId to actual asset field
+      const fieldMap: Record<string, unknown> = {
+        "vatr.capacity.dc": (asset as any).dcCapacityKwp,
+        "vatr.capacity.ac": (asset as any).acCapacityKw,
+        "vatr.asset.classification": asset.assetClassification,
+        "vatr.grid.connectionType": asset.gridConnectionType,
+        "vatr.site.latitude": (asset as any).latitude,
+        "vatr.site.longitude": (asset as any).longitude,
+        "vatr.tariff.rate": (asset as any).tariffRate,
+        "vatr.dates.commissioning": (asset as any).commissioningDate,
+        "vatr.dates.cod": (asset as any).codDate,
+      };
+      resolvedValue = fieldMap[selectedPredicateId] ?? null;
+    }
+  }
+
   return {
-    value: "300 kWp",
+    value: resolvedValue,
     source: {
       predicateId: selectedPredicateId,
-      predicateLabel: selectedPredicateId === "pv.capacity.dc" ? "Solar Capacity (DC)" : "Solar Capacity (AC)",
+      predicateLabel: selectedPredicateId.replace(/\./g, " ").replace(/([A-Z])/g, " $1").trim(),
       confidence: 0.85,
-      value: "300 kWp",
-      sourceType: "infoItem",
-      sourceId: 1,
+      value: resolvedValue,
+      sourceType: "vatrAsset",
+      sourceId: _projectId,
     },
   };
 }
