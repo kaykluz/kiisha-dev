@@ -44,7 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   MessageCircle,
   Shield,
@@ -105,7 +105,7 @@ const defaultCapabilities = [
 
 export default function OpenClawAdmin() {
   const { state } = useAuth();
-  const { toast } = useToast();
+  // Using sonner toast
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
   const [capabilityDialogOpen, setCapabilityDialogOpen] = useState(false);
@@ -139,17 +139,14 @@ export default function OpenClawAdmin() {
   // Initialize capabilities mutation
   const initializeCapabilities = trpc.openclaw.initializeCapabilities.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Capabilities Initialized",
+      toast.success("Capabilities Initialized", {
         description: "Default capabilities have been set up for your organization.",
       });
       refetchCapabilities();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -157,18 +154,15 @@ export default function OpenClawAdmin() {
   // Update capability mutation
   const updateCapability = trpc.openclaw.updateOrgCapability.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Capability Updated",
+      toast.success("Capability Updated", {
         description: "The capability settings have been saved.",
       });
       refetchCapabilities();
       setCapabilityDialogOpen(false);
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -176,17 +170,14 @@ export default function OpenClawAdmin() {
   // Update security policy mutation
   const updateSecurityPolicy = trpc.openclaw.updateSecurityPolicy.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Security Policy Updated",
+      toast.success("Security Policy Updated", {
         description: "Your security settings have been saved.",
       });
       refetchPolicy();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -194,17 +185,14 @@ export default function OpenClawAdmin() {
   // Process approval mutation
   const processApproval = trpc.openclaw.processApproval.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Approval Processed",
+      toast.success("Approval Processed", {
         description: "The request has been processed.",
       });
       refetchApprovals();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
