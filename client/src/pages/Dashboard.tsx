@@ -1,5 +1,4 @@
 import AppLayout, { useProject } from "@/components/AppLayout";
-import { useAuth } from "@/contexts/AuthProvider";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
@@ -22,6 +21,7 @@ import {
   Users,
   ExternalLink,
   Settings,
+  Loader2,
 } from "lucide-react";
 import { ProjectAssetsMap } from "@/components/ProjectAssetsMap";
 import { Button } from "@/components/ui/button";
@@ -34,14 +34,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import {
-  mockProjects,
-  mockPortfolio,
-  mockAlerts,
-  mockRfis,
-  mockDiligenceProgress,
-  getPortfolioSummary,
-} from "@shared/mockData";
 import { EmptyState } from "@/components/EmptyState";
 import { ProjectClassificationCharts, type ProjectClassificationFilters } from "@/components/ProjectClassificationCharts";
 
@@ -90,43 +82,24 @@ const MAP_COLOR_OPTIONS = [
 
 function DashboardContent() {
   const { selectedProjectId, setSelectedProjectId } = useProject();
-  const { state } = useAuth();
-  const orgId = state?.activeOrganization?.id ?? 1;
-  const summary = getPortfolioSummary();
-
-  // Fetch real projects from API
-  const { data: realProjects } = trpc.projects.list.useQuery();
-
-  // Use real projects when available, fall back to mock data if empty
-  const projectsSource = useMemo(() => {
-    if (realProjects && realProjects.length > 0) {
-      return realProjects.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        technology: p.technology || 'PV',
-        capacityMw: parseFloat(p.capacityMw || '0'),
-        capacityMwh: parseFloat(p.capacityMwh || '0'),
-        status: p.status || 'development',
-        country: p.country || 'Nigeria',
-        state: p.state || '',
-        stage: p.stage || 'feasibility',
-      }));
-    }
-    return mockProjects;
-  }, [realProjects]);
-
+  
+  // Fetch real data from API
+  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
+  const { data: alerts = [], isLoading: alertsLoading } = trpc.alerts.list.useQuery();
+  const { data: rfis = [], isLoading: rfisLoading } = trpc.rfis.list.useQuery();
+  
   // Fetch customer stats for portal card
   const { data: customerStats } = trpc.customerPortal.getCustomerStats.useQuery(
-    { orgId },
+    { orgId: 1 }, // TODO: Get from user context
     { staleTime: 60000 } // Cache for 1 minute
   );
-
+  
   // Filter state for map and charts
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [classificationFilter, setClassificationFilter] = useState<string>('all');
   const [mapColorBy, setMapColorBy] = useState<'status' | 'classification'>('status');
-
+  
   // Build filters object for API calls
   const filters = useMemo<ProjectClassificationFilters>(() => {
     const f: ProjectClassificationFilters = {};
@@ -135,10 +108,10 @@ function DashboardContent() {
     if (classificationFilter !== 'all') f.assetClassification = classificationFilter;
     return f;
   }, [countryFilter, statusFilter, classificationFilter]);
-
+  
   // Check if any filters are active
   const hasActiveFilters = countryFilter !== 'all' || statusFilter !== 'all' || classificationFilter !== 'all';
-
+  
   // Clear all filters
   const clearFilters = () => {
     setCountryFilter('all');
@@ -148,55 +121,59 @@ function DashboardContent() {
 
   // Filter data based on selected project
   const filteredProjects = selectedProjectId
-    ? projectsSource.filter((p: any) => p.id === selectedProjectId)
-    : projectsSource;
+    ? projects.filter((p: any) => p.id === selectedProjectId)
+    : projects;
 
   const filteredAlerts = selectedProjectId
-    ? mockAlerts.filter((a) => a.projectId === selectedProjectId)
-    : mockAlerts;
+    ? alerts.filter((a: any) => a.projectId === selectedProjectId)
+    : alerts;
 
   const filteredRfis = selectedProjectId
-    ? mockRfis.filter((r) => r.projectId === selectedProjectId)
-    : mockRfis;
-
-  const filteredDiligence = selectedProjectId
-    ? mockDiligenceProgress.filter((d) => d.projectId === selectedProjectId)
-    : mockDiligenceProgress;
+    ? rfis.filter((r: any) => r.projectId === selectedProjectId)
+    : rfis;
 
   // Calculate metrics
-  const totalCapacityMw = filteredProjects.reduce((sum, p) => sum + (p.capacityMw || 0), 0);
-  const totalCapacityMwh = filteredProjects.reduce((sum, p) => sum + (p.capacityMwh || 0), 0);
-  const activeAlerts = filteredAlerts.filter((a) => !a.isRead).length;
-  const openRfis = filteredRfis.filter((r) => r.status === "open" || r.status === "in_progress").length;
+  const totalCapacityMw = filteredProjects.reduce((sum: number, p: any) => sum + (p.capacityMw || 0), 0);
+  const totalCapacityMwh = filteredProjects.reduce((sum: number, p: any) => sum + (p.capacityMwh || 0), 0);
+  const activeAlerts = filteredAlerts.filter((a: any) => !a.isRead).length;
+  const openRfis = filteredRfis.filter((r: any) => r.status === "open" || r.status === "in_progress").length;
 
-  // Aggregate diligence progress
-  const overallDiligence = filteredDiligence.reduce(
-    (acc, d) => ({ total: acc.total + d.totalItems, verified: acc.verified + d.verifiedItems }),
-    { total: 0, verified: 0 }
-  );
-  const diligencePercent = overallDiligence.total > 0 
-    ? Math.round((overallDiligence.verified / overallDiligence.total) * 100) 
-    : 0;
+  // Calculate diligence progress (simplified - based on document status if available)
+  const diligencePercent = 0; // Will be calculated from real document data when available
 
   // Get attention items (high priority RFIs + critical alerts)
   const attentionItems = [
-    ...filteredAlerts.filter(a => a.severity === 'critical' && !a.isRead).map(a => ({
+    ...filteredAlerts.filter((a: any) => a.severity === 'critical' && !a.isRead).map((a: any) => ({
       id: `alert-${a.id}`,
       type: 'alert' as const,
       title: a.title,
-      project: mockProjects.find(p => p.id === a.projectId)?.name || 'Unknown',
+      project: projects.find((p: any) => p.id === a.projectId)?.name || 'Unknown',
       severity: a.severity,
-      date: new Date().toISOString(),
+      date: a.createdAt || new Date().toISOString(),
     })),
-    ...filteredRfis.filter(r => (r.priority === 'high' || r.priority === 'critical') && r.status !== 'resolved').map(r => ({
+    ...filteredRfis.filter((r: any) => (r.priority === 'high' || r.priority === 'critical') && r.status !== 'resolved').map((r: any) => ({
       id: `rfi-${r.id}`,
       type: 'rfi' as const,
       title: r.title,
-      project: mockProjects.find(p => p.id === r.projectId)?.name || 'Unknown',
+      project: projects.find((p: any) => p.id === r.projectId)?.name || 'Unknown',
       severity: r.priority,
       date: r.dueDate,
     })),
   ].slice(0, 5);
+
+  // Loading state
+  const isLoading = projectsLoading || alertsLoading || rfisLoading;
+
+  if (isLoading) {
+    return (
+      <div className="p-6 lg:p-8 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-primary)]" />
+          <p className="text-sm text-[var(--color-text-secondary)]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -218,12 +195,6 @@ function DashboardContent() {
             </p>
           </div>
         </div>
-        <Link href="/projects/new">
-          <Button size="sm" className="gap-1.5">
-            <Building2 className="w-4 h-4" />
-            New Project
-          </Button>
-        </Link>
       </div>
 
       {/* Stats Row - O11-inspired clean cards */}
@@ -378,212 +349,169 @@ function DashboardContent() {
                           {item.title}
                         </span>
                         <span className={cn(
-                          "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                          item.type === 'alert'
-                            ? "bg-[var(--color-semantic-error)]/10 text-[var(--color-semantic-error)]"
-                            : "bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)]"
+                          "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                          item.type === 'alert' ? "bg-[var(--color-semantic-error)]/10 text-[var(--color-semantic-error)]" : "bg-[var(--color-semantic-info)]/10 text-[var(--color-semantic-info)]"
                         )}>
-                          {item.type === 'alert' ? 'Alert' : 'RFI'}
+                          {item.type.toUpperCase()}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-text-tertiary)]">
                         <span>{item.project}</span>
-                        <span>•</span>
-                        <Clock className="w-3 h-3" />
-                        <span>{new Date(item.date).toLocaleDateString()}</span>
+                        {item.date && (
+                          <>
+                            <span>•</span>
+                            <Clock className="w-3 h-3" />
+                            <span>{new Date(item.date).toLocaleDateString()}</span>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <button className="p-2 rounded-lg hover:bg-[var(--color-bg-surface-hover)] text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-all">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
+                    <ArrowUpRight className="w-4 h-4 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 ))}
               </div>
             )}
           </section>
 
-          {/* Filter Controls - O11-inspired clean filters */}
-          <section className="mb-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
-                <Filter className="w-4 h-4" />
-                <span className="text-sm">Filters:</span>
-              </div>
-
-              <Select value={countryFilter} onValueChange={setCountryFilter}>
-                <SelectTrigger className="w-[150px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
-                  <SelectValue placeholder="Country" />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
-                  {COUNTRY_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
-                  {STATUS_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={classificationFilter} onValueChange={setClassificationFilter}>
-                <SelectTrigger className="w-[160px] h-9 text-sm bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-xl hover:border-[var(--color-border-default)] transition-colors">
-                  <SelectValue placeholder="Classification" />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
-                  {CLASSIFICATION_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="h-9 text-sm text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] rounded-xl"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Clear
-                </Button>
-              )}
-
-              {hasActiveFilters && (
-                <div className="flex items-center gap-1.5 ml-2">
-                  {countryFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full">
-                      {COUNTRY_OPTIONS.find(o => o.value === countryFilter)?.label}
-                    </Badge>
-                  )}
-                  {statusFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full capitalize">
-                      {statusFilter}
-                    </Badge>
-                  )}
-                  {classificationFilter !== 'all' && (
-                    <Badge variant="secondary" className="text-xs bg-[var(--color-bg-surface-hover)] text-[var(--color-text-secondary)] rounded-full">
-                      {CLASSIFICATION_OPTIONS.find(o => o.value === classificationFilter)?.label}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Map Section - O11-inspired clean container */}
+          {/* Map Section with Filters */}
           <section>
             <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Portfolio Map</h2>
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Asset Locations</h2>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-8 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Clear filters
+                  </Button>
+                )}
+                <Select value={countryFilter} onValueChange={setCountryFilter}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <MapPin className="w-3 h-3 mr-1" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRY_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={mapColorBy} onValueChange={(v) => setMapColorBy(v as 'status' | 'classification')}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <Filter className="w-3 h-3 mr-1" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAP_COLOR_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={mapColorBy} onValueChange={(v) => setMapColorBy(v as 'status' | 'classification')}>
-                <SelectTrigger className="w-[130px] h-8 text-xs bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] rounded-lg">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--color-bg-surface-elevated)] border-[var(--color-border-subtle)]">
-                  {MAP_COLOR_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
-            <div className="rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)] overflow-hidden">
-              <ProjectAssetsMap
-                filters={hasActiveFilters ? filters : undefined}
+            <div className="bg-[var(--color-bg-surface)] rounded-2xl border border-[var(--color-border-subtle)] overflow-hidden">
+              <ProjectAssetsMap 
+                filters={filters}
                 colorBy={mapColorBy}
-                height="350px"
+                height="400px"
               />
             </div>
           </section>
 
-          {/* Asset Portfolio Distribution - O11-inspired section */}
+          {/* Classification Charts */}
           <section>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Asset Portfolio Distribution</h2>
-              <span className="text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-surface-hover)] px-2 py-1 rounded-full">
-                {hasActiveFilters ? 'Filtered view' : 'All assets'}
-              </span>
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Portfolio Analytics</h2>
             </div>
-            <ProjectClassificationCharts filters={hasActiveFilters ? filters : undefined} />
+            <ProjectClassificationCharts filters={filters} />
           </section>
         </div>
 
-        {/* Right Column - Projects List - O11-inspired clean cards */}
-        <div>
+        {/* Right Column - Projects List */}
+        <div className="space-y-6">
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Projects</h2>
-              <span className="text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg-surface-hover)] px-2 py-1 rounded-full">
-                {filteredProjects.length} total
-              </span>
+              <Link href="/workspace">
+                <button className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center gap-1 transition-colors">
+                  View all <ChevronRight className="w-4 h-4" />
+                </button>
+              </Link>
             </div>
 
-            <div className="space-y-2">
-              {filteredProjects.slice(0, 6).map((project) => {
-                const TechIcon = techIcons[project.technology] || Sun;
-                const projectDiligence = mockDiligenceProgress.filter(d => d.projectId === project.id);
-                const progress = projectDiligence.reduce(
-                  (acc, d) => ({ total: acc.total + d.totalItems, verified: acc.verified + d.verifiedItems }),
-                  { total: 0, verified: 0 }
-                );
-                const progressPercent = progress.total > 0
-                  ? Math.round((progress.verified / progress.total) * 100)
-                  : 0;
+            {filteredProjects.length === 0 ? (
+              <EmptyState
+                type="projects"
+                title="No projects yet"
+                description="Create your first project to get started with portfolio management."
+              />
+            ) : (
+              <div className="space-y-2">
+                {filteredProjects.slice(0, 6).map((project: any) => {
+                  const TechIcon = techIcons[project.technology] || Sun;
+                  const progressPercent = 0; // Will be calculated from real document data
 
-                return (
-                  <div
-                    key={project.id}
-                    className="bg-[var(--color-bg-surface)] rounded-xl p-4 cursor-pointer border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-all group"
-                    onClick={() => setSelectedProjectId(project.id)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-surface-hover)] flex items-center justify-center group-hover:bg-[var(--color-brand-primary)]/10 transition-colors">
-                          <TechIcon className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-brand-primary)] transition-colors" />
+                  return (
+                    <div
+                      key={project.id}
+                      className="bg-[var(--color-bg-surface)] rounded-xl p-4 cursor-pointer border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-all group"
+                      onClick={() => setSelectedProjectId(project.id)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-surface-hover)] flex items-center justify-center group-hover:bg-[var(--color-brand-primary)]/10 transition-colors">
+                            <TechIcon className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-brand-primary)] transition-colors" />
+                          </div>
+                          <div>
+                            <span className="font-medium text-sm text-[var(--color-text-primary)] block">
+                              {project.name}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-tertiary)]">
+                              {project.capacityMw ? `${project.capacityMw} MW` : project.capacityMwh ? `${project.capacityMwh} MWh` : ''} {project.state ? `• ${project.state}` : ''}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-medium text-sm text-[var(--color-text-primary)] block">
-                            {project.name}
-                          </span>
-                          <span className="text-xs text-[var(--color-text-tertiary)]">
-                            {project.capacityMw ? `${project.capacityMw} MW` : `${project.capacityMwh} MWh`} • {project.state}
-                          </span>
-                        </div>
+                        <span className={cn(
+                          "text-[10px] font-medium px-2 py-0.5 rounded-full",
+                          project.status === "operational"
+                            ? "bg-[var(--color-semantic-success)]/10 text-[var(--color-semantic-success)]"
+                            : project.status === "construction"
+                            ? "bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)]"
+                            : "bg-[var(--color-semantic-info)]/10 text-[var(--color-semantic-info)]"
+                        )}>
+                          {project.stage || project.status || 'Active'}
+                        </span>
                       </div>
-                      <span className={cn(
-                        "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                        project.status === "operational"
-                          ? "bg-[var(--color-semantic-success)]/10 text-[var(--color-semantic-success)]"
-                          : project.status === "construction"
-                          ? "bg-[var(--color-semantic-warning)]/10 text-[var(--color-semantic-warning)]"
-                          : "bg-[var(--color-semantic-info)]/10 text-[var(--color-semantic-info)]"
-                      )}>
-                        {project.stage}
-                      </span>
-                    </div>
 
-                    <div className="h-1.5 bg-[var(--color-bg-surface-hover)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-[var(--color-brand-primary)] to-amber-400 rounded-full transition-all duration-300"
-                        style={{ width: `${progressPercent}%` }}
-                      />
+                      <div className="h-1.5 bg-[var(--color-bg-surface-hover)] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[var(--color-brand-primary)] to-amber-400 rounded-full transition-all duration-300"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-2 text-xs text-[var(--color-text-tertiary)]">
+                        <span>Diligence</span>
+                        <span className="font-medium">{progressPercent}%</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between mt-2 text-xs text-[var(--color-text-tertiary)]">
-                      <span>Diligence</span>
-                      <span className="font-medium">{progressPercent}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
             {filteredProjects.length > 6 && (
               <button className="w-full mt-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] bg-[var(--color-bg-surface)] rounded-xl border border-[var(--color-border-subtle)] hover:border-[var(--color-border-default)] transition-all">

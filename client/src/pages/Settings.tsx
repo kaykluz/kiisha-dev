@@ -35,7 +35,9 @@ function SettingsCard({ title, description, icon, path, badge, badgeVariant = "s
   const { user } = useAuth();
   
   // Hide admin-only cards from non-admin users
-  if (adminOnly && user?.role !== 'admin') {
+  // Allow admin, superuser_admin roles, or users with isSuperuser flag
+  const isUserAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
+  if (adminOnly && !isUserAdmin) {
     return null;
   }
   
@@ -73,7 +75,8 @@ function SettingsCard({ title, description, icon, path, badge, badgeVariant = "s
 
 export default function Settings() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  // Allow admin, superuser_admin roles, or users with isSuperuser flag
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser;
   
   return (
     <AppLayout>
@@ -115,6 +118,8 @@ export default function Settings() {
               description="Configure your notification preferences and alert settings."
               icon={<Bell className="h-5 w-5" />}
               path="/profile"
+              badge="Coming Soon"
+              badgeVariant="outline"
             />
           </div>
         </div>
@@ -173,7 +178,8 @@ export default function Settings() {
                 description="Configure incoming webhooks for WhatsApp, email, and third-party integrations."
                 icon={<Webhook className="h-5 w-5" />}
                 path="/settings/integrations"
-                badge="Active"
+                badge="Coming Soon"
+                badgeVariant="outline"
                 adminOnly
               />
               <SettingsCard
@@ -209,13 +215,17 @@ export default function Settings() {
                 description="Manage API keys for programmatic access to KIISHA services."
                 icon={<Key className="h-5 w-5" />}
                 path="/settings/integrations"
+                badge="Coming Soon"
+                badgeVariant="outline"
                 adminOnly
               />
               <SettingsCard
                 title="Organization"
                 description="Manage organization settings, team members, and access permissions."
                 icon={<Globe className="h-5 w-5" />}
-                path="/settings/organization"
+                path="/settings/integrations"
+                badge="Coming Soon"
+                badgeVariant="outline"
                 adminOnly
               />
             </div>

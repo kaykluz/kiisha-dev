@@ -1,5 +1,5 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,16 +65,16 @@ export default function RequestReminders() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <AppLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">Loading settings...</div>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Request Reminders</h1>
@@ -297,6 +297,6 @@ export default function RequestReminders() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

@@ -14,7 +14,6 @@ import { handleStripeWebhook } from "../stripe/webhook";
 import { handleGrafanaAlertWebhook } from "../grafana/alertWebhookBridge";
 import { parseSendGridEmail, parseMailgunEmail, autoFileEmail, verifyMailgunSignature } from "../services/emailInbound";
 import { ENV } from "./env";
-import { csrfProtection, sessionCleanup } from "../middleware/sessionHardening";
 
 // Simple in-memory rate limiter
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -131,8 +130,6 @@ async function startServer() {
       responseTimeMs: Date.now() - startTime,
     };
     
-    // Always return 200 so Railway healthcheck passes even without a database.
-    // The response body still reports the real database status for monitoring.
     return res.status(200).json(health);
   });
   
@@ -267,10 +264,6 @@ async function startServer() {
       return res.status(500).json({ error: 'Failed to download file' });
     }
   });
-  // Security middleware — CSRF protection and session cleanup
-  app.use('/api/trpc', csrfProtection());
-  app.use(sessionCleanup());
-
   // tRPC API
   app.use(
     "/api/trpc",

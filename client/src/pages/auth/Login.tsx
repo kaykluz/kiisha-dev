@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Github, Building2, Zap } from "lucide-react";
-import { getLoginUrl } from "@/const";
+import { Loader2, Github, Zap } from "lucide-react";
+
 
 // Microsoft icon component
 function MicrosoftIcon({ className }: { className?: string }) {
@@ -36,8 +36,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [name, setName] = useState("");
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
@@ -56,13 +55,14 @@ export default function Login() {
           const session = await utils.authSession.getSession.fetch();
 
           if (session.authenticated) {
-            setLocation("/dashboard");
+            // Always redirect to workspace selection after fresh login
+            setLocation("/select-workspace");
           } else {
             // Retry once more after delay
             await new Promise(resolve => setTimeout(resolve, 500));
             const retrySession = await utils.authSession.getSession.fetch();
             if (retrySession.authenticated) {
-              setLocation("/dashboard");
+              setLocation("/select-workspace");
             } else {
               setError("Session could not be established. Please try again.");
             }
@@ -70,22 +70,6 @@ export default function Login() {
         } catch (err) {
           setError("Failed to establish session. Please try again.");
         }
-      }
-    },
-    onError: (err) => {
-      setError(err.message);
-    }
-  });
-
-  // Email/password registration mutation
-  const registerMutation = trpc.multiAuth.registerWithEmail.useMutation({
-    onSuccess: (data) => {
-      if (data.success) {
-        setSuccess(data.message);
-        setIsRegistering(false);
-        setEmail("");
-        setPassword("");
-        setName("");
       }
     },
     onError: (err) => {
@@ -111,11 +95,7 @@ export default function Login() {
     setError(null);
     setSuccess(null);
 
-    if (isRegistering) {
-      registerMutation.mutate({ email, password, name: name || undefined });
-    } else {
-      loginMutation.mutate({ email, password, rememberMe });
-    }
+    loginMutation.mutate({ email, password, rememberMe });
   };
 
   const handleOAuthLogin = (provider: "google" | "github" | "microsoft") => {
@@ -128,11 +108,7 @@ export default function Login() {
     });
   };
 
-  const handleManusLogin = () => {
-    window.location.href = getLoginUrl();
-  };
-
-  const isLoading = loginMutation.isPending || registerMutation.isPending || getAuthUrlMutation.isPending;
+  const isLoading = loginMutation.isPending || getAuthUrlMutation.isPending;
 
   return (
     <div className="min-h-screen flex bg-[var(--color-bg-base)]">
@@ -191,12 +167,10 @@ export default function Login() {
           {/* Header */}
           <div className="text-center lg:text-left">
             <h2 className="text-3xl font-bold text-[var(--color-text-primary)]">
-              {isRegistering ? "Create your account" : "Welcome back"}
+              Welcome back
             </h2>
             <p className="mt-2 text-[var(--color-text-secondary)]">
-              {isRegistering
-                ? "Start managing your renewable energy assets"
-                : "Sign in to continue to your dashboard"}
+              Sign in to continue to your dashboard
             </p>
           </div>
 
@@ -214,17 +188,6 @@ export default function Login() {
 
           {/* OAuth Providers */}
           <div className="space-y-3">
-            {/* Manus OAuth - Primary */}
-            <Button
-              variant="default"
-              className="w-full h-12 bg-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] text-[var(--color-bg-base)] font-medium rounded-xl"
-              onClick={handleManusLogin}
-              disabled={isLoading}
-            >
-              <Building2 className="mr-3 h-5 w-5" />
-              Continue with Manus
-            </Button>
-
             <div className="grid grid-cols-3 gap-3">
               {/* Google OAuth */}
               <Button
@@ -272,20 +235,6 @@ export default function Login() {
 
           {/* Email/Password Form */}
           <form onSubmit={handleEmailSubmit} className="space-y-5">
-            {isRegistering && (
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-[var(--color-text-secondary)] text-sm">Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isLoading}
-                  className="h-12 bg-[var(--color-bg-surface)] border-[var(--color-border-subtle)] focus:border-[var(--color-brand-primary)] rounded-xl placeholder:text-[var(--color-text-tertiary)]"
-                />
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-[var(--color-text-secondary)] text-sm">Email</Label>
               <Input
@@ -314,29 +263,27 @@ export default function Login() {
               />
             </div>
 
-            {!isRegistering && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-brand-primary)] focus:ring-[var(--color-brand-primary)]"
-                  />
-                  <Label htmlFor="rememberMe" className="text-sm text-[var(--color-text-secondary)] font-normal cursor-pointer">
-                    Remember me
-                  </Label>
-                </div>
-                <button
-                  type="button"
-                  className="text-sm text-[var(--color-brand-primary)] hover:underline"
-                  onClick={() => setLocation("/forgot-password")}
-                >
-                  Forgot password?
-                </button>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-brand-primary)] focus:ring-[var(--color-brand-primary)]"
+                />
+                <Label htmlFor="rememberMe" className="text-sm text-[var(--color-text-secondary)] font-normal cursor-pointer">
+                  Remember me
+                </Label>
               </div>
-            )}
+              <button
+                type="button"
+                className="text-sm text-[var(--color-brand-primary)] hover:underline"
+                onClick={() => setLocation("/forgot-password")}
+              >
+                Forgot password?
+              </button>
+            </div>
 
             <Button
               type="submit"
@@ -344,43 +291,20 @@ export default function Login() {
               disabled={isLoading}
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isRegistering ? "Create account" : "Sign in"}
+              Sign in
             </Button>
           </form>
 
           {/* Toggle between sign in and register */}
           <div className="text-center text-sm text-[var(--color-text-secondary)]">
-            {isRegistering ? (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  className="text-[var(--color-brand-primary)] hover:underline font-medium"
-                  onClick={() => {
-                    setIsRegistering(false);
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                >
-                  Sign in
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  className="text-[var(--color-brand-primary)] hover:underline font-medium"
-                  onClick={() => {
-                    setIsRegistering(true);
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                >
-                  Create one
-                </button>
-              </>
-            )}
+            Don't have an account?{" "}
+            <button
+              type="button"
+              className="text-[var(--color-brand-primary)] hover:underline font-medium"
+              onClick={() => setLocation("/signup")}
+            >
+              Create one
+            </button>
           </div>
         </div>
       </div>

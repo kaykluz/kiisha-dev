@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -59,6 +59,9 @@ import RequirementItems from "./pages/admin/RequirementItems";
 import RenewalWorkflow from "./pages/RenewalWorkflow";
 import TemplateResponseWorkspace from "./pages/TemplateResponseWorkspace";
 import SuperuserAdmin from "./pages/SuperuserAdmin";
+import BillingDashboard from "./pages/billing/BillingDashboard";
+import BillingSettings from "./pages/billing/BillingSettings";
+import SuperuserBilling from "./pages/superuser/SuperuserBilling";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import ViewSharing from "./pages/ViewSharing";
 import InviteAccept from "./pages/InviteAccept";
@@ -68,15 +71,6 @@ import CustomViews from "./pages/CustomViews";
 import ResponsesList from "./pages/ResponsesList";
 import DataRoom from "./pages/DataRoom";
 import ComplianceDashboard from "./pages/ComplianceDashboard";
-import ProjectWizard from "./pages/ProjectWizard";
-import DocumentMatrix from "./pages/DocumentMatrix";
-import PortfolioDashboard from "./pages/PortfolioDashboard";
-import PipelineManagement from "./pages/PipelineManagement";
-import RiskRegister from "./pages/RiskRegister";
-import ContractTracker from "./pages/ContractTracker";
-import PermitMatrix from "./pages/PermitMatrix";
-import ComplianceMatrix from "./pages/ComplianceMatrix";
-import DataComparison from "./pages/DataComparison";
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalInvoices, { PortalInvoiceDetail } from "./pages/portal/PortalInvoices";
@@ -93,20 +87,36 @@ import PortalDocuments from "./pages/portal/PortalDocuments";
 import PortalProjectDetail from "./pages/portal/PortalProjectDetail";
 import PortalDocumentUpload from "./pages/portal/PortalDocumentUpload";
 import PortalSettings from "./pages/portal/PortalSettings";
+import PortalSignup from "./pages/portal/PortalSignup";
+import PortalOAuthCallback from "./pages/portal/PortalOAuthCallback";
+import PortalVerifyEmail from "./pages/portal/PortalVerifyEmail";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import MultiAuthLogin from "./pages/auth/Login";
+import Signup from "./pages/auth/Signup";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import VerifyEmail from "./pages/auth/VerifyEmail";
 import LinkedAccounts from "./pages/settings/LinkedAccounts";
+import ChannelSettings from "./pages/settings/ChannelSettings";
+import OpenClawAdmin from "./pages/admin/OpenClawAdmin";
+import ProjectWizard from "./pages/ProjectWizard";
+import DocumentMatrix from "./pages/DocumentMatrix";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
+import PipelineManagement from "./pages/PipelineManagement";
+import RiskRegister from "./pages/RiskRegister";
+import ContractTracker from "./pages/ContractTracker";
+import PermitMatrix from "./pages/PermitMatrix";
+import ComplianceMatrix from "./pages/ComplianceMatrix";
+import DataComparison from "./pages/DataComparison";
 import RequestsDashboard from "./pages/RequestsDashboard";
 import RequestDetail from "./pages/RequestDetail";
 import ResponseWorkspace from "./pages/ResponseWorkspace";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
-import { AuthProvider } from "./contexts/AuthProvider";
 import { JobNotifications } from "./components/JobNotifications";
 import { GlobalAIChat } from "./components/GlobalAIChat";
 import { AdminGuard } from "./components/AdminGuard";
+import { AuthProvider } from "./contexts/AuthProvider";
+import SelectWorkspace, { PendingAccess } from "./pages/SelectWorkspace";
 
 // Wrapper component for admin-only routes
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -120,9 +130,10 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 function Router() {
   return (
     <Switch>
-      {/* Public routes */}
-      <Route path="/" component={Dashboard} />
+      {/* Root redirect */}
+      <Route path="/">{() => <Redirect to="/dashboard" />}</Route>
       <Route path="/login" component={MultiAuthLogin} />
+      <Route path="/signup" component={Signup} />
       <Route path="/data-room/:token" component={DataRoom} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
@@ -130,6 +141,9 @@ function Router() {
       <Route path="/auth/callback/:provider" component={OAuthCallback} />
       <Route path="/auth/verify-email" component={VerifyEmail} />
       <Route path="/invite/:token" component={InviteAccept} />
+      <Route path="/select-workspace" component={SelectWorkspace} />
+      <Route path="/pending-access" component={PendingAccess} />
+      <Route path="/app">{() => <Redirect to="/dashboard" />}</Route>
       <Route path="/dashboard" component={Dashboard} />
       
       {/* User routes (authenticated) */}
@@ -146,6 +160,8 @@ function Router() {
       <Route path="/artifacts" component={ArtifactHub} />
       <Route path="/financial-models" component={FinancialModels} />
       <Route path="/portfolio-comparison" component={PortfolioComparison} />
+      <Route path="/settings/categories" component={CategoryManagement} />
+      <Route path="/profile" component={Profile} />
       <Route path="/projects/new" component={ProjectWizard} />
       <Route path="/document-matrix" component={DocumentMatrix} />
       <Route path="/portfolio-dashboard" component={PortfolioDashboard} />
@@ -155,8 +171,6 @@ function Router() {
       <Route path="/permits" component={PermitMatrix} />
       <Route path="/compliance-matrix" component={ComplianceMatrix} />
       <Route path="/data-comparison" component={DataComparison} />
-      <Route path="/settings/categories" component={CategoryManagement} />
-      <Route path="/profile" component={Profile} />
       <Route path="/requests" component={RequestsDashboard} />
       <Route path="/requests/:id" component={RequestDetail} />
       <Route path="/requests/:id/respond" component={ResponseWorkspace} />
@@ -225,6 +239,9 @@ function Router() {
       <Route path="/admin/invoice-branding">
         {() => <AdminRoute component={InvoiceBranding} />}
       </Route>
+      <Route path="/admin/openclaw">
+        {() => <AdminRoute component={OpenClawAdmin} />}
+      </Route>
       
       {/* Company Hub Routes */}
       <Route path="/company-hub">
@@ -264,6 +281,15 @@ function Router() {
       <Route path="/admin/superuser">
         {() => <AdminRoute component={SuperuserAdmin} />}
       </Route>
+      <Route path="/billing">
+        {() => <BillingDashboard />}
+      </Route>
+      <Route path="/billing/settings">
+        {() => <BillingSettings />}
+      </Route>
+      <Route path="/superuser/billing">
+        {() => <AdminRoute component={SuperuserBilling} />}
+      </Route>
       <Route path="/admin/organization-settings">
         {() => <AdminRoute component={OrganizationSettings} />}
       </Route>
@@ -292,6 +318,15 @@ function Router() {
       </Route>
       <Route path="/portal/reset-password">
         {() => <PortalResetPassword />}
+      </Route>
+      <Route path="/portal/signup">
+        {() => <PortalSignup />}
+      </Route>
+      <Route path="/portal/oauth/callback">
+        {() => <PortalOAuthCallback />}
+      </Route>
+      <Route path="/portal/verify-email">
+        {() => <PortalVerifyEmail />}
       </Route>
       <Route path="/portal/dashboard">
         {() => <PortalDashboard />}
@@ -349,6 +384,7 @@ function Router() {
       <Route path="/settings/linked-accounts" component={LinkedAccounts} />
       <Route path="/settings/security" component={SecuritySettings} />
       <Route path="/settings/whatsapp" component={WhatsAppSettings} />
+      <Route path="/settings/channels" component={ChannelSettings} />
       <Route path="/views" component={CustomViews} />
       <Route path="/views/builder" component={CustomViews} />
       <Route path="/views/builder/:viewId" component={CustomViews} />

@@ -18,12 +18,14 @@ export interface AuthState {
   mfaRequired: boolean;
   mfaSatisfied: boolean;
   workspaceRequired: boolean;
+  workspaceSelectionRequired: boolean; // True on fresh login until user explicitly selects workspace
   user: {
     id: number;
     openId: string;
     name: string | null;
     email: string | null;
     role: string;
+    isSuperuser?: boolean;
   } | null;
   activeOrganizationId: number | null;
   activeOrganization: {
@@ -57,11 +59,17 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Routes that don't require auth
 const PUBLIC_ROUTES = [
-  "/",
   "/login",
   "/signup",
   "/verify-email",
   "/reset-password",
+  "/forgot-password",
+  "/auth/login",
+  "/auth/callback",
+  "/auth/verify-email",
+  "/data-room",
+  "/invite",
+  "/portal", // Customer portal has its own auth system
 ];
 
 // Routes that require auth but not full gate passage
@@ -104,7 +112,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (isLoading || hasRedirected) return;
 
-    const isPublicRoute = PUBLIC_ROUTES.some(r => location === r || location.startsWith(r + "?"));
+    const isPublicRoute = PUBLIC_ROUTES.some(r => location === r || location.startsWith(r + "?") || location.startsWith(r + "/"));
     const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some(r => location === r || location.startsWith(r + "?"));
 
     // Not authenticated
@@ -127,16 +135,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Authenticated but workspace selection required
-    if (session.workspaceRequired) {
-      if (location !== "/select-workspace" && location !== "/pending-access") {
-        setLocation("/select-workspace");
-        setHasRedirected(true);
-      }
-      return;
-    }
-
-    // No workspaces
+    // No workspaces available - user has no company access
     if (session.workspaceCount === 0) {
       if (location !== "/pending-access") {
         setLocation("/pending-access");
@@ -145,13 +144,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Fully authenticated - redirect away from auth pages
+    // WORKSPACE SELECTION WALL: Fresh login requires workspace selection
+    // workspaceSelectionRequired is true on fresh login, cleared after explicit selection
+    if (session.workspaceSelectionRequired || !session.activeOrganizationId) {
+      if (location !== "/select-workspace" && location !== "/pending-access" && !isPublicRoute) {
+        setLocation("/select-workspace");
+        setHasRedirected(true);
+      }
+      return;
+    }
+
+    // Fully authenticated with active organization AND workspace selection completed
+    // Redirect away from auth pages to dashboard
     if (isPublicRoute || isAuthOnlyRoute) {
       if (location === "/login" || location === "/signup") {
-        setLocation("/app");
+        setLocation("/dashboard");
         setHasRedirected(true);
-      } else if (location === "/2fa" || location === "/select-workspace") {
-        setLocation("/app");
+      } else if (location === "/2fa") {
+        setLocation("/dashboard");
+        setHasRedirected(true);
+      } else if (location === "/select-workspace") {
+        // Workspace selection completed, go to dashboard
+        setLocation("/dashboard");
         setHasRedirected(true);
       }
     }

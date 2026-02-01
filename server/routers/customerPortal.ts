@@ -285,47 +285,129 @@ export const customerPortalRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
-      const [user] = await db.select()
+      // First, try to find in customerUsers table (external customers)
+      const [customerUser] = await db.select()
         .from(customerUsers)
         .where(eq(customerUsers.email, input.email))
         .limit(1);
       
-      if (!user || !user.passwordHash) {
+      if (customerUser && customerUser.passwordHash) {
+        // Customer user found - authenticate as customer
+        const validPassword = await bcrypt.compare(input.password, customerUser.passwordHash);
+        if (!validPassword) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
+        }
+        
+        if (customerUser.status !== "active") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active" });
+        }
+        
+        // Resolve portal scope using the canonical model
+        const portalScope = await resolvePortalScopeFromLegacy(customerUser.id);
+        
+        // Update last login
+        await db.update(customerUsers)
+          .set({
+            lastLoginAt: new Date(),
+            lastLoginIp: ctx.req?.headers?.["x-forwarded-for"]?.toString() || ctx.req?.socket?.remoteAddress,
+          })
+          .where(eq(customerUsers.id, customerUser.id));
+        
+        // Generate JWT token with portal scope info
+        const token = jwt.sign(
+          { 
+            type: "customer",
+            userId: customerUser.id,
+            portalUserId: portalScope.portalUserId || customerUser.id,
+            customerId: customerUser.customerId,
+            email: customerUser.email,
+            role: customerUser.role,
+            isCompanyUser: false,
+            // Include scope info for quick access checks
+            allowedOrgIds: portalScope.allowedOrgIds,
+            allowedProjectIds: portalScope.allowedProjectIds,
+          },
+          ENV.JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+        
+        return {
+          token,
+          user: {
+            id: customerUser.id,
+            email: customerUser.email,
+            name: customerUser.name,
+            role: customerUser.role,
+            customerId: customerUser.customerId,
+            isCompanyUser: false,
+          },
+          // Include scope summary in response for client-side access control
+          scope: {
+            clientAccounts: portalScope.clientAccounts,
+            allowedProjectIds: portalScope.allowedProjectIds,
+            allowedSiteIds: portalScope.allowedSiteIds,
+          },
+        };
+      }
+      
+      // If not found in customerUsers, try main users table (company users)
+      const { users, organizationMembers, organizations } = await import('../../drizzle/schema');
+      const [companyUser] = await db.select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+      
+      if (!companyUser || !companyUser.passwordHash) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
       
-      const validPassword = await bcrypt.compare(input.password, user.passwordHash);
+      const validPassword = await bcrypt.compare(input.password, companyUser.passwordHash);
       if (!validPassword) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
       
-      if (user.status !== "active") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Account is not active" });
+      // Get all organizations this company user has access to
+      const memberships = await db.select({
+        orgId: organizationMembers.organizationId,
+        orgName: organizations.name,
+        role: organizationMembers.role,
+      })
+        .from(organizationMembers)
+        .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
+        .where(
+          and(
+            eq(organizationMembers.userId, companyUser.id),
+            eq(organizationMembers.status, "active")
+          )
+        );
+      
+      // Get all customers across all orgs this user has access to
+      const orgIds = memberships.map(m => m.orgId);
+      let allCustomers: { id: number; name: string; companyName: string | null; organizationId: number }[] = [];
+      
+      if (orgIds.length > 0) {
+        allCustomers = await db.select({
+          id: customers.id,
+          name: customers.name,
+          companyName: customers.companyName,
+          organizationId: customers.organizationId,
+        })
+          .from(customers)
+          .where(sql`${customers.organizationId} IN (${sql.join(orgIds.map(id => sql`${id}`), sql`, `)})`);
       }
       
-      // Resolve portal scope using the canonical model
-      const portalScope = await resolvePortalScopeFromLegacy(user.id);
-      
-      // Update last login
-      await db.update(customerUsers)
-        .set({
-          lastLoginAt: new Date(),
-          lastLoginIp: ctx.req?.headers?.["x-forwarded-for"]?.toString() || ctx.req?.socket?.remoteAddress,
-        })
-        .where(eq(customerUsers.id, user.id));
-      
-      // Generate JWT token with portal scope info
+      // Generate JWT token for company user with full access
       const token = jwt.sign(
         { 
-          type: "customer",
-          userId: user.id,
-          portalUserId: portalScope.portalUserId || user.id,
-          customerId: user.customerId,
-          email: user.email,
-          role: user.role,
-          // Include scope info for quick access checks
-          allowedOrgIds: portalScope.allowedOrgIds,
-          allowedProjectIds: portalScope.allowedProjectIds,
+          type: "company",
+          userId: companyUser.id,
+          email: companyUser.email,
+          name: companyUser.name,
+          isCompanyUser: true,
+          isSuperuser: companyUser.isSuperuser || false,
+          // Company users can access all customers in their orgs
+          allowedOrgIds: orgIds,
+          allowedCustomerIds: allCustomers.map(c => c.id),
         },
         ENV.JWT_SECRET,
         { expiresIn: "7d" }
@@ -334,17 +416,18 @@ export const customerPortalRouter = router({
       return {
         token,
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          customerId: user.customerId,
+          id: companyUser.id,
+          email: companyUser.email,
+          name: companyUser.name,
+          role: "company_admin",
+          isCompanyUser: true,
+          isSuperuser: companyUser.isSuperuser || false,
         },
-        // Include scope summary in response for client-side access control
+        // Include all accessible customers for company users
         scope: {
-          clientAccounts: portalScope.clientAccounts,
-          allowedProjectIds: portalScope.allowedProjectIds,
-          allowedSiteIds: portalScope.allowedSiteIds,
+          organizations: memberships,
+          customers: allCustomers,
+          isCompanyUser: true,
         },
       };
     }),
@@ -2260,7 +2343,7 @@ export const customerPortalRouter = router({
       
       return { success: true };
     }),
-
+  
   // ============================================
   // COMPANY USER - CONSOLIDATED VIEW
   // ============================================

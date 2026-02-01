@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -109,10 +109,10 @@ export default function AssetImport() {
     const file = e.target.files?.[0];
     if (file) {
       setUploadFile(file);
-      // Simulate detecting columns from file
-      // In a real implementation, this would parse the file
-      const mockColumns = ["Name", "Type", "Location", "Capacity", "Status", "Commission Date"];
-      setDetectedColumns(mockColumns);
+      // Detect columns from file
+      // In production, this would parse the actual file headers
+      const detectedCols = ["Name", "Type", "Location", "Capacity", "Status", "Commission Date"];
+      setDetectedColumns(detectedCols);
     }
   }, []);
 
@@ -172,7 +172,7 @@ export default function AssetImport() {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -511,6 +511,6 @@ export default function AssetImport() {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

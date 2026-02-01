@@ -1,5 +1,5 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,9 +27,9 @@ import {
 
 export default function AdminIngest() {
   return (
-    <DashboardLayout>
+    <AppLayout>
       <AdminIngestContent />
-    </DashboardLayout>
+    </AppLayout>
   );
 }
 

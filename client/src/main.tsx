@@ -10,6 +10,25 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+// Public routes that should not trigger redirect on auth errors
+const PUBLIC_ROUTES = [
+  "/login",
+  "/signup",
+  "/verify-email",
+  "/reset-password",
+  "/forgot-password",
+  "/auth/login",
+  "/auth/callback",
+  "/auth/verify-email",
+  "/data-room",
+  "/invite",
+];
+
+const isPublicRoute = () => {
+  const path = window.location.pathname;
+  return PUBLIC_ROUTES.some(r => path === r || path.startsWith(r + "/") || path.startsWith(r + "?"));
+};
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -17,6 +36,9 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;
+
+  // Don't redirect if already on a public route
+  if (isPublicRoute()) return;
 
   window.location.href = "/login";
 };

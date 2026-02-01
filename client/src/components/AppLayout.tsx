@@ -56,12 +56,10 @@ import {
   Send,
   GitBranch,
   Grid3X3,
-  FileSignature,
   Columns3,
+  FileSignature,
   ShieldCheck,
-  Target,
 } from "lucide-react";
-import { mockProjects, mockPortfolio, mockAlerts } from "@shared/mockData";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { SkeletonDashboard } from "./Skeleton";
 import ThemeToggle from "./ThemeToggle";
@@ -70,16 +68,20 @@ import { RealtimeNotifications } from "./RealtimeNotifications";
 import { toast } from "sonner";
 import { useFeatureFlag } from "@/contexts/FeatureFlagContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { trpc } from "@/lib/trpc";
+import { OpenClawChatSidebar } from "./OpenClawChatSidebar";
 
 // Project context for filtering
 interface ProjectContextType {
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
+  selectedProject: any | null;
 }
 
 const ProjectContext = createContext<ProjectContextType>({
   selectedProjectId: null,
   setSelectedProjectId: () => {},
+  selectedProject: null,
 });
 
 export const useProject = () => useContext(ProjectContext);
@@ -171,7 +173,7 @@ const settingsNav: NavItem[] = [
       { label: "General", path: "/settings", icon: Settings },
       { label: "Profile", path: "/profile", icon: User },
       { label: "Security", path: "/settings/security", icon: Shield },
-      { label: "WhatsApp", path: "/settings/whatsapp", icon: MessageSquare },
+      { label: "Connected Channels", path: "/settings/channels", icon: MessageSquare },
       { label: "Notifications", path: "/settings/notifications", icon: Bell },
     ]
   },
@@ -199,6 +201,8 @@ const adminNav: NavItem[] = [
       { label: "Organization Settings", path: "/admin/organization-settings", icon: Building2 },
       { label: "View Sharing", path: "/admin/view-sharing", icon: Send },
       { label: "Custom Views", path: "/views", icon: LayoutGrid },
+      { label: "Observability", path: "/admin/observability", icon: Activity },
+      { label: "AI Assistant (OpenClaw)", path: "/admin/openclaw", icon: MessageSquare },
     ]
   },
   {
@@ -363,8 +367,8 @@ function ExpandableNavItem({
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
-  const { user, loading, logout } = useAuth();
+  const [location, setLocation] = useLocation();
+  const { user, isLoading, logout, state, isReady } = useAuth();
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
@@ -388,7 +392,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
   });
   const commandPalette = useCommandPalette();
 
-  const unreadAlerts = mockAlerts.filter((a) => !a.isRead).length;
+  // Fetch projects from API
+  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
+  
+  // Fetch alerts from API
+  const { data: unreadAlertCount = 0 } = trpc.alerts.getUnreadCount.useQuery();
 
   // Save expanded state to localStorage
   useEffect(() => {
@@ -419,10 +427,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Get current page title
   const currentTab = navTabs.find((t) => t.path === location);
   const selectedProject = selectedProjectId
-    ? mockProjects.find((p) => p.id === selectedProjectId)
+    ? (projects as any[]).find((p: any) => p.id === selectedProjectId)
     : null;
 
-  if (loading) {
+  // Portfolio name - use organization name or default
+  const portfolioName = "Portfolio";
+
+  if (isLoading || projectsLoading) {
     return (
       <div className="min-h-screen bg-background">
         <SkeletonDashboard />
@@ -430,13 +441,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
+  // Not authenticated - redirect to login
   if (!user) {
     window.location.href = "/login";
     return null;
   }
 
+  // Workspace selection wall - redirect if workspace selection is required
+  if (state?.workspaceSelectionRequired && state?.workspaceCount > 0) {
+    setLocation("/select-workspace");
+    return null;
+  }
+
+  // No workspaces - redirect to pending access
+  if (state?.workspaceCount === 0) {
+    setLocation("/pending-access");
+    return null;
+  }
+
   return (
-    <ProjectContext.Provider value={{ selectedProjectId, setSelectedProjectId }}>
+    <ProjectContext.Provider value={{ selectedProjectId, setSelectedProjectId, selectedProject }}>
       <div className="h-screen bg-[var(--color-bg-base)] flex overflow-hidden">
         {/* Left Sidebar - O11-inspired design */}
         <aside
@@ -538,14 +562,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     <>
                       <span className="flex-1 text-left">All Projects</span>
                       <span className="text-xs text-[var(--color-text-tertiary)]">
-                        {mockProjects.length}
+                        {(projects as any[]).length}
                       </span>
                     </>
                   )}
                 </button>
 
                 {/* Individual Projects */}
-                {mockProjects.slice(0, sidebarCollapsed ? 5 : 10).map((project) => {
+                {(projects as any[]).slice(0, sidebarCollapsed ? 5 : 10).map((project: any) => {
                   const TechIcon = techIcons[project.technology] || Sun;
                   const isSelected = selectedProjectId === project.id;
 
@@ -628,7 +652,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </div>
 
                 {/* Admin-only navigation */}
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'superuser_admin' || user?.isSuperuser) && (
                   <div className="space-y-1 mt-2">
                     {adminNav.map((item) => (
                       <ExpandableNavItem
@@ -732,7 +756,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               ) : (
                 <>
                   <h1 className="text-base font-medium text-[var(--color-text-primary)]">
-                    {mockPortfolio.name}
+                    {portfolioName}
                   </h1>
                   {currentTab && (
                     <>
@@ -822,6 +846,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {/* Command Palette */}
         <CommandPalette isOpen={commandPalette.isOpen} onClose={commandPalette.close} />
+        
+        {/* OpenClaw Chat Sidebar - AI Assistant */}
+        {state?.activeOrg?.id && (
+          <OpenClawChatSidebar 
+            organizationId={state.activeOrg.id} 
+            projectId={selectedProjectId || undefined}
+          />
+        )}
       </div>
     </ProjectContext.Provider>
   );

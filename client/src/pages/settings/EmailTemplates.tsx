@@ -1,5 +1,5 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,16 +31,6 @@ export default function EmailTemplates() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
-
-  // Basic XSS sanitization for email template preview
-  const sanitizeHtml = (html: string): string => {
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-      .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-      .replace(/on\w+\s*=\s*\S+/gi, '')
-      .replace(/javascript\s*:/gi, 'blocked:');
-  };
   const [previewSubject, setPreviewSubject] = useState("");
 
   // Form state
@@ -195,7 +185,7 @@ export default function EmailTemplates() {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -508,12 +498,12 @@ export default function EmailTemplates() {
               </div>
               <div
                 className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewHtml) }}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             </div>
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }
