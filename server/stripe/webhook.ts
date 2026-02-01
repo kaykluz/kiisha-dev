@@ -10,10 +10,16 @@ import { Request, Response } from 'express';
 import * as db from '../db';
 import { ENV } from '../_core/env';
 
-// Initialize Stripe
-const stripe = new Stripe(ENV.stripeSecretKey || '', {
-  apiVersion: '2025-12-15.clover',
-});
+// Lazy-initialize Stripe so the app doesn't crash when STRIPE_SECRET_KEY is missing
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe | null {
+  if (!_stripe && ENV.stripeSecretKey) {
+    _stripe = new Stripe(ENV.stripeSecretKey, {
+      apiVersion: '2025-12-15.clover',
+    });
+  }
+  return _stripe;
+}
 
 /**
  * Verify and handle Stripe webhook events
@@ -30,7 +36,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   let event: Stripe.Event;
   
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    const s = getStripe();
+    if (!s) {
+      console.error('[Stripe Webhook] Stripe not configured (missing STRIPE_SECRET_KEY)');
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
+    event = s.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
     console.error('[Stripe Webhook] Signature verification failed:', err);
     return res.status(400).json({ error: 'Invalid signature' });
@@ -205,6 +216,11 @@ export async function createInvoiceCheckoutSession(
     throw new Error('Customer not found');
   }
   
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe not configured (missing STRIPE_SECRET_KEY)');
+  }
+
   // Get or create Stripe customer
   let stripeCustomerId = customer.stripeCustomerId;
   if (!stripeCustomerId) {
@@ -280,6 +296,10 @@ export async function getPaymentStatus(sessionId: string): Promise<{
   paymentStatus: string | null;
   amountTotal: number | null;
 }> {
+  const stripe = getStripe();
+  if (!stripe) {
+    throw new Error('Stripe not configured (missing STRIPE_SECRET_KEY)');
+  }
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   
   return {
