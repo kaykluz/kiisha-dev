@@ -119,46 +119,15 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [onlineUsers, setOnlineUsers] = useState<{ id: number; name: string; avatar?: string }[]>([]);
   const [subscribers, setSubscribers] = useState<Map<string, Set<(event: RealtimeEvent) => void>>>(new Map());
 
-  // Simulate WebSocket connection (in production, this would be a real Socket.IO connection)
+  // WebSocket connection (placeholder - will connect to real Socket.IO in production)
   useEffect(() => {
-    // Simulate connection delay
+    // Mark as connected (no simulated events or fake users)
     const connectTimer = setTimeout(() => {
       setIsConnected(true);
     }, 1000);
 
-    // Simulate receiving events periodically (for demo purposes)
-    const eventInterval = setInterval(() => {
-      // Only simulate events occasionally (10% chance every 30 seconds)
-      if (Math.random() < 0.1) {
-        const eventTypes: RealtimeEventType[] = [
-          "document_uploaded",
-          "rfi_created",
-          "rfi_resolved",
-          "checklist_item_completed",
-        ];
-        const randomType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-        const simulatedEvent: RealtimeEvent = {
-          id: Date.now(),
-          eventType: randomType,
-          payload: {},
-          actorName: "Team Member",
-          projectName: "Sample Project",
-          createdAt: new Date().toISOString(),
-        };
-
-        handleNewEvent(simulatedEvent);
-      }
-    }, 30000);
-
-    // Simulate online users
-    setOnlineUsers([
-      { id: 1, name: "Solomon Ojoawo" },
-      { id: 2, name: "Sarah Chen" },
-    ]);
-
     return () => {
       clearTimeout(connectTimer);
-      clearInterval(eventInterval);
       setIsConnected(false);
     };
   }, []);
