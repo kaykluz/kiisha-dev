@@ -950,12 +950,16 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (input.copyFromProjectId) {
           const projectId = await db.duplicateProject(input.copyFromProjectId, input.name, ctx.user.id);
+          // Add creator as project admin so they can see the project
+          await db.addProjectMember({ projectId, userId: ctx.user.id, role: "admin" });
           return { projectId };
         }
         const projectId = await db.createProject({
           ...input,
           createdBy: ctx.user.id,
         });
+        // Add creator as project admin so they can see the project
+        await db.addProjectMember({ projectId, userId: ctx.user.id, role: "admin" });
         return { projectId };
       }),
 
