@@ -31,6 +31,16 @@ export default function EmailTemplates() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
+
+  // Basic XSS sanitization for email template preview
+  const sanitizeHtml = (html: string): string => {
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+      .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/on\w+\s*=\s*\S+/gi, '')
+      .replace(/javascript\s*:/gi, 'blocked:');
+  };
   const [previewSubject, setPreviewSubject] = useState("");
 
   // Form state
@@ -498,7 +508,7 @@ export default function EmailTemplates() {
               </div>
               <div
                 className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewHtml) }}
               />
             </div>
           </DialogContent>

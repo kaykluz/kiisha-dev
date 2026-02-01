@@ -38,6 +38,7 @@ import { diligenceRouter } from "./routers/diligence";
 import { notificationsRouter } from "./routers/notifications";
 import { viewSharingRouter } from "./routers/viewSharing";
 import { aiChatRouter } from "./routers/aiChat";
+import { openclawRouter } from "./routers/openclaw";
 import { securityRouter } from "./routers/security";
 import { financialModelsRouter } from "./routers/financialModels";
 import { documentCategoriesRouter } from "./routers/documentCategories";
@@ -280,6 +281,7 @@ export const appRouter = router({
   multiAuth: multiAuthRouter,
   aiAdmin: aiAdminRouter,
   ai: aiChatRouter,
+  openclaw: openclawRouter,
   orgAuthPolicy: orgAuthPolicyRouter,
   customerPortal: customerPortalRouter,
   inverterConnectors: inverterConnectorsRouter,

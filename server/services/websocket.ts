@@ -39,8 +39,11 @@ let io: SocketServer | null = null;
 export function initializeWebSocket(server: HttpServer): SocketServer {
   io = new SocketServer(server, {
     cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
+      origin: process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(",")
+        : ["https://app.kiisha.io", "https://kiisha-live-production.up.railway.app", "http://localhost:3000"],
+      methods: ["GET", "POST"],
+      credentials: true,
     },
     path: "/api/ws"
   });

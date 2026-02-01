@@ -93,19 +93,40 @@ function DashboardContent() {
   const { state } = useAuth();
   const orgId = state?.activeOrganization?.id ?? 1;
   const summary = getPortfolioSummary();
-  
+
+  // Fetch real projects from API
+  const { data: realProjects } = trpc.projects.list.useQuery();
+
+  // Use real projects when available, fall back to mock data if empty
+  const projectsSource = useMemo(() => {
+    if (realProjects && realProjects.length > 0) {
+      return realProjects.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        technology: p.technology || 'PV',
+        capacityMw: parseFloat(p.capacityMw || '0'),
+        capacityMwh: parseFloat(p.capacityMwh || '0'),
+        status: p.status || 'development',
+        country: p.country || 'Nigeria',
+        state: p.state || '',
+        stage: p.stage || 'feasibility',
+      }));
+    }
+    return mockProjects;
+  }, [realProjects]);
+
   // Fetch customer stats for portal card
   const { data: customerStats } = trpc.customerPortal.getCustomerStats.useQuery(
     { orgId },
     { staleTime: 60000 } // Cache for 1 minute
   );
-  
+
   // Filter state for map and charts
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [classificationFilter, setClassificationFilter] = useState<string>('all');
   const [mapColorBy, setMapColorBy] = useState<'status' | 'classification'>('status');
-  
+
   // Build filters object for API calls
   const filters = useMemo<ProjectClassificationFilters>(() => {
     const f: ProjectClassificationFilters = {};
@@ -114,10 +135,10 @@ function DashboardContent() {
     if (classificationFilter !== 'all') f.assetClassification = classificationFilter;
     return f;
   }, [countryFilter, statusFilter, classificationFilter]);
-  
+
   // Check if any filters are active
   const hasActiveFilters = countryFilter !== 'all' || statusFilter !== 'all' || classificationFilter !== 'all';
-  
+
   // Clear all filters
   const clearFilters = () => {
     setCountryFilter('all');
@@ -127,8 +148,8 @@ function DashboardContent() {
 
   // Filter data based on selected project
   const filteredProjects = selectedProjectId
-    ? mockProjects.filter((p) => p.id === selectedProjectId)
-    : mockProjects;
+    ? projectsSource.filter((p: any) => p.id === selectedProjectId)
+    : projectsSource;
 
   const filteredAlerts = selectedProjectId
     ? mockAlerts.filter((a) => a.projectId === selectedProjectId)
