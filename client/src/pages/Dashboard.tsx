@@ -197,6 +197,12 @@ function DashboardContent() {
             </p>
           </div>
         </div>
+        <Link href="/projects/new">
+          <Button size="sm" className="gap-1.5">
+            <Building2 className="w-4 h-4" />
+            New Project
+          </Button>
+        </Link>
       </div>
 
       {/* Stats Row - O11-inspired clean cards */}
