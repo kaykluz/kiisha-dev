@@ -76,7 +76,7 @@ export default function PortalProjectDetail() {
     );
   }
 
-  // Generate mock production data for charts
+  // Generate sample production data for charts (would come from telemetry API in production)
   const last30Days = Array.from({ length: 30 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (29 - i));

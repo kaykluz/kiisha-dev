@@ -1,5 +1,5 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,7 +123,7 @@ export default function ViewManagement() {
   const canManageViews = myRole?.isAdmin || myRole?.isOrgSuperuser || myRole?.isDeptSuperuser || myRole?.isTeamSuperuser || myRole?.isManager;
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -547,7 +547,7 @@ export default function ViewManagement() {
         }}
         isApplying={applyTemplateMutation.isPending}
       />
-    </DashboardLayout>
+    </AppLayout>
   );
 }
 

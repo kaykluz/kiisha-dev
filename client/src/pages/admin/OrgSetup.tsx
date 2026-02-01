@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Settings, Package, Wand2, LayoutTemplate, ChevronRight, Plus, Copy, Archive, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Settings, Package, Wand2, LayoutTemplate, ChevronRight, Plus, Copy, Archive, Check, AlertCircle, Loader2, Key, Trash2, Users } from "lucide-react";
 
 // Asset classification options
 const ASSET_CLASSIFICATIONS = [
@@ -56,6 +56,16 @@ export default function OrgSetup() {
   const [selectedPackToClone, setSelectedPackToClone] = useState<number | null>(null);
   const [newPackName, setNewPackName] = useState("");
   
+  // Invite token state
+  const [createTokenDialogOpen, setCreateTokenDialogOpen] = useState(false);
+  const [newTokenRole, setNewTokenRole] = useState<"admin" | "editor" | "reviewer" | "investor_viewer">("editor");
+  const [newTokenMaxUses, setNewTokenMaxUses] = useState(1);
+  const [newTokenExpiryDays, setNewTokenExpiryDays] = useState(7);
+  const [newTokenEmail, setNewTokenEmail] = useState("");
+  const [newTokenDomain, setNewTokenDomain] = useState("");
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
+  
   // Get organization ID from user context (simplified - in real app would come from workspace context)
   const organizationId = user?.activeOrgId || 1;
   
@@ -72,6 +82,11 @@ export default function OrgSetup() {
   
   // Fetch global templates
   const { data: globalTemplates } = trpc.fieldPacks.listGlobalTemplates.useQuery();
+  
+  // Fetch invite tokens
+  const { data: inviteTokens, isLoading: tokensLoading, refetch: refetchTokens } = trpc.admin.listInviteTokens.useQuery({
+    organizationId,
+  });
   
   // Mutations
   const updatePrefs = trpc.orgPreferences.update.useMutation({
@@ -107,6 +122,18 @@ export default function OrgSetup() {
     onSuccess: () => refetchPacks(),
   });
   
+  // Invite token mutations
+  const generateToken = trpc.admin.generateInviteToken.useMutation({
+    onSuccess: (data) => {
+      setGeneratedToken(data.token);
+      refetchTokens();
+    },
+  });
+  
+  const revokeToken = trpc.admin.revokeInviteToken.useMutation({
+    onSuccess: () => refetchTokens(),
+  });
+  
   // Handlers
   const handleDisclosureModeChange = (mode: "summary" | "expanded" | "full") => {
     setDisclosureMode.mutate({ organizationId, mode });
@@ -137,13 +164,49 @@ export default function OrgSetup() {
     });
   };
   
+  const handleCreateToken = () => {
+    generateToken.mutate({
+      organizationId,
+      role: newTokenRole,
+      maxUses: newTokenMaxUses,
+      expiresInDays: newTokenExpiryDays,
+      restrictToEmail: newTokenEmail || undefined,
+      restrictToDomain: newTokenDomain || undefined,
+    });
+  };
+  
+  const handleRevokeToken = (tokenId: number) => {
+    if (confirm("Are you sure you want to revoke this token? It will no longer be usable.")) {
+      revokeToken.mutate({ tokenId, reason: "Manually revoked by admin" });
+    }
+  };
+  
+  const handleCopyToken = () => {
+    if (generatedToken) {
+      navigator.clipboard.writeText(generatedToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2000);
+    }
+  };
+  
+  const resetTokenDialog = () => {
+    setCreateTokenDialogOpen(false);
+    setGeneratedToken(null);
+    setNewTokenRole("editor");
+    setNewTokenMaxUses(1);
+    setNewTokenExpiryDays(7);
+    setNewTokenEmail("");
+    setNewTokenDomain("");
+    setCopiedToken(false);
+  };
+  
   if (prefsLoading || packsLoading) {
     return (
-      <DashboardLayout>
+      <AppLayout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
   
@@ -151,7 +214,7 @@ export default function OrgSetup() {
   const globalPacks = fieldPacks?.filter(p => !p.organizationId) || [];
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -163,7 +226,7 @@ export default function OrgSetup() {
         
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="defaults" className="gap-2">
               <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Defaults</span>
@@ -175,6 +238,10 @@ export default function OrgSetup() {
             <TabsTrigger value="views" className="gap-2">
               <LayoutTemplate className="h-4 w-4" />
               <span className="hidden sm:inline">Views</span>
+            </TabsTrigger>
+            <TabsTrigger value="invites" className="gap-2">
+              <Key className="h-4 w-4" />
+              <span className="hidden sm:inline">Invite Tokens</span>
             </TabsTrigger>
             <TabsTrigger value="ai-setup" className="gap-2">
               <Wand2 className="h-4 w-4" />
@@ -613,8 +680,224 @@ export default function OrgSetup() {
               </CardContent>
             </Card>
           </TabsContent>
+          
+          {/* Invite Tokens Tab */}
+          <TabsContent value="invites" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Invite Tokens</CardTitle>
+                  <CardDescription>
+                    Create one-time tokens that users can use to join your organization
+                  </CardDescription>
+                </div>
+                <Dialog open={createTokenDialogOpen} onOpenChange={(open) => {
+                  if (!open) resetTokenDialog();
+                  else setCreateTokenDialogOpen(true);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Token
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>
+                        {generatedToken ? "Token Created!" : "Create Invite Token"}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {generatedToken 
+                          ? "Share this token with the user. It will only be shown once."
+                          : "Generate a token that users can use to join your organization."
+                        }
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    {generatedToken ? (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-muted rounded-lg">
+                          <Label className="text-xs text-muted-foreground">Invite Token</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <code className="flex-1 text-sm font-mono break-all">{generatedToken}</code>
+                            <Button size="sm" variant="outline" onClick={handleCopyToken}>
+                              {copiedToken ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Users can enter this token on the "Access Pending" page after signing up, or use the direct link:
+                        </p>
+                        <code className="text-xs bg-muted p-2 rounded block break-all">
+                          {window.location.origin}/login?invite={generatedToken}
+                        </code>
+                        <DialogFooter>
+                          <Button onClick={resetTokenDialog}>Done</Button>
+                        </DialogFooter>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Role</Label>
+                          <Select value={newTokenRole} onValueChange={(v) => setNewTokenRole(v as typeof newTokenRole)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="editor">Editor</SelectItem>
+                              <SelectItem value="reviewer">Reviewer</SelectItem>
+                              <SelectItem value="investor_viewer">Investor Viewer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">The role assigned to users who redeem this token</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Max Uses</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={1000}
+                              value={newTokenMaxUses}
+                              onChange={(e) => setNewTokenMaxUses(parseInt(e.target.value) || 1)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Expires In (days)</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={newTokenExpiryDays}
+                              onChange={(e) => setNewTokenExpiryDays(parseInt(e.target.value) || 7)}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Restrict to Email (optional)</Label>
+                          <Input
+                            type="email"
+                            placeholder="user@example.com"
+                            value={newTokenEmail}
+                            onChange={(e) => setNewTokenEmail(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">Only this email can use the token</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Restrict to Domain (optional)</Label>
+                          <Input
+                            placeholder="example.com"
+                            value={newTokenDomain}
+                            onChange={(e) => setNewTokenDomain(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">Only emails from this domain can use the token</p>
+                        </div>
+                        
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setCreateTokenDialogOpen(false)}>Cancel</Button>
+                          <Button onClick={handleCreateToken} disabled={generateToken.isPending}>
+                            {generateToken.isPending ? (
+                              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</>
+                            ) : (
+                              "Create Token"
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {tokensLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !inviteTokens || inviteTokens.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Key className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No invite tokens created yet</p>
+                    <p className="text-sm">Create a token to invite users to your organization</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {inviteTokens.map((token: any) => (
+                      <div
+                        key={token.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={token.status === "active" ? "default" : "secondary"}>
+                              {token.status}
+                            </Badge>
+                            <Badge variant="outline">{token.role}</Badge>
+                            {token.restrictToEmail && (
+                              <Badge variant="outline" className="text-xs">
+                                {token.restrictToEmail}
+                              </Badge>
+                            )}
+                            {token.restrictToDomain && (
+                              <Badge variant="outline" className="text-xs">
+                                @{token.restrictToDomain}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            <span>Uses: {token.usedCount || 0}/{token.maxUses}</span>
+                            <span className="mx-2">•</span>
+                            <span>Expires: {new Date(token.expiresAt).toLocaleDateString()}</span>
+                            <span className="mx-2">•</span>
+                            <span>Created: {new Date(token.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        {token.status === "active" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRevokeToken(token.id)}
+                            disabled={revokeToken.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>How Invite Tokens Work</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <div className="flex items-start gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">1</div>
+                  <p>Create an invite token with the desired role and restrictions</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">2</div>
+                  <p>Share the token with the user (via email, chat, etc.)</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">3</div>
+                  <p>User signs up and enters the token on the "Access Pending" page</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">4</div>
+                  <p>User is automatically added to your organization with the specified role</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

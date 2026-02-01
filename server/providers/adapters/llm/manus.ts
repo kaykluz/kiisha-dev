@@ -1,12 +1,22 @@
 /**
  * Manus Built-in LLM Adapter
  * 
- * Uses the platform's built-in LLM service with fallback to direct OpenAI/Gemini APIs.
- * Priority order:
- * 1. OpenAI API (if OPENAI_API_KEY is set)
- * 2. Gemini API (if GEMINI_API_KEY is set)
- * 3. Manus Forge API (if BUILT_IN_FORGE_API_KEY is set)
+ * Uses OpenAI or Gemini API as the fallback LLM.
+ * This is the default adapter when no LLM is configured.
+ * 
+ * Priority:
+ * 1. OPENAI_API_KEY (OpenAI or compatible API)
+ * 2. GEMINI_API_KEY (Google Gemini)
+ * 
+ * Environment variables:
+ * - OPENAI_API_KEY: OpenAI API key
+ * - OPENAI_BASE_URL: Custom base URL for OpenAI-compatible APIs
+ * - OPENAI_MODEL: Custom model name (default: gpt-4o-mini)
+ * - GEMINI_API_KEY: Google Gemini API key
+ * - GEMINI_MODEL: Custom Gemini model (default: gemini-1.5-flash)
+ * - LLM_PROVIDER: Force a specific provider ('openai' or 'gemini')
  */
+
 import type {
   LLMProviderAdapter,
   LLMMessage,
@@ -17,202 +27,69 @@ import type {
   TestConnectionResult,
 } from '../../interfaces';
 
-// Direct API configuration
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const BUILT_IN_FORGE_API_KEY = process.env.BUILT_IN_FORGE_API_KEY;
-const LLM_PROVIDER = process.env.LLM_PROVIDER; // 'openai' | 'gemini' | 'manus'
-
-// Models
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-
-type Provider = 'manus' | 'openai' | 'gemini';
-
-function getActiveProvider(): Provider {
-  // If explicitly set, use that
-  if (LLM_PROVIDER === 'openai' && OPENAI_API_KEY) return 'openai';
-  if (LLM_PROVIDER === 'gemini' && GEMINI_API_KEY) return 'gemini';
-  if (LLM_PROVIDER === 'manus' && BUILT_IN_FORGE_API_KEY) return 'manus';
-  
-  // Otherwise, use priority order: OpenAI > Gemini > Manus
-  if (OPENAI_API_KEY) return 'openai';
-  if (GEMINI_API_KEY) return 'gemini';
-  if (BUILT_IN_FORGE_API_KEY) return 'manus';
-  
-  // Default to manus (will fail if no key, but that's expected)
-  return 'manus';
-}
-
-async function callOpenAI(
-  messages: LLMMessage[],
-  options?: LLMChatOptions & { responseFormat?: any }
-): Promise<any> {
-  const payload: any = {
-    model: OPENAI_MODEL,
-    messages: messages.map(m => ({
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    })),
-  };
-  
-  if (options?.maxTokens) {
-    payload.max_tokens = options.maxTokens;
-  }
-  
-  if (options?.tools && options.tools.length > 0) {
-    payload.tools = options.tools;
-  }
-  
-  if (options?.toolChoice) {
-    payload.tool_choice = options.toolChoice;
-  }
-  
-  if (options?.responseFormat) {
-    payload.response_format = options.responseFormat;
-  }
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-  
-  return response.json();
-}
-
-async function callGemini(
-  messages: LLMMessage[],
-  options?: LLMChatOptions & { responseFormat?: any }
-): Promise<any> {
-  // Gemini uses a different API format, but we'll use the OpenAI-compatible endpoint
-  const payload: any = {
-    model: GEMINI_MODEL,
-    messages: messages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : m.role,
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    })),
-  };
-  
-  if (options?.maxTokens) {
-    payload.max_tokens = options.maxTokens;
-  }
-  
-  // Use the OpenAI-compatible Gemini endpoint
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GEMINI_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-  }
-  
-  return response.json();
-}
-
-async function callManus(
-  messages: LLMMessage[],
-  options?: LLMChatOptions & { responseFormat?: any }
-): Promise<any> {
-  const payload: any = {
-    model: 'gemini-2.5-flash',
-    messages: messages.map(m => ({
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    })),
-    max_tokens: options?.maxTokens || 32768,
-  };
-  
-  if (options?.tools && options.tools.length > 0) {
-    payload.tools = options.tools;
-  }
-  
-  if (options?.toolChoice) {
-    payload.tool_choice = options.toolChoice;
-  }
-  
-  if (options?.responseFormat) {
-    payload.response_format = options.responseFormat;
-  }
-  
-  const response = await fetch('https://forge.manus.im/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${BUILT_IN_FORGE_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Manus API error: ${response.status} - ${errorText}`);
-  }
-  
-  return response.json();
-}
-
-async function callLLM(
-  messages: LLMMessage[],
-  options?: LLMChatOptions & { responseFormat?: any }
-): Promise<any> {
-  const provider = getActiveProvider();
-  
-  console.log(`[LLM] Using provider: ${provider}`);
-  
-  switch (provider) {
-    case 'openai':
-      return callOpenAI(messages, options);
-    case 'gemini':
-      return callGemini(messages, options);
-    case 'manus':
-      return callManus(messages, options);
-    default:
-      throw new Error(`No LLM provider configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or BUILT_IN_FORGE_API_KEY`);
-  }
-}
+type Provider = 'openai' | 'gemini';
 
 export class ManusLLMAdapter implements LLMProviderAdapter {
   readonly providerId = 'manus' as const;
   readonly integrationType = 'llm' as const;
   readonly isBuiltIn = true;
   
-  private activeProvider: Provider = 'manus';
+  private provider: Provider = 'openai';
+  private openaiApiKey: string | null = null;
+  private openaiBaseUrl: string = 'https://api.openai.com/v1';
+  private openaiModel: string = 'gpt-4o-mini';
+  private geminiApiKey: string | null = null;
+  private geminiBaseUrl: string = 'https://generativelanguage.googleapis.com/v1beta';
+  private geminiModel: string = 'gemini-1.5-flash';
   
   async initialize(): Promise<void> {
-    this.activeProvider = getActiveProvider();
-    console.log(`[ManusLLMAdapter] Initialized with provider: ${this.activeProvider}`);
+    // Get API keys from environment
+    this.openaiApiKey = process.env.OPENAI_API_KEY || null;
+    this.geminiApiKey = process.env.GEMINI_API_KEY || null;
+    
+    // Check for custom configurations
+    if (process.env.OPENAI_BASE_URL) {
+      this.openaiBaseUrl = process.env.OPENAI_BASE_URL;
+    }
+    if (process.env.OPENAI_MODEL) {
+      this.openaiModel = process.env.OPENAI_MODEL;
+    }
+    if (process.env.GEMINI_MODEL) {
+      this.geminiModel = process.env.GEMINI_MODEL;
+    }
+    
+    // Determine which provider to use
+    const forcedProvider = process.env.LLM_PROVIDER as Provider;
+    if (forcedProvider === 'gemini' && this.geminiApiKey) {
+      this.provider = 'gemini';
+    } else if (forcedProvider === 'openai' && this.openaiApiKey) {
+      this.provider = 'openai';
+    } else if (this.openaiApiKey) {
+      this.provider = 'openai';
+    } else if (this.geminiApiKey) {
+      this.provider = 'gemini';
+    }
+    
+    const hasKey = this.openaiApiKey || this.geminiApiKey;
+    if (!hasKey) {
+      console.warn('[ManusLLM] No API key found. Set OPENAI_API_KEY or GEMINI_API_KEY environment variable.');
+    } else {
+      console.log(`[ManusLLM] Using ${this.provider} as LLM provider`);
+    }
   }
   
   async testConnection(): Promise<TestConnectionResult> {
     const start = Date.now();
     
+    if (!this.openaiApiKey && !this.geminiApiKey) {
+      return {
+        success: false,
+        message: 'No API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY environment variable.',
+        latencyMs: Date.now() - start,
+      };
+    }
+    
     try {
-      const provider = getActiveProvider();
-      
-      // Check if any API key is available
-      if (!OPENAI_API_KEY && !GEMINI_API_KEY && !BUILT_IN_FORGE_API_KEY) {
-        return {
-          success: false,
-          message: 'No LLM API key configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or BUILT_IN_FORGE_API_KEY',
-          latencyMs: Date.now() - start,
-        };
-      }
-      
       const response = await this.chat([
         { role: 'user', content: 'Say "OK" if you can hear me.' }
       ], { maxTokens: 10 });
@@ -220,9 +97,9 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
       if (response.choices.length > 0) {
         return {
           success: true,
-          message: `LLM is operational (provider: ${provider})`,
+          message: `LLM is operational (${this.provider})`,
           latencyMs: Date.now() - start,
-          details: { model: response.model, provider },
+          details: { model: response.model, provider: this.provider },
         };
       } else {
         return {
@@ -241,20 +118,61 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
   }
   
   async disconnect(): Promise<void> {
-    // Nothing to clean up
+    this.openaiApiKey = null;
+    this.geminiApiKey = null;
   }
   
   async chat(messages: LLMMessage[], options?: LLMChatOptions): Promise<LLMChatResponse> {
-    const response = await callLLM(messages, {
-      maxTokens: options?.maxTokens,
-      tools: options?.tools,
-      toolChoice: options?.toolChoice,
+    if (this.provider === 'gemini') {
+      return this.chatGemini(messages, options);
+    }
+    return this.chatOpenAI(messages, options);
+  }
+  
+  private async chatOpenAI(messages: LLMMessage[], options?: LLMChatOptions): Promise<LLMChatResponse> {
+    if (!this.openaiApiKey) {
+      throw new Error('No OpenAI API key configured. Set OPENAI_API_KEY environment variable.');
+    }
+    
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.openaiApiKey}`,
+      'Content-Type': 'application/json',
+    };
+    
+    const body: Record<string, unknown> = {
+      model: options?.model || this.openaiModel,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+    };
+    
+    if (options?.temperature !== undefined) body.temperature = options.temperature;
+    if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+    if (options?.topP !== undefined) body.top_p = options.topP;
+    if (options?.frequencyPenalty !== undefined) body.frequency_penalty = options.frequencyPenalty;
+    if (options?.presencePenalty !== undefined) body.presence_penalty = options.presencePenalty;
+    if (options?.stop) body.stop = options.stop;
+    if (options?.tools) body.tools = options.tools;
+    if (options?.toolChoice) body.tool_choice = options.toolChoice;
+    
+    const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
     });
     
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(`OpenAI error: ${error.error?.message || response.status}`);
+    }
+    
+    const data = await response.json();
+    
     return {
-      id: response.id || `llm-${Date.now()}`,
-      model: response.model || getActiveProvider(),
-      choices: response.choices.map((c: any, i: number) => ({
+      id: data.id || `openai-${Date.now()}`,
+      model: data.model || this.openaiModel,
+      choices: data.choices.map((c: any, i: number) => ({
         index: i,
         message: {
           role: 'assistant' as const,
@@ -270,10 +188,89 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
         },
         finishReason: c.finish_reason || 'stop',
       })),
-      usage: response.usage ? {
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
+      usage: data.usage ? {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+      } : undefined,
+    };
+  }
+  
+  private convertToGeminiMessages(messages: LLMMessage[]): { contents: any[]; systemInstruction?: any } {
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const otherMessages = messages.filter(m => m.role !== 'system');
+    
+    const contents = otherMessages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }],
+    }));
+    
+    const result: { contents: any[]; systemInstruction?: any } = { contents };
+    
+    if (systemMessages.length > 0) {
+      result.systemInstruction = {
+        parts: [{ text: systemMessages.map(m => 
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        ).join('\n') }],
+      };
+    }
+    
+    return result;
+  }
+  
+  private async chatGemini(messages: LLMMessage[], options?: LLMChatOptions): Promise<LLMChatResponse> {
+    if (!this.geminiApiKey) {
+      throw new Error('No Gemini API key configured. Set GEMINI_API_KEY environment variable.');
+    }
+    
+    const model = options?.model || this.geminiModel;
+    const { contents, systemInstruction } = this.convertToGeminiMessages(messages);
+    
+    const body: Record<string, unknown> = {
+      contents,
+      generationConfig: {
+        maxOutputTokens: options?.maxTokens || 8192,
+        temperature: options?.temperature ?? 0.7,
+        topP: options?.topP,
+      },
+    };
+    
+    if (systemInstruction) {
+      body.systemInstruction = systemInstruction;
+    }
+    
+    const response = await fetch(
+      `${this.geminiBaseUrl}/models/${model}:generateContent?key=${this.geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(`Gemini error: ${error.error?.message || response.status}`);
+    }
+    
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    return {
+      id: `gemini-${Date.now()}`,
+      model,
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant',
+          content,
+        },
+        finishReason: data.candidates?.[0]?.finishReason || 'stop',
+      }],
+      usage: data.usageMetadata ? {
+        promptTokens: data.usageMetadata.promptTokenCount || 0,
+        completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+        totalTokens: data.usageMetadata.totalTokenCount || 0,
       } : undefined,
     };
   }
@@ -283,9 +280,33 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
     schema: LLMJsonSchema,
     options?: LLMChatOptions
   ): Promise<LLMStructuredResponse<T>> {
-    const response = await callLLM(messages, {
-      maxTokens: options?.maxTokens,
-      responseFormat: {
+    if (this.provider === 'gemini') {
+      return this.structuredOutputGemini<T>(messages, schema, options);
+    }
+    return this.structuredOutputOpenAI<T>(messages, schema, options);
+  }
+  
+  private async structuredOutputOpenAI<T>(
+    messages: LLMMessage[],
+    schema: LLMJsonSchema,
+    options?: LLMChatOptions
+  ): Promise<LLMStructuredResponse<T>> {
+    if (!this.openaiApiKey) {
+      throw new Error('No OpenAI API key configured. Set OPENAI_API_KEY environment variable.');
+    }
+    
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.openaiApiKey}`,
+      'Content-Type': 'application/json',
+    };
+    
+    const body: Record<string, unknown> = {
+      model: options?.model || this.openaiModel,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+      response_format: {
         type: 'json_schema',
         json_schema: {
           name: schema.name,
@@ -293,21 +314,37 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
           schema: schema.schema,
         },
       },
+    };
+    
+    if (options?.temperature !== undefined) body.temperature = options.temperature;
+    if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+    
+    const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
     });
     
-    const rawContent = response.choices[0]?.message?.content;
-    if (!rawContent) {
-      throw new Error('No content in LLM response');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(`OpenAI error: ${error.error?.message || response.status}`);
     }
     
-    const data = JSON.parse(typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent)) as T;
+    const apiResponse = await response.json();
+    const content = apiResponse.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No content in OpenAI response');
+    }
+    
+    const data = JSON.parse(content) as T;
     
     return {
       data,
       raw: {
-        id: response.id || `llm-${Date.now()}`,
-        model: response.model || getActiveProvider(),
-        choices: response.choices.map((c: any, i: number) => ({
+        id: apiResponse.id || `openai-${Date.now()}`,
+        model: apiResponse.model || this.openaiModel,
+        choices: apiResponse.choices.map((c: any, i: number) => ({
           index: i,
           message: {
             role: 'assistant' as const,
@@ -315,12 +352,51 @@ export class ManusLLMAdapter implements LLMProviderAdapter {
           },
           finishReason: c.finish_reason || 'stop',
         })),
-        usage: response.usage ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-          totalTokens: response.usage.total_tokens,
+        usage: apiResponse.usage ? {
+          promptTokens: apiResponse.usage.prompt_tokens,
+          completionTokens: apiResponse.usage.completion_tokens,
+          totalTokens: apiResponse.usage.total_tokens,
         } : undefined,
       },
+    };
+  }
+  
+  private async structuredOutputGemini<T>(
+    messages: LLMMessage[],
+    schema: LLMJsonSchema,
+    options?: LLMChatOptions
+  ): Promise<LLMStructuredResponse<T>> {
+    // Add JSON instruction to the messages
+    const jsonMessages = [...messages];
+    const lastUserIdx = jsonMessages.map((m, i) => m.role === 'user' ? i : -1).filter(i => i >= 0).pop();
+    
+    if (lastUserIdx !== undefined && lastUserIdx >= 0) {
+      const originalContent = jsonMessages[lastUserIdx].content;
+      jsonMessages[lastUserIdx] = {
+        ...jsonMessages[lastUserIdx],
+        content: `${originalContent}\n\nRespond with valid JSON matching this schema: ${JSON.stringify(schema.schema)}`,
+      };
+    }
+    
+    const response = await this.chatGemini(jsonMessages, options);
+    const content = response.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No content in Gemini response');
+    }
+    
+    // Extract JSON from response (handle markdown code blocks)
+    let jsonStr = content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
+    
+    const data = JSON.parse(jsonStr) as T;
+    
+    return {
+      data,
+      raw: response,
     };
   }
 }

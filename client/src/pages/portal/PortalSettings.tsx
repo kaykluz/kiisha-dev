@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { usePortalReadOnly } from './PortalLayout';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ const defaultPreferences: NotificationPreferences = {
 
 export default function PortalSettings() {
   const [, navigate] = useLocation();
+  const { isReadOnly } = usePortalReadOnly();
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -182,11 +184,14 @@ export default function PortalSettings() {
               <p className="text-muted-foreground">Manage your account and notification preferences</p>
             </div>
           </div>
-          {hasChanges && (
+          {hasChanges && !isReadOnly && (
             <Button onClick={handleSave} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? 'Saving...' : 'Save Changes'}
             </Button>
+          )}
+          {isReadOnly && (
+            <p className="text-sm text-slate-400">Read-only mode - settings cannot be modified</p>
           )}
         </div>
 

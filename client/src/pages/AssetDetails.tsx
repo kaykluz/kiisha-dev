@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { EmptyState } from "@/components/EmptyState";
 import { cn } from "@/lib/utils";
 import {
   Download,
@@ -18,10 +19,11 @@ import {
   X,
   Sparkles,
   Quote,
+  Loader2,
 } from "lucide-react";
 import { ViewSourceButton, EvidenceSource } from "@/components/ViewSource";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { mockProjects, mockAssetDetails } from "@shared/mockData";
+import { trpc } from "@/lib/trpc";
 
 // Confidence indicator component
 function ConfidenceIndicator({ confidence }: { confidence: number | null }) {
@@ -145,24 +147,62 @@ function AssetDetailsContent() {
     new Set(["Site & Real Estate", "Interconnection", "Technical"])
   );
 
-  const filteredProjects = selectedProjectId
-    ? mockProjects.filter((p) => p.id === selectedProjectId)
-    : mockProjects;
+  // Fetch real data from API
+  const { data: projects = [], isLoading: projectsLoading } = trpc.projects.list.useQuery();
 
-  const categories = Array.from(new Set(mockAssetDetails.map((d) => d.category)));
-  
-  const detailsByCategory = categories.map((category) => {
-    const categoryDetails = mockAssetDetails.filter((d) => d.category === category);
-    const subcategories = Array.from(new Set(categoryDetails.map((d) => d.subcategory)));
-    
-    return {
-      category,
-      subcategories: subcategories.map((subcategory) => ({
-        subcategory,
-        fields: Array.from(new Set(categoryDetails.filter((d) => d.subcategory === subcategory).map((d) => d.fieldName))),
-      })),
-    };
-  });
+  const isLoading = projectsLoading;
+
+  const filteredProjects = selectedProjectId
+    ? projects.filter((p: any) => p.id === selectedProjectId)
+    : projects;
+
+  // Define standard asset detail categories and fields
+  const standardCategories = [
+    {
+      category: "Site & Real Estate",
+      subcategories: [
+        {
+          subcategory: "Lease",
+          fields: ["Lease Term", "Annual Rent", "Escalation Rate", "Land Area (acres)"]
+        },
+        {
+          subcategory: "Site",
+          fields: ["Site Owner", "Address", "Coordinates", "Zoning"]
+        }
+      ]
+    },
+    {
+      category: "Interconnection",
+      subcategories: [
+        {
+          subcategory: null,
+          fields: ["IC Type", "IC Limit (kW)", "Voltage", "Utility", "Substation"]
+        }
+      ]
+    },
+    {
+      category: "Technical",
+      subcategories: [
+        {
+          subcategory: "Equipment",
+          fields: ["Module Type", "Inverter Type", "Capacity (MW)", "Tilt Angle"]
+        },
+        {
+          subcategory: "Performance",
+          fields: ["Expected Yield (MWh/yr)", "Performance Ratio", "Degradation Rate"]
+        }
+      ]
+    },
+    {
+      category: "Financial",
+      subcategories: [
+        {
+          subcategory: null,
+          fields: ["PPA Rate", "PPA Term", "PPA Escalation", "LCOE"]
+        }
+      ]
+    }
+  ];
 
   const toggleCategory = (category: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -174,15 +214,41 @@ function AssetDetailsContent() {
     setExpandedCategories(newExpanded);
   };
 
+  // For now, return empty values since we don't have asset details in the database yet
   const getValue = (projectId: number, category: string, subcategory: string | null, fieldName: string) => {
-    return mockAssetDetails.find(
-      (d) =>
-        d.projectId === projectId &&
-        d.category === category &&
-        d.subcategory === subcategory &&
-        d.fieldName === fieldName
-    );
+    return null;
   };
+
+  if (isLoading) {
+    return (
+      <div className="page-container">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-primary)]" />
+            <p className="text-sm text-[var(--color-text-secondary)]">Loading asset details...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredProjects.length === 0) {
+    return (
+      <div className="page-container">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Asset Details</h1>
+            <p className="page-subtitle">Spreadsheet view of all asset data with AI extraction indicators</p>
+          </div>
+        </div>
+        <EmptyState
+          type="projects"
+          title="No projects yet"
+          description="Create a project to start tracking asset details"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
@@ -209,7 +275,7 @@ function AssetDetailsContent() {
                   Field
                 </span>
               </div>
-              {filteredProjects.map((project) => (
+              {filteredProjects.map((project: any) => (
                 <div
                   key={project.id}
                   className="w-44 shrink-0 p-3 border-r border-[var(--color-border-subtle)]"
@@ -218,14 +284,14 @@ function AssetDetailsContent() {
                     {project.name}
                   </div>
                   <div className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                    {project.technology} • {project.capacityMw || project.capacityMwh} {project.capacityMw ? "MW" : "MWh"}
+                    {project.technology || 'PV'} • {project.capacityMw || project.capacityMwh || 0} {project.capacityMw ? "MW" : "MWh"}
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Data Rows by Category */}
-            {detailsByCategory.map(({ category, subcategories }) => (
+            {standardCategories.map(({ category, subcategories }) => (
               <Collapsible
                 key={category}
                 open={expandedCategories.has(category)}
@@ -242,7 +308,7 @@ function AssetDetailsContent() {
                       )}
                       <span className="text-sm font-semibold text-[var(--color-text-primary)]">{category}</span>
                     </div>
-                    {filteredProjects.map((project) => (
+                    {filteredProjects.map((project: any) => (
                       <div
                         key={project.id}
                         className="w-44 shrink-0 border-r border-[var(--color-border-subtle)]"
@@ -262,7 +328,7 @@ function AssetDetailsContent() {
                               {subcategory}
                             </span>
                           </div>
-                          {filteredProjects.map((project) => (
+                          {filteredProjects.map((project: any) => (
                             <div
                               key={project.id}
                               className="w-44 shrink-0 border-r border-[var(--color-border-subtle)]"
@@ -280,7 +346,7 @@ function AssetDetailsContent() {
                           <div className="w-72 shrink-0 p-2 pl-14 border-r border-[var(--color-border-subtle)]">
                             <span className="text-sm text-[var(--color-text-secondary)]">{fieldName}</span>
                           </div>
-                          {filteredProjects.map((project) => {
+                          {filteredProjects.map((project: any) => {
                             const detail = getValue(project.id, category, subcategory, fieldName);
                             return (
                               <div
@@ -288,9 +354,9 @@ function AssetDetailsContent() {
                                 className="w-44 shrink-0 p-2 border-r border-[var(--color-border-subtle)]"
                               >
                                 <EditableCell
-                                  value={detail?.fieldValue || null}
-                                  isAiExtracted={detail?.isAiExtracted || false}
-                                  aiConfidence={detail?.aiConfidence || null}
+                                  value={null}
+                                  isAiExtracted={false}
+                                  aiConfidence={null}
                                   onSave={(value) => {
                                     console.log("Save:", project.id, fieldName, value);
                                   }}

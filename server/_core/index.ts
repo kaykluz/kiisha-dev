@@ -130,8 +130,6 @@ async function startServer() {
       responseTimeMs: Date.now() - startTime,
     };
     
-    // Always return 200 so Railway healthcheck passes even without a database.
-    // The response body still reports the real database status for monitoring.
     return res.status(200).json(health);
   });
   

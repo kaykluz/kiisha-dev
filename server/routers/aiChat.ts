@@ -216,10 +216,8 @@ export const aiChatRouter = router({
           });
         }
 
-        // Invoke the LLM
-        const response = await invokeLLM({
-          messages: llmMessages,
-        });
+        // Invoke the LLM using platform-configured integration
+        const response = await invokeLLM(llmMessages);
 
         // Extract the response content
         const assistantMessage = response.choices[0]?.message;

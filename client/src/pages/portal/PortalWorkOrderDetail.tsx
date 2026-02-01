@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { usePortalReadOnly } from './PortalLayout';
 import { useLocation, useParams } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -67,6 +68,7 @@ function getPriorityBadge(priority: string) {
 
 export default function PortalWorkOrderDetail() {
   const [, navigate] = useLocation();
+  const { isReadOnly } = usePortalReadOnly();
   const params = useParams();
   const workOrderId = parseInt(params.id || '0');
   const [newComment, setNewComment] = useState('');
@@ -236,7 +238,7 @@ export default function PortalWorkOrderDetail() {
                 )}
                 
                 {/* Add Comment Form */}
-                {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
+                {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && !isReadOnly && (
                   <div className="mt-6 pt-4 border-t">
                     <Textarea
                       placeholder="Add a comment..."
@@ -252,6 +254,11 @@ export default function PortalWorkOrderDetail() {
                       <Send className="h-4 w-4 mr-2" />
                       {addCommentMutation.isPending ? 'Sending...' : 'Send Comment'}
                     </Button>
+                  </div>
+                )}
+                {isReadOnly && (
+                  <div className="mt-6 pt-4 border-t text-center">
+                    <p className="text-sm text-muted-foreground">Read-only mode - comments cannot be added</p>
                   </div>
                 )}
               </CardContent>

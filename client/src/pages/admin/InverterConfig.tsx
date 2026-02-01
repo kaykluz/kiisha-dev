@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
-import DashboardLayout from '@/components/DashboardLayout';
+import AppLayout from '@/components/AppLayout';
 
 const VENDORS = [
   { id: 'huawei', name: 'Huawei FusionSolar', logo: '🔆' },
@@ -103,7 +103,7 @@ export default function InverterConfig() {
   };
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -420,6 +420,6 @@ export default function InverterConfig() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

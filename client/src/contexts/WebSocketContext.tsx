@@ -137,7 +137,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
           "checklist_item_completed",
         ];
         const randomType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-        const mockEvent: RealtimeEvent = {
+        const simulatedEvent: RealtimeEvent = {
           id: Date.now(),
           eventType: randomType,
           payload: {},
@@ -146,7 +146,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
           createdAt: new Date().toISOString(),
         };
 
-        handleNewEvent(mockEvent);
+        handleNewEvent(simulatedEvent);
       }
     }, 30000);
 

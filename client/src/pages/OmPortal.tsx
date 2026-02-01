@@ -1,5 +1,5 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import AppLayout from "@/components/AppLayout";
 import { AddAssetModal } from "@/components/AddAssetModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1017,7 +1017,7 @@ export default function OmPortal() {
   const [activeTab, setActiveTab] = useState("dashboard");
   
   return (
-    <DashboardLayout>
+    <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">O&M Portal</h1>
@@ -1079,7 +1079,7 @@ export default function OmPortal() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }
 

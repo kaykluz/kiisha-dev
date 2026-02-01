@@ -72,7 +72,7 @@ export type IntegrationType =
  * Provider identifiers for each integration type.
  */
 export type StorageProvider = 'manus' | 's3' | 'r2' | 'supabase' | 'gcs';
-export type LLMProvider = 'manus' | 'openai' | 'anthropic' | 'azure_openai';
+export type LLMProvider = 'manus' | 'openai' | 'anthropic' | 'azure_openai' | 'gemini' | 'deepseek' | 'grok' | 'llama';
 export type EmailIngestProvider = 'sendgrid' | 'mailgun' | 'postmark';
 export type WhatsAppProvider = 'meta';
 export type NotifyProvider = 'manus' | 'sendgrid' | 'ses' | 'resend';
@@ -298,6 +298,68 @@ export const PROVIDER_REGISTRY: Record<IntegrationType, ProviderInfo[]> = {
         { key: 'apiVersion', label: 'API Version', type: 'text', required: false, placeholder: '2024-02-15-preview' },
       ],
       docsUrl: 'https://learn.microsoft.com/azure/ai-services/openai/',
+    },
+    {
+      id: 'gemini',
+      name: 'Google Gemini',
+      description: 'Gemini Pro, Gemini Ultra, and other Google AI models',
+      connectionMethod: 'api_key',
+      capabilities: ['LLM'],
+      configFields: [
+        { key: 'apiKey', label: 'API Key', type: 'password', required: true, placeholder: 'AIza...' },
+        { key: 'model', label: 'Default Model', type: 'select', required: false, options: [
+          { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+          { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+          { value: 'gemini-pro', label: 'Gemini Pro' },
+        ]},
+      ],
+      docsUrl: 'https://ai.google.dev/docs',
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      description: 'DeepSeek Chat and Coder models',
+      connectionMethod: 'api_key',
+      capabilities: ['LLM'],
+      configFields: [
+        { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+        { key: 'model', label: 'Default Model', type: 'select', required: false, options: [
+          { value: 'deepseek-chat', label: 'DeepSeek Chat' },
+          { value: 'deepseek-coder', label: 'DeepSeek Coder' },
+        ]},
+      ],
+      docsUrl: 'https://platform.deepseek.com/docs',
+    },
+    {
+      id: 'grok',
+      name: 'xAI Grok',
+      description: 'Grok models from xAI',
+      connectionMethod: 'api_key',
+      capabilities: ['LLM'],
+      configFields: [
+        { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+        { key: 'model', label: 'Default Model', type: 'select', required: false, options: [
+          { value: 'grok-beta', label: 'Grok Beta' },
+          { value: 'grok-2', label: 'Grok 2' },
+        ]},
+      ],
+      docsUrl: 'https://docs.x.ai/',
+    },
+    {
+      id: 'llama',
+      name: 'Meta Llama (via Together AI)',
+      description: 'Llama 3.3, Llama 3.2, and other Meta models via Together AI',
+      connectionMethod: 'api_key',
+      capabilities: ['LLM'],
+      configFields: [
+        { key: 'apiKey', label: 'Together AI API Key', type: 'password', required: true },
+        { key: 'model', label: 'Default Model', type: 'select', required: false, options: [
+          { value: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Instruct Turbo' },
+          { value: 'meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo', label: 'Llama 3.2 90B Vision' },
+          { value: 'meta-llama/Llama-3.1-405B-Instruct-Turbo', label: 'Llama 3.1 405B' },
+        ]},
+      ],
+      docsUrl: 'https://docs.together.ai/',
     },
   ],
   

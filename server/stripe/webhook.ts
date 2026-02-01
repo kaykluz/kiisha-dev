@@ -10,13 +10,11 @@ import { Request, Response } from 'express';
 import * as db from '../db';
 import { ENV } from '../_core/env';
 
-// Lazy-initialize Stripe so the app doesn't crash when STRIPE_SECRET_KEY is missing
+// Lazy-initialize Stripe so the app can start without STRIPE_SECRET_KEY
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe | null {
   if (!_stripe && ENV.stripeSecretKey) {
-    _stripe = new Stripe(ENV.stripeSecretKey, {
-      apiVersion: '2025-12-15.clover',
-    });
+    _stripe = new Stripe(ENV.stripeSecretKey, { apiVersion: '2025-12-15.clover' });
   }
   return _stripe;
 }
@@ -36,12 +34,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   let event: Stripe.Event;
   
   try {
-    const s = getStripe();
-    if (!s) {
-      console.error('[Stripe Webhook] Stripe not configured (missing STRIPE_SECRET_KEY)');
+    const stripeClient = getStripe();
+    if (!stripeClient) {
+      console.error('[Stripe Webhook] Stripe not configured');
       return res.status(500).json({ error: 'Stripe not configured' });
     }
-    event = s.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = stripeClient.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
     console.error('[Stripe Webhook] Signature verification failed:', err);
     return res.status(400).json({ error: 'Invalid signature' });
@@ -216,15 +214,15 @@ export async function createInvoiceCheckoutSession(
     throw new Error('Customer not found');
   }
   
-  const stripe = getStripe();
-  if (!stripe) {
-    throw new Error('Stripe not configured (missing STRIPE_SECRET_KEY)');
+  // Get or create Stripe customer
+  const stripeClient = getStripe();
+  if (!stripeClient) {
+    throw new Error('Stripe not configured');
   }
 
-  // Get or create Stripe customer
   let stripeCustomerId = customer.stripeCustomerId;
   if (!stripeCustomerId) {
-    const stripeCustomer = await stripe.customers.create({
+    const stripeCustomer = await stripeClient.customers.create({
       email: customer.email || undefined,
       name: customer.name || undefined,
       metadata: {
@@ -265,7 +263,7 @@ export async function createInvoiceCheckoutSession(
   }
   
   // Create checkout session
-  const session = await stripe.checkout.sessions.create({
+  const session = await stripeClient.checkout.sessions.create({
     customer: stripeCustomerId,
     client_reference_id: userId?.toString() || customerId.toString(),
     line_items: stripeLineItems,
@@ -296,11 +294,11 @@ export async function getPaymentStatus(sessionId: string): Promise<{
   paymentStatus: string | null;
   amountTotal: number | null;
 }> {
-  const stripe = getStripe();
-  if (!stripe) {
-    throw new Error('Stripe not configured (missing STRIPE_SECRET_KEY)');
+  const stripeClient = getStripe();
+  if (!stripeClient) {
+    throw new Error('Stripe not configured');
   }
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = await stripeClient.checkout.sessions.retrieve(sessionId);
   
   return {
     status: session.status || 'open',

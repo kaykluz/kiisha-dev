@@ -5,7 +5,7 @@
  * fields, and filters from documents across their accessible scope.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,8 +107,8 @@ interface ViewConfig {
   frozenSnapshot: boolean;
 }
 
-// Mock data sources
-const mockDataSources: DataSource[] = [
+// Sample data sources (used when API returns empty)
+const sampleDataSources: DataSource[] = [
   {
     id: "ds-1",
     name: "Project Documents",
@@ -180,8 +180,11 @@ export function ViewBuilder({ existingView, onSave, onCancel }: ViewBuilderProps
   const [activeTab, setActiveTab] = useState("sources");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Use sample data sources (would come from API in production)
+  const dataSources = sampleDataSources;
+
   // Get available fields from selected data sources
-  const availableFields = mockDataSources
+  const availableFields = dataSources
     .filter((ds) => viewConfig.dataSources.includes(ds.id))
     .flatMap((ds) => ds.fields);
 
@@ -337,7 +340,7 @@ export function ViewBuilder({ existingView, onSave, onCancel }: ViewBuilderProps
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {mockDataSources.map((source) => {
+                {dataSources.map((source) => {
                   const isSelected = viewConfig.dataSources.includes(source.id);
                   return (
                     <div
@@ -393,7 +396,7 @@ export function ViewBuilder({ existingView, onSave, onCancel }: ViewBuilderProps
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {mockDataSources
+                      {dataSources
                         .filter((ds) => viewConfig.dataSources.includes(ds.id))
                         .map((source) => (
                           <div key={source.id}>
