@@ -1737,7 +1737,7 @@ export const appRouter = router({
         const allProjects = await db.getAllProjects();
         const projectIds = allProjects.map(p => p.id);
         if (projectIds.length === 0) return { projects: [], categories: [], types: [], documents: [] };
-        const cats = await db.getDocumentCategories(input.organizationId);
+        const cats = await db.getDocumentCategories({ organizationId: input.organizationId });
         const types = await db.getDocumentTypes();
         const allDocs: any[] = [];
         for (const pid of projectIds) {

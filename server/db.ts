@@ -704,16 +704,7 @@ export async function getPortfolioDiligenceProgress(portfolioId: number) {
   return { total, verified, pending, missing, byCategory };
 }
 
-export async function getDocumentCategories(organizationId?: number) {
-  const db = await getDb();
-  if (!db) return [];
-  if (organizationId) {
-    return db.select().from(documentCategories).where(
-      or(eq(documentCategories.organizationId, organizationId), isNull(documentCategories.organizationId))
-    ).orderBy(documentCategories.sortOrder);
-  }
-  return db.select().from(documentCategories).orderBy(documentCategories.sortOrder);
-}
+// getDocumentCategories defined later in file with filters parameter
 
 export async function getDocumentTypes(organizationId?: number) {
   const db = await getDb();
@@ -874,11 +865,7 @@ export async function updateDocumentReview(id: number, status: string, reviewerI
     .where(eq(documentReviews.id, id));
 }
 
-export async function getReviewerGroups() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(reviewerGroups).orderBy(reviewerGroups.sortOrder);
-}
+// getReviewerGroups defined above with organizationId parameter
 
 export async function getAggregatedDocumentStatus(documentId: number): Promise<string> {
   const db = await getDb();
