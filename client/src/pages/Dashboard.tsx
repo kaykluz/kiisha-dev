@@ -133,8 +133,8 @@ function DashboardContent() {
     : rfis;
 
   // Calculate metrics
-  const totalCapacityMw = filteredProjects.reduce((sum: number, p: any) => sum + (p.capacityMw || 0), 0);
-  const totalCapacityMwh = filteredProjects.reduce((sum: number, p: any) => sum + (p.capacityMwh || 0), 0);
+  const totalCapacityMw = filteredProjects.reduce((sum: number, p: any) => sum + (parseFloat(p.capacityMw) || 0), 0);
+  const totalCapacityMwh = filteredProjects.reduce((sum: number, p: any) => sum + (parseFloat(p.capacityMwh) || 0), 0);
   const activeAlerts = filteredAlerts.filter((a: any) => !a.isRead).length;
   const openRfis = filteredRfis.filter((r: any) => r.status === "open" || r.status === "in_progress").length;
 
