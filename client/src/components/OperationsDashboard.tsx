@@ -129,14 +129,7 @@ export function OperationsDashboard() {
   // Transform sites data for performance table
   const sitePerformance = useMemo(() => {
     if ((apiSites as any[]).length === 0) {
-      // Return sample data when no sites exist
-      return [
-        { id: 0, site: "MA - Gillette", pr: 0.85, availability: 0.98, energy: 12500 },
-        { id: 0, site: "TX - Austin", pr: 0.82, availability: 0.95, energy: 18200 },
-        { id: 0, site: "CA - Fresno", pr: 0.88, availability: 0.99, energy: 15800 },
-        { id: 0, site: "FL - Miami", pr: 0.79, availability: 0.92, energy: 14100 },
-        { id: 0, site: "AZ - Phoenix", pr: 0.91, availability: 0.97, energy: 22400 },
-      ];
+      return [];
     }
     return (apiSites as any[]).map((s: any) => ({
       id: s.id,
@@ -150,12 +143,7 @@ export function OperationsDashboard() {
   // Transform alerts for display
   const recentAlerts = useMemo(() => {
     if ((apiAlerts as any[]).length === 0) {
-      return [
-        { id: 1, site: "TX - Austin", device: "Inverter-03", message: "Low AC voltage detected", severity: "high", time: "10 min ago" },
-        { id: 2, site: "FL - Miami", device: "Battery-01", message: "SOC below 20%", severity: "medium", time: "25 min ago" },
-        { id: 3, site: "MA - Gillette", device: "Meter-01", message: "Communication restored", severity: "info", time: "1 hour ago" },
-        { id: 4, site: "CA - Fresno", device: "Inverter-01", message: "High temperature warning", severity: "medium", time: "2 hours ago" },
-      ];
+      return [];
     }
     return (apiAlerts as any[]).map((a: any) => ({
       id: a.id,
@@ -171,10 +159,10 @@ export function OperationsDashboard() {
   const deviceStatus = useMemo(() => {
     if ((apiDevices as any[]).length === 0) {
       return [
-        { name: "Online", value: 45, color: "#22c55e" },
-        { name: "Warning", value: 8, color: "#f59e0b" },
-        { name: "Offline", value: 3, color: "#ef4444" },
-        { name: "Maintenance", value: 2, color: "#6b7280" },
+        { name: "Online", value: 0, color: "#22c55e" },
+        { name: "Warning", value: 0, color: "#f59e0b" },
+        { name: "Offline", value: 0, color: "#ef4444" },
+        { name: "Maintenance", value: 0, color: "#6b7280" },
       ];
     }
     const statusCounts = { online: 0, warning: 0, offline: 0, maintenance: 0, error: 0 };
@@ -201,11 +189,11 @@ export function OperationsDashboard() {
         timestamp: new Date(d.timestamp),
       }));
     }
-    return generateTimeSeriesData(24, 450, 150);
+    return [];
   }, [telemetryData]);
-  
-  const batteryData = useMemo(() => generateTimeSeriesData(24, 65, 20), []);
-  const gridData = useMemo(() => generateTimeSeriesData(24, 100, 80), []);
+
+  const batteryData = useMemo(() => [] as { time: string; value: number; timestamp: Date }[], []);
+  const gridData = useMemo(() => [] as { time: string; value: number; timestamp: Date }[], []);
 
   // Combine Grafana alerts with operations alerts
   const combinedAlerts = useMemo(() => {
@@ -222,15 +210,7 @@ export function OperationsDashboard() {
       .slice(0, 10);
   }, [recentAlerts, grafanaAlerts]);
 
-  const energyByDay = [
-    { day: "Mon", solar: 2400, battery: 800, grid: 200 },
-    { day: "Tue", solar: 2100, battery: 750, grid: 350 },
-    { day: "Wed", solar: 2800, battery: 900, grid: 100 },
-    { day: "Thu", solar: 2600, battery: 850, grid: 150 },
-    { day: "Fri", solar: 2200, battery: 700, grid: 400 },
-    { day: "Sat", solar: 1800, battery: 600, grid: 500 },
-    { day: "Sun", solar: 2000, battery: 650, grid: 300 },
-  ];
+  const energyByDay: { day: string; solar: number; battery: number; grid: number }[] = [];
 
   // Theme-aware chart colors
   const chartColors = {
@@ -242,10 +222,10 @@ export function OperationsDashboard() {
   };
 
   // Calculate summary metrics
-  const totalPower = powerData[powerData.length - 1]?.value || 0;
-  const avgBattery = batteryData.reduce((sum, d) => sum + d.value, 0) / batteryData.length;
-  const totalEnergy = energyByDay.reduce((sum, d) => sum + d.solar + d.battery, 0);
-  const avgPR = sitePerformance.reduce((sum, s) => sum + s.pr, 0) / sitePerformance.length;
+  const totalPower = powerData.length > 0 ? (powerData[powerData.length - 1]?.value || 0) : 0;
+  const avgBattery = batteryData.length > 0 ? batteryData.reduce((sum, d) => sum + d.value, 0) / batteryData.length : 0;
+  const totalEnergy = energyByDay.length > 0 ? energyByDay.reduce((sum, d) => sum + d.solar + d.battery, 0) : 0;
+  const avgPR = sitePerformance.length > 0 ? sitePerformance.reduce((sum, s) => sum + s.pr, 0) / sitePerformance.length : 0;
   const alertCount = recentAlerts.length;
   const highPriorityAlerts = recentAlerts.filter(a => a.severity === 'high' || a.severity === 'critical').length;
 
@@ -338,7 +318,7 @@ export function OperationsDashboard() {
                 <p className="text-2xl font-bold">{totalPower.toFixed(0)} kW</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-3 h-3 text-success" />
-                  <span className="text-xs text-success">+12.5%</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">—</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-primary/10">
@@ -356,7 +336,7 @@ export function OperationsDashboard() {
                 <p className="text-2xl font-bold">{avgBattery.toFixed(0)}%</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingDown className="w-3 h-3 text-warning" />
-                  <span className="text-xs text-warning">-5.2%</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">—</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-green-500/10">
@@ -374,7 +354,7 @@ export function OperationsDashboard() {
                 <p className="text-2xl font-bold">{(totalEnergy / 1000).toFixed(1)} MWh</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-3 h-3 text-success" />
-                  <span className="text-xs text-success">+8.3%</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">—</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-cyan-500/10">
@@ -392,7 +372,7 @@ export function OperationsDashboard() {
                 <p className="text-2xl font-bold">{(avgPR * 100).toFixed(1)}%</p>
                 <div className="flex items-center gap-1 mt-1">
                   <TrendingUp className="w-3 h-3 text-success" />
-                  <span className="text-xs text-success">+2.1%</span>
+                  <span className="text-xs text-[var(--color-text-tertiary)]">—</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-purple-500/10">
