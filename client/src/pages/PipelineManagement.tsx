@@ -203,7 +203,7 @@ function PipelineManagementContent() {
                               )}
                             </td>
                           ))}
-                          <td className="px-3 py-3 border-b border-[var(--color-border-primary)] text-xs text-[var(--color-text-secondary)]">{project.codDate || "-"}</td>
+                          <td className="px-3 py-3 border-b border-[var(--color-border-primary)] text-xs text-[var(--color-text-secondary)]">{project.codDate ? (project.codDate instanceof Date ? project.codDate.toLocaleDateString() : String(project.codDate)) : "-"}</td>
                         </tr>
                       );
                     })}
