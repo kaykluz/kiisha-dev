@@ -9715,3 +9715,314 @@ export const rateLimitTracking = mysqlTable("rateLimitTracking", {
 
 export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
 export type InsertRateLimitTracking = typeof rateLimitTracking.$inferInsert;
+
+// ============================================================================
+// OPENCLAW INTEGRATION TABLES
+// ============================================================================
+
+/**
+ * Channel Identities - Maps external channel identities to KIISHA users
+ * Supports WhatsApp, Telegram, Slack, Discord, MS Teams, Signal, iMessage, Matrix, Google Chat, Web Chat
+ */
+export const channelIdentities = mysqlTable("channelIdentities", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId").notNull(),
+  organizationId: int("organizationId").notNull(),
+  
+  // Channel identification
+  channelType: mysqlEnum("channelType", [
+    "whatsapp", "telegram", "slack", "discord", "msteams", 
+    "signal", "imessage", "matrix", "googlechat", "webchat"
+  ]).notNull(),
+  externalId: varchar("externalId", { length: 255 }).notNull(),
+  handle: varchar("handle", { length: 255 }),
+  displayName: varchar("displayName", { length: 255 }),
+  
+  // Verification
+  verificationStatus: mysqlEnum("verificationStatus", ["pending", "verified", "revoked"]).default("pending").notNull(),
+  verificationMethod: mysqlEnum("verificationMethod", ["otp", "email", "admin_approval", "magic_link"]),
+  verificationCode: varchar("verificationCode", { length: 10 }),
+  verificationExpires: timestamp("verificationExpires"),
+  verifiedAt: timestamp("verifiedAt"),
+  verifiedBy: int("verifiedBy"),
+  
+  // Security
+  lastActiveAt: timestamp("lastActiveAt"),
+  revokedAt: timestamp("revokedAt"),
+  revokedBy: int("revokedBy"),
+  revokedReason: text("revokedReason"),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ChannelIdentity = typeof channelIdentities.$inferSelect;
+export type InsertChannelIdentity = typeof channelIdentities.$inferInsert;
+
+/**
+ * Capability Registry - Defines available AI capabilities with risk levels
+ */
+export const capabilityRegistry = mysqlTable("capabilityRegistry", {
+  id: int("id").primaryKey().autoincrement(),
+  capabilityId: varchar("capabilityId", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  category: mysqlEnum("category", ["query", "document", "operation", "admin", "channel"]).notNull(),
+  
+  // Risk assessment
+  riskLevel: mysqlEnum("riskLevel", ["low", "medium", "high", "critical"]).default("low").notNull(),
+  requiresApproval: boolean("requiresApproval").default(false).notNull(),
+  requires2FA: boolean("requires2FA").default(false).notNull(),
+  requiresAdmin: boolean("requiresAdmin").default(false).notNull(),
+  
+  // Constraints
+  defaultConstraints: json("defaultConstraints").$type<{
+    maxDailyUsage?: number;
+    maxMonthlyUsage?: number;
+    allowedHours?: { start: number; end: number };
+    requiresContext?: string[];
+  }>(),
+  
+  // Status
+  isActive: boolean("isActive").default(true).notNull(),
+  isBuiltIn: boolean("isBuiltIn").default(false).notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CapabilityRegistryEntry = typeof capabilityRegistry.$inferSelect;
+export type InsertCapabilityRegistryEntry = typeof capabilityRegistry.$inferInsert;
+
+/**
+ * Organization Capabilities - Per-organization capability settings
+ */
+export const orgCapabilities = mysqlTable("orgCapabilities", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull(),
+  capabilityId: varchar("capabilityId", { length: 100 }).notNull(),
+  
+  // Override settings
+  isEnabled: boolean("isEnabled").default(true).notNull(),
+  customConstraints: json("customConstraints").$type<{
+    maxDailyUsage?: number;
+    maxMonthlyUsage?: number;
+    allowedHours?: { start: number; end: number };
+    allowedRoles?: string[];
+  }>(),
+  
+  // Usage tracking
+  dailyUsageCount: int("dailyUsageCount").default(0).notNull(),
+  monthlyUsageCount: int("monthlyUsageCount").default(0).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  lastResetAt: timestamp("lastResetAt"),
+  
+  // Approval settings
+  requiresApprovalOverride: boolean("requiresApprovalOverride"),
+  approverUserIds: json("approverUserIds").$type<number[]>(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OrgCapability = typeof orgCapabilities.$inferSelect;
+export type InsertOrgCapability = typeof orgCapabilities.$inferInsert;
+
+/**
+ * Approval Requests - Tracks approval workflows for sensitive operations
+ */
+export const approvalRequests = mysqlTable("approvalRequests", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull(),
+  requesterId: int("requesterId").notNull(),
+  capabilityId: varchar("capabilityId", { length: 100 }).notNull(),
+  
+  // Request details
+  requestType: mysqlEnum("requestType", ["one_time", "session", "permanent"]).default("one_time").notNull(),
+  context: json("context").$type<{
+    channelType?: string;
+    channelId?: string;
+    conversationId?: string;
+    requestedAction?: string;
+    parameters?: Record<string, any>;
+  }>(),
+  justification: text("justification"),
+  
+  // Status
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "expired", "cancelled"]).default("pending").notNull(),
+  
+  // Approval
+  approverId: int("approverId"),
+  approvedAt: timestamp("approvedAt"),
+  rejectedAt: timestamp("rejectedAt"),
+  rejectionReason: text("rejectionReason"),
+  
+  // Validity
+  validFrom: timestamp("validFrom"),
+  validUntil: timestamp("validUntil"),
+  usageCount: int("usageCount").default(0).notNull(),
+  maxUsages: int("maxUsages"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ApprovalRequest = typeof approvalRequests.$inferSelect;
+export type InsertApprovalRequest = typeof approvalRequests.$inferInsert;
+
+/**
+ * OpenClaw Security Policies - Organization-level security settings
+ */
+export const openclawSecurityPolicies = mysqlTable("openclawSecurityPolicies", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull().unique(),
+  
+  // Global settings
+  isOpenClawEnabled: boolean("isOpenClawEnabled").default(false).notNull(),
+  allowedChannels: json("allowedChannels").$type<string[]>(),
+  
+  // Security settings
+  requireVerifiedChannels: boolean("requireVerifiedChannels").default(true).notNull(),
+  maxUnverifiedMessages: int("maxUnverifiedMessages").default(5).notNull(),
+  sessionTimeoutMinutes: int("sessionTimeoutMinutes").default(60).notNull(),
+  
+  // Rate limiting
+  maxMessagesPerMinute: int("maxMessagesPerMinute").default(10).notNull(),
+  maxMessagesPerHour: int("maxMessagesPerHour").default(100).notNull(),
+  maxMessagesPerDay: int("maxMessagesPerDay").default(500).notNull(),
+  
+  // Audit settings
+  auditLevel: mysqlEnum("auditLevel", ["minimal", "standard", "detailed", "full"]).default("standard").notNull(),
+  retentionDays: int("retentionDays").default(90).notNull(),
+  
+  // Notification settings
+  notifyOnHighRiskActions: boolean("notifyOnHighRiskActions").default(true).notNull(),
+  notifyOnNewChannelLink: boolean("notifyOnNewChannelLink").default(true).notNull(),
+  adminNotificationEmails: json("adminNotificationEmails").$type<string[]>(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OpenClawSecurityPolicy = typeof openclawSecurityPolicies.$inferSelect;
+export type InsertOpenClawSecurityPolicy = typeof openclawSecurityPolicies.$inferInsert;
+
+/**
+ * Conversation VATRs - VATR-compliant conversation audit logs
+ */
+export const conversationVatrs = mysqlTable("conversationVatrs", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Conversation identification
+  conversationId: varchar("conversationId", { length: 100 }).notNull(),
+  channelType: varchar("channelType", { length: 50 }).notNull(),
+  channelIdentityId: int("channelIdentityId"),
+  
+  // Message details
+  messageId: varchar("messageId", { length: 100 }).notNull(),
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  messageType: mysqlEnum("messageType", ["text", "voice", "image", "document", "tool_call", "tool_result"]).notNull(),
+  
+  // Content (encrypted for sensitive data)
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  contentEncrypted: text("contentEncrypted"),
+  
+  // AI processing
+  aiModel: varchar("aiModel", { length: 100 }),
+  tokensUsed: int("tokensUsed"),
+  processingTimeMs: int("processingTimeMs"),
+  
+  // Tool usage
+  toolsInvoked: json("toolsInvoked").$type<{
+    toolId: string;
+    parameters: Record<string, any>;
+    result?: any;
+    success: boolean;
+  }[]>(),
+  
+  // VATR compliance
+  vatrHash: varchar("vatrHash", { length: 64 }).notNull(),
+  previousVatrHash: varchar("previousVatrHash", { length: 64 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ConversationVatr = typeof conversationVatrs.$inferSelect;
+export type InsertConversationVatr = typeof conversationVatrs.$inferInsert;
+
+/**
+ * OpenClaw Tasks - Task execution tracking
+ */
+export const openclawTasks = mysqlTable("openclawTasks", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Task identification
+  taskId: varchar("taskId", { length: 100 }).notNull().unique(),
+  conversationId: varchar("conversationId", { length: 100 }),
+  
+  // Task details
+  taskType: varchar("taskType", { length: 100 }).notNull(),
+  description: text("description"),
+  parameters: json("parameters").$type<Record<string, any>>(),
+  
+  // Status
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "cancelled"]).default("pending").notNull(),
+  progress: int("progress").default(0).notNull(),
+  
+  // Results
+  result: json("result").$type<any>(),
+  errorMessage: text("errorMessage"),
+  
+  // Timing
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OpenClawTask = typeof openclawTasks.$inferSelect;
+export type InsertOpenClawTask = typeof openclawTasks.$inferInsert;
+
+/**
+ * OpenClaw Scheduled Tasks - Scheduled/recurring task management
+ */
+export const openclawScheduledTasks = mysqlTable("openclawScheduledTasks", {
+  id: int("id").primaryKey().autoincrement(),
+  organizationId: int("organizationId").notNull(),
+  userId: int("userId").notNull(),
+  
+  // Schedule identification
+  scheduleId: varchar("scheduleId", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  
+  // Schedule configuration
+  scheduleType: mysqlEnum("scheduleType", ["once", "recurring"]).notNull(),
+  cronExpression: varchar("cronExpression", { length: 100 }),
+  scheduledFor: timestamp("scheduledFor"),
+  timezone: varchar("timezone", { length: 50 }).default("UTC").notNull(),
+  
+  // Task details
+  taskType: varchar("taskType", { length: 100 }).notNull(),
+  taskParameters: json("taskParameters").$type<Record<string, any>>(),
+  
+  // Notification settings
+  notifyOnComplete: boolean("notifyOnComplete").default(true).notNull(),
+  notifyOnFailure: boolean("notifyOnFailure").default(true).notNull(),
+  notificationChannels: json("notificationChannels").$type<{
+    channelType: string;
+    channelId: string;
+  }[]>(),
+  
+  // Status
+  isActive: boolean("isActive").default(true).notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  runCount: int("runCount").default(0).notNull(),
+  failureCount: int("failureCount").default(0).notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OpenClawScheduledTask = typeof openclawScheduledTasks.$inferSelect;
+export type InsertOpenClawScheduledTask = typeof openclawScheduledTasks.$inferInsert;
